@@ -1,2 +1,7 @@
+<<<<<<< HEAD
 ffmpeg.exe filter=lfs diff=lfs merge=lfs -text
 ffprobe.exe filter=lfs diff=lfs merge=lfs -text
+=======
+ffmpeg.exe filter=lfs diff=lfs merge=lfs -text
+ffprobe.exe filter=lfs diff=lfs merge=lfs -text
+>>>>>>> c3c7b5d451496dd03c6ff0b2dd33fc0238ab05cb
