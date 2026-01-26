@@ -1,7 +1,7 @@
 import zipfile  
 import subprocess
 from pathlib import Path
-import mainFiles.interfaceComponents as interfaceComponents
+import core.interfaceComponents as interfaceComponents
 
 def dependencies_check():
     """

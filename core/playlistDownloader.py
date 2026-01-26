@@ -1,4 +1,4 @@
-import mainFiles.interfaceComponents as interfaceComponents
+import core.interfaceComponents as interfaceComponents
 import subprocess
 
 def initiate_playlist_loop():

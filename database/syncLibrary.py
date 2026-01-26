@@ -5,7 +5,7 @@ from pathlib import Path
 from PIL import Image
 from mutagen.flac import FLAC
 import database.databaseConnector as databaseConnector  
-import mainFiles.interfaceComponents as interfaceComponents
+import core.interfaceComponents as interfaceComponents
 
 def Sync_Folder_To_Db(target_dir):
     """

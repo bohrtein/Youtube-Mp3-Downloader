@@ -1,9 +1,9 @@
-import mainFiles.processAlbumCover as processAlbumCover
-import mainFiles.playlistDownloader as playlistDownloader
-import mainFiles.checkDependencies as checkDependencies
-import mainFiles.interfaceComponents as interfaceComponents
+import core.processAlbumCover as processAlbumCover
+import core.playlistDownloader as playlistDownloader
+import core.checkDependencies as checkDependencies
+import core.interfaceComponents as interfaceComponents
 import database.syncLibrary as syncLibrary
-import mainFiles.cleanupManager as cleanupManager
+import core.cleanupManager as cleanupManager
 
 # Global configuration: The root directory for all media downloads
 output_dir = 'downloads'

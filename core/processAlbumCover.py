@@ -2,7 +2,7 @@ import io
 from pathlib import Path
 from PIL import Image
 from mutagen.flac import FLAC, Picture
-import mainFiles.interfaceComponents as interfaceComponents
+import core.interfaceComponents as interfaceComponents
 
 def process_album_covers_loop_flac(target_dir):
     """

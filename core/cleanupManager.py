@@ -3,7 +3,7 @@ import re
 from pathlib import Path
 from mutagen.flac import FLAC
 import database.databaseConnector as databaseConnector
-import mainFiles.interfaceComponents as interfaceComponents
+import core.interfaceComponents as interfaceComponents
 
 def cleanup_duplicate_files_by_folder(target_dir):
     """

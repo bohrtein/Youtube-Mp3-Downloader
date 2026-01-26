@@ -2,8 +2,8 @@ import os
 from dotenv import load_dotenv
 import mysql.connector
 from mysql.connector import Error
-import mainFiles.interfaceComponents as interfaceComponents
-import mainFiles.interfaceComponents as ic
+import core as interfaceComponents
+import core.interfaceComponents as ic
 
 # Initialize environment variables from the .env file in the root directory
 # This ensures sensitive credentials (passwords, hosts) are not hardcoded
