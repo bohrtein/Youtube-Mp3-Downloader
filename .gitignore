@@ -4,3 +4,6 @@ ffprobe.exe
 yt-dlp.exe
 ffprobe.zip
 ffmpeg.zip
+databaseAccount.py
+.env
+__pycache__/

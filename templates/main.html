@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Music Manager Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="bg-dark text-white"> <nav class="navbar navbar-dark bg-dark border-bottom border-secondary mb-5">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="/">
+                <span style="color: #1DB954;">Music</span>Manager Console
+            </a>
+            <div class="navbar-nav">
+                <a class="nav-link active" href="/library">View Library →</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="text-center mb-5">
+            <h1 class="display-4" style="color: white;">Dashboard</h1>
+            <p class="text-muted">Manage your local FLAC library and database</p>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-md-4">
+                <div class="card album-card p-4 h-100 bg-black border-secondary text-white">
+                    <div class="text-center mb-3">
+                        <span style="font-size: 3rem;">📥</span>
+                    </div>
+                    <h3 class="text-center">Download</h3>
+                    <p class="text-muted text-center small">Paste one or multiple URLs (one per line).</p>
+                    <div class="mt-auto">
+                        <textarea id="urlInput" class="form-control bg-dark text-white border-secondary mb-2" 
+                                  rows="5" placeholder="https://youtube.com/...&#10;https://youtube.com/..."></textarea>
+                        <button onclick="startAction('download')" class="btn btn-primary w-100">Start Batch Download</button>
+                    </div>
+                </div>
+            </div>
+<div class="col-md-4">
+    <div class="card album-card p-4 h-100 bg-black border-secondary text-white">
+        <div class="text-center mb-3">
+            <span style="font-size: 3rem;">🧹</span>
+        </div>
+        <h3 class="text-center">Deduplicate</h3>
+        <p class="text-muted text-center small">Deletes files from 'downloads' if they are already in the database.</p>
+        <div class="mt-auto">
+            <button onclick="confirmAndCleanup()" class="btn btn-warning w-100">Remove repeats</button>
+        </div>
+    </div>
+</div>
+            <div class="col-md-4">
+                <div class="card album-card p-4 h-100 bg-black border-secondary text-white">
+                    <div class="text-center mb-3">
+                        <span style="font-size: 3rem;">🔄</span>
+                    </div>
+                    <h3 class="text-center">Sync</h3>
+                    <p class="text-muted text-center small">Scan your 'downloads' folder and update the database.</p>
+                    <div class="mt-auto">
+                        <button onclick="startAction('sync')" class="btn btn-outline-light w-100">Run Database Sync</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card album-card p-4 h-100 bg-black border-secondary text-white">
+                    <div class="text-center mb-3">
+                        <span style="font-size: 3rem;">🖼️</span>
+                    </div>
+                    <h3 class="text-center">Covers</h3>
+                    <p class="text-muted text-center small">Process and optimize album artwork.</p>
+                    <div class="mt-auto">
+                        <button onclick="startAction('processCovers')" class="btn btn-outline-light w-100">Process Covers</button>
+                    </div>
+                </div>
+            </div>
+        </div> <div id="progressContainer" class="mt-5 d-none">
+            <div class="d-flex justify-content-between mb-2">
+                <span id="statusText" style="color: white;">Waiting for task...</span>
+            </div>
+            <div class="progress bg-dark" style="height: 25px;">
+                <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-success" role="progressbar" style="width: 0%;">0%</div>
+            </div>
+        </div>
+    </div>
+
+
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+
+    <script>
+        const socket = io();
+
+        socket.on('connect', () => {
+            console.log("Connected to server!");
+        });
+function confirmAndCleanup() {
+    if (confirm("⚠️ Delete physical repeats on G: drive?")) {
+        if (confirm("⚠️ Delete duplicate records from the database?")) {
+            // This MUST match the @socketio.on name in app.py
+            socket.emit('trigger_cleanup'); 
+            
+            // Show the progress bar
+            document.getElementById('progressContainer').classList.remove('d-none');
+        }
+    }
+}
+        function startAction(actionType) {
+            const container = document.getElementById('progressContainer');
+            
+            if (actionType === 'download') {
+                const rawInput = document.getElementById('urlInput').value;
+                const urls = rawInput.split('\n').map(u => u.trim()).filter(u => u.length > 0);
+
+                if (urls.length === 0) {
+                    alert("Please paste at least one URL!");
+                    return;
+                }
+
+                container.classList.remove('d-none');
+                socket.emit('start_download_batch', { urls: urls });
+            } else if (actionType === 'sync') {
+                container.classList.remove('d-none');
+                socket.emit('start_sync');
+            } else if (actionType === 'processCovers') {
+                container.classList.remove('d-none');
+                socket.emit('start_covers');
+            }
+        }
+
+        socket.on('progress', function(data) {
+            console.log("Progress received:", data);
+            const bar = document.getElementById('progressBar');
+            const status = document.getElementById('statusText');
+            
+            bar.style.width = data.percent + '%';
+            bar.innerText = Math.round(data.percent) + '%';
+            status.innerText = data.status;
+
+            if (data.status === 'complete') {
+                status.innerText = "Task Finished!";
+                setTimeout(() => { location.reload(); }, 2000);
+            }
+        });
+    </script>
+</body>
+</html>

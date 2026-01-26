@@ -1,0 +1,96 @@
+/* General Page Styling */
+body { 
+    background-color: #121212; 
+    color: white !important; 
+    padding: 20px; 
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Gallery Grid Styling */
+.album-card { 
+    cursor: pointer; 
+    transition: transform 0.2s, background 0.2s; 
+    border: 1px solid #282828; 
+    background: #181818; 
+    height: 100%;
+}
+
+.album-card:hover { 
+    transform: scale(1.03); 
+    background: #282828; 
+}
+
+/* Show WHOLE cover without cropping */
+.card-img-top { 
+    width: 100%;
+    aspect-ratio: 1 / 1; 
+    object-fit: contain; 
+    background-color: #000;
+}
+
+/* Typography and Links */
+a { 
+    text-decoration: none; 
+    color: inherit; 
+}
+
+.card-title { 
+    color: white !important; 
+    font-size: 0.95rem;
+}
+
+.artist-text { 
+    color: #b3b3b3 !important; 
+    font-size: 0.85rem; 
+}
+
+.year-text { 
+    color: #727272 !important; 
+    font-size: 0.75rem; 
+}
+
+/* Album Detail Page Styling */
+.detail-cover { 
+    width: 100%; 
+    max-width: 400px; 
+    height: auto; 
+    object-fit: contain; 
+    border-radius: 8px;
+}
+
+.table { 
+    color: white !important; 
+}
+
+.text-muted { 
+    color: #b3b3b3 !important; 
+}
+
+.badge {
+    border: 1px solid #444;
+    font-weight: normal;
+}
+.album-card {
+    border: 1px solid #333;
+    background: #1e1e1e;
+    transition: all 0.3s ease;
+    min-height: 250px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.album-card:hover {
+    border-color: #1DB954; /* Green highlight on hover */
+    background: #252525;
+    transform: translateY(-5px);
+}
+
+.btn-primary {
+    background-color: #1DB954;
+    border: none;
+}
+
+.progress-bar {
+    transition: width 0.4s ease;
+}

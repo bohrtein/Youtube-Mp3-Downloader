@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ album.album_name }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        body { 
+            background-color: #121212; 
+            color: white !important; 
+            padding: 50px; 
+        }
+        .table { color: white !important; }
+        .btn-outline-light { color: white !important; border-color: white; }
+        .btn-outline-light:hover { background-color: white; color: black !important; }
+        
+        .song-link {
+            color: white;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        .song-link:hover {
+            color: #1DB954; 
+            text-decoration: underline;
+        }
+
+        /* Delete button style */
+        .btn-delete {
+            color: #ff4d4d;
+            background: none;
+            border: none;
+            cursor: pointer;
+            transition: transform 0.2s, color 0.2s;
+        }
+        .btn-delete:hover {
+            color: #ff1a1a;
+            transform: scale(1.2);
+        }
+    </style>
+</head>
+<body>
+    <a href="/library" class="btn btn-outline-light mb-4">← Back to Gallery</a>
+    
+    <div class="row">
+        <div class="col-md-4">
+            <img src="/cover/{{ album_id }}" class="img-fluid rounded shadow border border-secondary">
+        </div>
+        <div class="col-md-8">
+            <h1 class="display-4">{{ album.album_name }}</h1>
+            <p class="lead" style="color: #b3b3b3;">{{ album.artist_name }}</p>
+            
+            <table class="table table-dark table-hover mt-4">
+                <thead>
+                    <tr class="border-bottom border-secondary">
+                        <th>#</th>
+                        <th>Title</th>
+                        <th>Duration</th>
+                        <th>Quality</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for song in songs %}
+                    <tr id="row-{{ song.song_id }}">
+                        <td>{{ song.track_number }}</td>
+                        <td>
+                            {% if song.source_url %}
+                                <a href="{{ song.source_url }}" target="_blank" class="song-link">
+                                    {{ song.song_title }} <small>🔗</small>
+                                </a>
+                            {% else %}
+                                {{ song.song_title }}
+                            {% endif %}
+                        </td>
+                        <td>{{ (song.duration_seconds // 60) }}:{{ "%02d" % (song.duration_seconds % 60) }}</td>
+                        <td><span class="badge border border-light">{{ song.bit_rate }}</span></td>
+                        <td>
+                            <button class="btn-delete" onclick="removeSong('{{ song.song_id }}')" title="Remove from database">
+                                <i class="fas fa-trash-can"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        function removeSong(songId) {
+            if (confirm("Remove this song from the database?")) {
+                fetch(`/delete_song/${songId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Smoothly remove the row
+                        const element = document.getElementById(`row-${songId}`);
+                        element.style.transition = "opacity 0.5s";
+                        element.style.opacity = "0";
+                        setTimeout(() => element.remove(), 500);
+                    } else {
+                        alert("Error: " + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert("Failed to delete song.");
+                });
+            }
+        }
+    </script>
+</body>
+</html>

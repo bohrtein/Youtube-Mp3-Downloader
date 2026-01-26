@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Music Gallery</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        body { background-color: #121212; }
+        .album-card { position: relative; transition: transform 0.2s; background: #181818; border: none; }
+        .album-card:hover { transform: scale(1.02); }
+        
+        /* Three dots button */
+        .menu-dots {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            color: #b3b3b3;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1.2rem;
+            z-index: 15;
+            padding: 5px;
+        }
+        .menu-dots:hover { color: white; }
+
+        /* Hidden Trash Menu */
+        .delete-menu {
+            position: absolute;
+            bottom: 40px;
+            right: 10px;
+            background: #282828;
+            border: 1px solid #404040;
+            border-radius: 4px;
+            display: none; /* Hidden by default */
+            z-index: 20;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        }
+
+        .delete-item {
+            color: #ff4d4d;
+            padding: 8px 12px;
+            cursor: pointer;
+            white-space: nowrap;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .delete-item:hover { background: #3e3e3e; }
+        
+        /* Show menu class */
+        .show { display: block !important; }
+
+        .album-link { text-decoration: none; color: inherit; display: block; }
+    </style>
+</head>
+<body>
+    <div class="container-fluid px-4 py-3">
+        <div class="row align-items-center mb-4">
+            <div class="col-md-3"><h1 class="mb-0" style="color: white;">Library</h1></div>
+            <div class="col-md-6">
+                <input type="text" id="librarySearch" class="form-control bg-dark text-white border-secondary" 
+                       placeholder="Search..." onkeyup="filterLibrary()">
+            </div>
+            <div class="col-md-3 text-end">
+                <a href="/" class="btn btn-outline-light">🏠 Dashboard</a>
+            </div>
+        </div>
+        
+        <div class="row row-cols-2 row-cols-sm-3 row-cols-md-6 g-3" id="albumGrid">
+            {% for album in albums %}
+            <div class="col album-item" id="album-container-{{ album.album_id }}">
+                <div class="card album-card">
+                    
+                    <button class="menu-dots" onclick="toggleMenu(event, '{{ album.album_id }}')">
+                        <i class="fas fa-ellipsis-v"></i>
+                    </button>
+
+                    <div id="menu-{{ album.album_id }}" class="delete-menu">
+                        <div class="delete-item" onclick="removeAlbum('{{ album.album_id }}', '{{ album.album_name|escape }}')">
+                            <i class="fas fa-trash-can"></i> Delete Album
+                        </div>
+                    </div>
+
+                    <a href="/album/{{ album.album_id }}" class="album-link">
+                        <img src="/cover/{{ album.album_id }}" class="card-img-top">
+                        <div class="card-body">
+                            <div class="card-title text-truncate fw-bold mb-0 album-name">{{ album.album_name }}</div>
+                            <div class="artist-text text-truncate artist-name">{{ album.artist_name }}</div>
+                            <div class="year-text album-year">{{ album.release_date }}</div>
+                        </div>
+                    </a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <script>
+        // Toggle the visibility of the delete menu
+        function toggleMenu(event, albumId) {
+            event.preventDefault(); // Stop link from firing
+            event.stopPropagation(); // Stop event bubbling
+            
+            // Close any other open menus first
+            document.querySelectorAll('.delete-menu').forEach(menu => {
+                if (menu.id !== `menu-${albumId}`) menu.classList.remove('show');
+            });
+
+            const menu = document.getElementById(`menu-${albumId}`);
+            menu.classList.toggle('show');
+        }
+
+        // Close menu if clicking anywhere else
+        window.onclick = function(event) {
+            if (!event.target.matches('.menu-dots') && !event.target.matches('.fa-ellipsis-v')) {
+                document.querySelectorAll('.delete-menu').forEach(menu => {
+                    menu.classList.remove('show');
+                });
+            }
+        }
+
+        function removeAlbum(albumId, albumName) {
+            if (confirm(`Delete entire album "${albumName}"?`)) {
+                fetch(`/delete_album/${albumId}`, { method: 'DELETE' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const element = document.getElementById(`album-container-${albumId}`);
+                        element.style.opacity = "0";
+                        setTimeout(() => element.remove(), 400);
+                    }
+                });
+            }
+        }
+
+        function filterLibrary() {
+            const input = document.getElementById('librarySearch').value.toLowerCase();
+            const albums = document.getElementsByClassName('album-item');
+            for (let i = 0; i < albums.length; i++) {
+                const title = albums[i].querySelector('.album-name').innerText.toLowerCase();
+                const artist = albums[i].querySelector('.artist-name').innerText.toLowerCase();
+                if (title.includes(input) || artist.includes(input)) {
+                    albums[i].style.display = ""; 
+                } else {
+                    albums[i].style.display = "none"; 
+                }
+            }
+        }
+    </script>
+</body>
+</html>
