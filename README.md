@@ -16,23 +16,23 @@ A web-based tool to download high-quality music from YouTube and manage a local 
 ### 1. Install Requirements
 ```bash
 pip install flask flask-socketio mysql-connector-python mutagen pillow python-dotenv
-
+```
 2. Database Setup (Optional)
 
 If you want the Library features, create a .env file in the root directory:
 Kod snippet'i
-
+```bash
 DB_HOST=localhost
 DB_USER=root
 DB_PASS=your_password
 DB_NAME=your_db_name
-
+```
 Then, execute the script found in sqlFiles/database.sql on your MySQL server.
 3. Launch the App
 Bash
-
+```bash
 python app.py
-
+```
 Once running, open your browser to: http://127.0.0.1:5000
 📂 Project Structure
 
@@ -57,3 +57,4 @@ Once running, open your browser to: http://127.0.0.1:5000
     Smart Deduplication: Prioritizes keeping files inside proper "Album" folders to keep your library organized.
 
 Developed by bohrtein
+
