@@ -1,44 +1,59 @@
-🎵 YouTube FLAC Downloader
+Markdown
+
+# 🎵 YouTube FLAC Downloader
 
 A web-based tool to download high-quality music from YouTube and manage a local digital library.
-🚀 Two Ways to Use
 
-    Download Only: You do not need MySQL. You can simply run the app to download and process FLAC files directly to your folder.
+## 🚀 Two Ways to Use
 
-    Local Library: To use the "Library" and "Album" views on the website, SQL is mandatory. This saves your music metadata so you can browse your collection anytime.
+1.  **Download Only:** You **do not** need MySQL. You can simply run the app to download and process FLAC files directly to your storage folder.
+2.  **Local Library:** To use the "Library" and "Album" views on the website, **SQL is mandatory**. This saves your music metadata so you can browse and manage your collection through the UI.
 
-🛠️ Quick Start
+---
 
-    Install Requirements:
-    Bash
+## 🛠️ Quick Start
 
-    pip install flask flask-socketio mysql-connector-python mutagen pillow python-dotenv
+### 1. Install Requirements
+```bash
+pip install flask flask-socketio mysql-connector-python mutagen pillow python-dotenv
 
-    Database (Optional): If you want the Library feature, create a .env file with your DB credentials and run the script in sqlFiles/database.sql.
+2. Database Setup (Optional)
 
-    Launch:
-    Bash
+If you want the Library features, create a .env file in the root directory:
+Kod snippet'i
 
-    python app.py
+DB_HOST=localhost
+DB_USER=root
+DB_PASS=your_password
+DB_NAME=your_db_name
 
-    Open http://127.0.0.1:5000 in your browser.
+Then, execute the script found in sqlFiles/database.sql on your MySQL server.
+3. Launch the App
+Bash
 
-📂 File Layout
+python app.py
 
-    app.py: Runs the website interface.
+Once running, open your browser to: http://127.0.0.1:5000
+📂 Project Structure
 
-    main.py: Handles the download and sync logic.
+    app.py: The main Flask server and web interface.
 
-    core/: Scripts for yt-dlp, FFmpeg, and image resizing.
+    main.py: The backend orchestrator for downloads and sync tasks.
 
-    downloads/: Where your music is saved.
+    mainFiles/: Core logic for yt-dlp, FFmpeg management, and image processing.
 
-📝 Features
+    database/: Logic for SQL connections and library synchronization.
 
-    Auto-Cleanup: Automatically resizes album art and cleans artist tags.
+    downloads/: The default directory where your music is organized.
 
-    Self-Healing: Downloads yt-dlp and ffmpeg automatically on first run.
+📝 Key Features
 
-    Real-time: Watch download progress live on the dashboard.
+    Auto-Cleanup: Automatically resizes album art to 250x250 and cleans artist tags (removes "feat." for cleaner sorting).
+
+    Self-Healing: On the first run, the app automatically detects and downloads yt-dlp.exe and ffmpeg.exe if they are missing.
+
+    Real-time Tracking: Watch your download queue progress live via the web dashboard.
+
+    Smart Deduplication: Prioritizes keeping files inside proper "Album" folders to keep your library organized.
 
 Developed by bohrtein
