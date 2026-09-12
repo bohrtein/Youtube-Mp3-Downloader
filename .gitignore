@@ -7,3 +7,5 @@ ffmpeg.zip
 databaseAccount.py
 .env
 __pycache__/
+library.db
+static/covers/

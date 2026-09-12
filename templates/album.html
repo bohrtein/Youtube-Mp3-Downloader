@@ -1,89 +1,59 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ album.album_name }}</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <style>
-        body { 
-            background-color: #121212; 
-            color: white !important; 
-            padding: 50px; 
-        }
-        .table { color: white !important; }
-        .btn-outline-light { color: white !important; border-color: white; }
-        .btn-outline-light:hover { background-color: white; color: black !important; }
-        
-        .song-link {
-            color: white;
-            text-decoration: none;
-            transition: color 0.2s;
-        }
-        .song-link:hover {
-            color: #1DB954; 
-            text-decoration: underline;
-        }
-
-        /* Delete button style */
-        .btn-delete {
-            color: #ff4d4d;
-            background: none;
-            border: none;
-            cursor: pointer;
-            transition: transform 0.2s, color 0.2s;
-        }
-        .btn-delete:hover {
-            color: #ff1a1a;
-            transform: scale(1.2);
-        }
-    </style>
 </head>
 <body>
-    <a href="/library" class="btn btn-outline-light mb-4">← Back to Gallery</a>
-    
-    <div class="row">
-        <div class="col-md-4">
-            <img src="/cover/{{ album_id }}" class="img-fluid rounded shadow border border-secondary">
+    <div class="container">
+        <a href="/library" class="back-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+            Back to Library
+        </a>
+
+        <div class="album-hero">
+            <div class="album-hero-bg" style="background-image: url('{{ url_for('static', filename='covers/' ~ album_id ~ '.jpg') }}');"></div>
+            <div class="album-hero-overlay"></div>
+            <div class="album-hero-content">
+                <img class="album-hero-cover"
+                     src="{{ url_for('static', filename='covers/' ~ album_id ~ '.jpg') }}"
+                     alt="{{ album.album_name }}"
+                     onerror="this.onerror=null;this.src='data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 fill=%22%2317171b%22/><path d=%22M35 65V32l30-5v33%22 stroke=%22%233a3a40%22 stroke-width=%223%22 fill=%22none%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22/><circle cx=%2230%22 cy=%2265%22 r=%226%22 stroke=%22%233a3a40%22 stroke-width=%223%22 fill=%22none%22/><circle cx=%2260%22 cy=%2260%22 r=%226%22 stroke=%22%233a3a40%22 stroke-width=%223%22 fill=%22none%22/></svg>'">
+                <div class="album-hero-text">
+                    <h1>{{ album.album_name }}</h1>
+                    <p>{{ album.artist_name }}</p>
+                </div>
+            </div>
         </div>
-        <div class="col-md-8">
-            <h1 class="display-4">{{ album.album_name }}</h1>
-            <p class="lead" style="color: #b3b3b3;">{{ album.artist_name }}</p>
-            
-            <table class="table table-dark table-hover mt-4">
-                <thead>
-                    <tr class="border-bottom border-secondary">
-                        <th>#</th>
-                        <th>Title</th>
-                        <th>Duration</th>
-                        <th>Quality</th>
-                        <th>Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for song in songs %}
-                    <tr id="row-{{ song.song_id }}">
-                        <td>{{ song.track_number }}</td>
-                        <td>
-                            {% if song.source_url %}
-                                <a href="{{ song.source_url }}" target="_blank" class="song-link">
-                                    {{ song.song_title }} <small>🔗</small>
-                                </a>
-                            {% else %}
-                                {{ song.song_title }}
-                            {% endif %}
-                        </td>
-                        <td>{{ (song.duration_seconds // 60) }}:{{ "%02d" % (song.duration_seconds % 60) }}</td>
-                        <td><span class="badge border border-light">{{ song.bit_rate }}</span></td>
-                        <td>
-                            <button class="btn-delete" onclick="removeSong('{{ song.song_id }}')" title="Remove from database">
-                                <i class="fas fa-trash-can"></i>
-                            </button>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+
+        <div class="track-list">
+            <div class="track-row head">
+                <span>#</span>
+                <span>Title</span>
+                <span>Duration</span>
+                <span>Quality</span>
+                <span></span>
+            </div>
+            {% for song in songs %}
+            <div class="track-row" id="row-{{ song.song_id }}">
+                <span class="track-num">{{ song.track_number }}</span>
+                <span class="track-title">
+                    {% if song.source_url %}
+                        <a href="{{ song.source_url }}" target="_blank">{{ song.song_title }}</a>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                    {% else %}
+                        {{ song.song_title }}
+                    {% endif %}
+                </span>
+                <span class="track-duration">{{ (song.duration_seconds // 60) }}:{{ "%02d" % (song.duration_seconds % 60) }}</span>
+                <span class="track-quality"><span class="badge">{{ song.bit_rate }}</span></span>
+                <button class="btn-icon" onclick="removeSong('{{ song.song_id }}')" title="Remove from database">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                </button>
+            </div>
+            {% endfor %}
         </div>
     </div>
 
@@ -99,7 +69,6 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        // Smoothly remove the row
                         const element = document.getElementById(`row-${songId}`);
                         element.style.transition = "opacity 0.5s";
                         element.style.opacity = "0";

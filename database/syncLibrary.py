@@ -23,9 +23,10 @@ def Sync_Folder_To_Db(target_dir):
     if not conn:
         interfaceComponents.Print_Tag("Database connection failed.", tag="Error")
         return
-    
-    # buffered=True allows us to perform multiple sub-queries while iterating
-    cursor = conn.cursor(buffered=True)
+
+    cursor = conn.cursor()
+    covers_dir = Path(__file__).resolve().parent.parent / 'static' / 'covers'
+    covers_dir.mkdir(parents=True, exist_ok=True)
     path = Path(target_dir)
     flac_files = list(path.rglob("*.flac"))
 
@@ -88,49 +89,53 @@ def Sync_Folder_To_Db(target_dir):
             
 
             # Step A: Sync Artist
-            cursor.execute("SELECT artist_id FROM artists WHERE artist_name = %s", (artist_name,))
+            cursor.execute("SELECT artist_id FROM artists WHERE artist_name = ?", (artist_name,))
             res = cursor.fetchone()
             artist_id = res[0] if res else None
             if not artist_id:
-                cursor.execute("INSERT INTO artists (artist_name) VALUES (%s)", (artist_name,))
+                cursor.execute("INSERT INTO artists (artist_name) VALUES (?)", (artist_name,))
                 artist_id = cursor.lastrowid
 
             # Step B: Sync Album
-            cursor.execute("SELECT album_id FROM albums WHERE album_name = %s AND artist_id = %s", (album_name, artist_id))
+            cursor.execute("SELECT album_id FROM albums WHERE album_name = ? AND artist_id = ?", (album_name, artist_id))
             album_res = cursor.fetchone()
+            cover_path = None
             if album_res:
                 album_id = album_res[0]
-                # If the album exists but has no cover, patch it with the new binary
-                if cover_binary:
-                    cursor.execute("UPDATE albums SET cover_data = %s WHERE album_id = %s AND cover_data IS NULL", (cover_binary, album_id))
+                cover_path = covers_dir / f"{album_id}.jpg"
             else:
                 cursor.execute(
-                    "INSERT INTO albums (album_name, release_date, artist_id, cover_data) VALUES (%s, %s, %s, %s)", 
-                    (album_name, release_date, artist_id, cover_binary)
+                    "INSERT INTO albums (album_name, release_date, artist_id) VALUES (?, ?, ?)",
+                    (album_name, release_date, artist_id)
                 )
                 album_id = cursor.lastrowid
+                cover_path = covers_dir / f"{album_id}.jpg"
+
+            # Save/patch the cover image file for this album (skip if one already exists)
+            if cover_binary and not cover_path.exists():
+                cover_path.write_bytes(cover_binary)
 
             # Step C: Sync Song
             # Unique constraint check: Song title + Album ID + Track Number
             cursor.execute("""
-                SELECT song_id, source_url FROM songs 
-                WHERE song_title = %s AND album_id = %s AND track_number = %s
+                SELECT song_id, source_url FROM songs
+                WHERE song_title = ? AND album_id = ? AND track_number = ?
             """, (song_title, album_id, track_num))
-            
+
             song_res = cursor.fetchone()
-            
+
             if not song_res:
                 # Create a new song record
                 cursor.execute("""
-                    INSERT INTO songs (song_title, duration_seconds, track_number, album_id, release_date, bit_rate, file_type, source_url) 
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+                    INSERT INTO songs (song_title, duration_seconds, track_number, album_id, release_date, bit_rate, file_type, source_url)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
                     (song_title, int(duration), track_num, album_id, release_date, bitrate_str, file_ext, source_url))
                 interfaceComponents.Print_Tag(f"Synced: {song_title} (Track {track_num})", tag="DB Success")
             else:
                 # If song exists but URL is missing, update the record
                 db_song_id, db_source_url = song_res
                 if source_url and not db_source_url:
-                    cursor.execute("UPDATE songs SET source_url = %s WHERE song_id = %s", (source_url, db_song_id))
+                    cursor.execute("UPDATE songs SET source_url = ? WHERE song_id = ?", (source_url, db_song_id))
                     interfaceComponents.Print_Tag(f"Patched URL for: {song_title} (Track {track_num})", tag="DB Update")
 
         except Exception as e:

@@ -5,10 +5,9 @@ Markdown
 A web-based tool to download high-quality music from YouTube and manage a local digital library.
 This program specifically designed to download music to fioo snowsky echo mini
 
-## SQL
+## Database
 
-1.  You **do not** need MySQL. You can simply run the app to download and process FLAC files directly to your storage folder.
-2.  To use the "Library" and "Album" views on the website, **SQL is mandatory**. This saves your music metadata so you can browse and manage your collection through the UI.
+No server, no setup. The "Library" and "Album" views are backed by a local SQLite file, `library.db`, created automatically at the project root the first time you run the app. Album covers are saved alongside it as plain JPEG files in `static/covers/`.
 
 ---
 ### Local Library Screenshot
@@ -18,19 +17,9 @@ This program specifically designed to download music to fioo snowsky echo mini
 
 ### 1. Install Requirements
 ```bash
-pip install flask flask-socketio mysql-connector-python mutagen pillow python-dotenv
+pip install flask flask-socketio mutagen pillow
 ```
-### 2. Database Setup (Optional)
-
-If you want the Library features, create a .env file in the root directory:
-```bash
-DB_HOST=localhost
-DB_USER=root
-DB_PASS=your_password
-DB_NAME=your_db_name
-```
-Then, execute the script found in sqlFiles/database.sql on your MySQL server.
-### 3. Launch the App
+### 2. Launch the App
 ```bash
 python app.py
 ```
@@ -51,7 +40,7 @@ The design file that makes the website look clean and organized.d sync tasks.
 
 ----
 ## ⚙️ The Backend Engine
-Located mostly in mainFiles/, these scripts do the heavy lifting.
+Located mostly in core/, these scripts do the heavy lifting.
 
 #### main.py
 The "Boss" script. It coordinates between the web server and the individual processing tasks.
@@ -74,23 +63,23 @@ The "Janitor." It scans for duplicate songs and makes sure you don't have multip
 These files manage how your music is saved and remembered.
 
 #### database/databaseConnector.py
-Handles the handshake between Python and your MySQL server. It reads your .env file to log in securely.
+Opens the local SQLite file (library.db) and creates the schema automatically if it doesn't exist yet.
 
 #### database/syncLibrary.py
-The "Librarian." It looks at the files in your downloads/ folder and writes their information (title, bitrate, duration, and cover art) into the SQL tables.
+The "Librarian." It looks at the files in your downloads/ folder and writes their information (title, bitrate, duration) into the SQL tables, saving cover art as a JPEG in static/covers/.
 
 #### sqlFiles/database.sql
-The blueprint. This contains the code to build the artists, albums, and songs tables in MySQL.
+The blueprint, kept for reference. This is the schema databaseConnector.py builds automatically in library.db.
+
+#### static/covers/
+Where processed 250x250 album cover JPEGs live, one per album (`<album_id>.jpg`).
 
 #### downloads/
 The physical folder where your music lives. Organized by Playlist Name / Track Number - Title.flac.
 
 ## 🔑 Configuration
-#### .env
-A private text file where you keep your database password. Never upload this to GitHub!
-
 #### .gitignore
-A list that tells Git to ignore temporary files, your .env, and your actual music downloads so your GitHub repository stays small and clean.
+A list that tells Git to ignore temporary files, library.db, generated covers, and your actual music downloads so your GitHub repository stays small and clean.
 
 Developed by bohrtein
 

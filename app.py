@@ -1,13 +1,17 @@
+import os
 import threading
-from flask import Flask, render_template, Response
-from flask_socketio import SocketIO 
+from flask import Flask, render_template
+from flask_socketio import SocketIO
 import database.databaseConnector as databaseConnector
-import mainFiles.checkDependencies as checkDependencies
+import core.checkDependencies as checkDependencies
 import main
 
 # Initialize Flask application and SocketIO for real-time communication
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
+
+# Ensure the local SQLite database and schema exist before the first request
+databaseConnector.init_db()
 
 # --- WEB ROUTES ---
 
@@ -24,8 +28,7 @@ def library_view():
     Fetches all albums from the database gallery view and renders the library page.
     """
     conn = databaseConnector.connect_to_db()
-    # dictionary=True allows accessing columns by name (e.g., album['album_name'])
-    cursor = conn.cursor(dictionary=True, buffered=True)
+    cursor = conn.cursor()
     cursor.execute("SELECT * FROM album_gallery")
     albums = cursor.fetchall()
     cursor.close()
@@ -41,40 +44,24 @@ def album_detail(album_id):
         album_id (int): The unique identifier from the database.
     """
     conn = databaseConnector.connect_to_db()
-    cursor = conn.cursor(dictionary=True, buffered=True)
-    
+    cursor = conn.cursor()
+
     # 1. Get Album Info (Joins artist table to get the name)
     cursor.execute("""
-        SELECT alb.album_name, art.artist_name 
-        FROM albums alb 
-        JOIN artists art ON alb.artist_id = art.artist_id 
-        WHERE alb.album_id = %s""", (album_id,))
+        SELECT alb.album_name, art.artist_name
+        FROM albums alb
+        JOIN artists art ON alb.artist_id = art.artist_id
+        WHERE alb.album_id = ?""", (album_id,))
     album_info = cursor.fetchone()
-    
-    # 2. Get Songs ordered by track number
-    cursor.execute("SELECT * FROM songs WHERE album_id = %s ORDER BY track_number", (album_id,))
-    songs = cursor.fetchall()
-    
-    cursor.close()
-    conn.close()
-    
-    return render_template('album.html', album=album_info, songs=songs, album_id=album_id)
 
-@app.route('/cover/<int:album_id>')
-def get_cover(album_id):
-    """
-    Streams the raw BLOB image data from the database as a JPEG response.
-    """
-    conn = databaseConnector.connect_to_db()
-    cursor = conn.cursor(buffered=True)
-    cursor.execute("SELECT cover_data FROM albums WHERE album_id = %s", (album_id,))
-    res = cursor.fetchone()
+    # 2. Get Songs ordered by track number
+    cursor.execute("SELECT * FROM songs WHERE album_id = ? ORDER BY track_number", (album_id,))
+    songs = cursor.fetchall()
+
     cursor.close()
     conn.close()
-    
-    if res and res[0]:
-        return Response(res[0], mimetype='image/jpeg')
-    return "" 
+
+    return render_template('album.html', album=album_info, songs=songs, album_id=album_id)
 
 # --- API ENDPOINTS (DELETE OPERATIONS) ---
 
@@ -89,10 +76,15 @@ def delete_album(album_id):
     try:
         cursor = conn.cursor()
         # Delete songs first to satisfy potential Foreign Key constraints
-        cursor.execute("DELETE FROM songs WHERE album_id = %s", (album_id,))
-        cursor.execute("DELETE FROM albums WHERE album_id = %s", (album_id,))
-        
+        cursor.execute("DELETE FROM songs WHERE album_id = ?", (album_id,))
+        cursor.execute("DELETE FROM albums WHERE album_id = ?", (album_id,))
+
         conn.commit()
+
+        cover_path = os.path.join('static', 'covers', f'{album_id}.jpg')
+        if os.path.exists(cover_path):
+            os.remove(cover_path)
+
         return {"success": True, "message": "Album deleted successfully"}
     except Exception as e:
         return {"success": False, "message": str(e)}, 500
@@ -111,7 +103,7 @@ def delete_song(song_id):
 
     try:
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM songs WHERE song_id = %s", (song_id,))
+        cursor.execute("DELETE FROM songs WHERE song_id = ?", (song_id,))
         conn.commit()
         return {"success": True, "message": "Song removed from database"}
     except Exception as e:
