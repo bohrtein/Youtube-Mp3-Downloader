@@ -14,7 +14,7 @@ def _run_flat_playlist_json(target):
     JSON object per entry, not a JSON array).
 
     Args:
-        target (str): A yt-dlp search expression (e.g. "ytmsearch5:...") or a URL.
+        target (str): A yt-dlp search expression (e.g. "ytsearch5:...") or a URL.
 
     Returns:
         list[dict]: Parsed entries, or [] if yt-dlp fails or returns nothing.
@@ -49,7 +49,7 @@ def search_songs(query, limit=10):
     Returns:
         list[dict]: [{title, url, uploader, duration}, ...]
     """
-    entries = _run_flat_playlist_json(f"ytmsearch{limit}:{query}")
+    entries = _run_flat_playlist_json(f"ytsearch{limit}:{query}")
     return [
         {
             "title": e.get("title", ""),
@@ -75,7 +75,7 @@ def search_album_candidates(artist, album, limit=8):
         that look like playlists (albums), not standalone songs.
     """
     query = f"{artist} {album}"
-    entries = _run_flat_playlist_json(f"ytmsearch{limit}:{query}")
+    entries = _run_flat_playlist_json(f"ytsearch{limit}:{query}")
     candidates = []
     for e in entries:
         url = e.get("url") or e.get("webpage_url", "")
@@ -101,7 +101,7 @@ def discover_artist_channel(artist):
     Returns:
         str | None: The channel/uploader URL, or None if nothing confidently matched.
     """
-    entries = _run_flat_playlist_json(f"ytmsearch10:{artist}")
+    entries = _run_flat_playlist_json(f"ytsearch10:{artist}")
     artist_lower = artist.strip().lower()
     for e in entries:
         uploader = (e.get("uploader") or "").strip().lower()
