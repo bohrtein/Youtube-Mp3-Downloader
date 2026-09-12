@@ -1,6 +1,8 @@
 import os
+import string
 import threading
-from flask import Flask, render_template
+from pathlib import Path
+from flask import Flask, render_template, request, jsonify
 from flask_socketio import SocketIO
 import database.databaseConnector as databaseConnector
 import core.checkDependencies as checkDependencies
@@ -20,7 +22,53 @@ def main_dashboard():
     """
     Renders the primary control dashboard.
     """
-    return render_template('main.html')
+    return render_template('main.html', library_folder=databaseConnector.get_library_folder())
+
+@app.route('/browse_folders')
+def browse_folders():
+    """
+    Lists subfolders of the given path for the folder-picker modal.
+    With no path (or a blank one), lists the available drive letters instead.
+    """
+    raw_path = request.args.get('path', '').strip()
+
+    if not raw_path:
+        drives = [f"{letter}:\\" for letter in string.ascii_uppercase if os.path.exists(f"{letter}:\\")]
+        folders = [{"name": drive, "path": drive} for drive in drives]
+        return jsonify({"path": None, "parent": None, "folders": folders})
+
+    current = Path(raw_path)
+    if not current.is_dir():
+        return jsonify({"success": False, "message": "Not a valid directory"}), 400
+
+    folders = []
+    try:
+        for entry in sorted(current.iterdir(), key=lambda p: p.name.lower()):
+            try:
+                if entry.is_dir():
+                    folders.append({"name": entry.name, "path": str(entry)})
+            except PermissionError:
+                continue
+    except PermissionError:
+        return jsonify({"success": False, "message": "Permission denied"}), 403
+
+    # None of the parent stays within the same drive means we've hit the drive root
+    parent = str(current.parent) if current.parent != current else None
+    return jsonify({"path": str(current), "parent": parent, "folders": folders})
+
+@app.route('/set_library_folder', methods=['POST'])
+def set_library_folder():
+    """
+    Persists the folder chosen from the folder-picker modal.
+    """
+    data = request.get_json(silent=True) or {}
+    path = data.get('path', '').strip()
+
+    try:
+        databaseConnector.set_library_folder(path)
+        return jsonify({"success": True, "path": databaseConnector.get_library_folder()})
+    except NotADirectoryError as e:
+        return jsonify({"success": False, "message": str(e)}), 400
 
 @app.route('/library')
 def library_view():

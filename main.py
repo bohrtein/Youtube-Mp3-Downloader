@@ -4,21 +4,19 @@ import core.checkDependencies as checkDependencies
 import core.interfaceComponents as interfaceComponents
 import database.syncLibrary as syncLibrary
 import core.cleanupManager as cleanupManager
-
-# Global configuration: The root directory for all media downloads
-output_dir = 'downloads'
+import database.databaseConnector as databaseConnector
 
 def program_start():
     """
     The standard CLI entry point for the application.
-    
+
     Orchestrates the full linear workflow:
     1. UI Greeting -> 2. Dependency Check -> 3. Download -> 4. Image Processing
     """
     interfaceComponents.header_start()
     checkDependencies.dependencies_check()
     playlistDownloader.initiate_playlist_loop()
-    processAlbumCover.process_album_covers_loop_flac(output_dir)
+    processAlbumCover.process_album_covers_loop_flac(databaseConnector.get_library_folder())
     program_exit()
 
 def delete_already_exsisting_files():
@@ -26,17 +24,17 @@ def delete_already_exsisting_files():
     Triggers the deduplication logic to clean up the storage directory.
     Identifies and removes files based on the 'Album -' folder priority.
     """
-    cleanupManager.cleanup_duplicate_files_by_folder(output_dir)
-    
+    cleanupManager.cleanup_duplicate_files_by_folder(databaseConnector.get_library_folder())
+
 def start_downloading(url):
     """
     Direct interface for downloading a single URL or playlist.
     Typically called by the Flask/SocketIO background thread.
-    
+
     Args:
         url (str): The YouTube/Media URL provided by the user.
     """
-    playlistDownloader.download_file_flac(url, output_dir)
+    playlistDownloader.download_file_flac(url, databaseConnector.get_library_folder())
 
 def sync_to_library():
     """
@@ -44,15 +42,15 @@ def sync_to_library():
     Ensures dependencies (FFmpeg/FFprobe) are present for metadata reading.
     """
     checkDependencies.dependencies_check()
-    syncLibrary.Sync_Folder_To_Db(output_dir)
+    syncLibrary.Sync_Folder_To_Db(databaseConnector.get_library_folder())
 
 def process_songs():
     """
-    Scans downloaded FLAC files to extract, resize, and store album 
+    Scans downloaded FLAC files to extract, resize, and store album
     artwork in the database for the web UI.
     """
     checkDependencies.dependencies_check()
-    processAlbumCover.process_album_covers_loop_flac(output_dir)
+    processAlbumCover.process_album_covers_loop_flac(databaseConnector.get_library_folder())
 
 def program_exit():
     """

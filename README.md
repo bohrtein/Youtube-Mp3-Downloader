@@ -17,7 +17,7 @@ No server, no setup. The "Library" and "Album" views are backed by a local SQLit
 
 ### 1. Install Requirements
 ```bash
-pip install flask flask-socketio mutagen pillow
+pip install -r requirements.txt
 ```
 ### 2. Launch the App
 ```bash

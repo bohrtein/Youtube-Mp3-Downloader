@@ -25,6 +25,14 @@
             <p>Manage your local FLAC library and database</p>
         </div>
 
+        <div class="card folder-panel">
+            <div class="folder-panel-info">
+                <span class="folder-panel-label">Library Folder</span>
+                <span class="folder-panel-path" id="currentFolderPath">{{ library_folder }}</span>
+            </div>
+            <button class="btn" onclick="openFolderBrowser()">Change</button>
+        </div>
+
         <div class="action-grid">
             <div class="card action-card">
                 <div class="action-icon">
@@ -78,9 +86,24 @@
         </div>
     </div>
 
+    <div id="folderModalOverlay" class="modal-overlay hidden" onclick="if (event.target === this) closeFolderBrowser()">
+        <div class="modal-panel">
+            <h3>Select Library Folder</h3>
+            <div class="breadcrumb" id="folderBreadcrumb"></div>
+            <div class="folder-list" id="folderList"></div>
+            <div class="modal-actions">
+                <button class="btn" onclick="closeFolderBrowser()">Cancel</button>
+                <button class="btn btn-primary" onclick="chooseCurrentFolder()">Select This Folder</button>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script>
-        const socket = io();
+        // The Werkzeug dev server can't complete a real WebSocket upgrade,
+        // which would otherwise log a caught ConnectionError on every visit.
+        // Long-polling is plenty for these occasional progress updates.
+        const socket = io({ transports: ['polling'] });
 
         socket.on('connect', () => {
             console.log("Connected to server!");
@@ -116,6 +139,118 @@
                 container.classList.remove('hidden');
                 socket.emit('start_covers');
             }
+        }
+
+        let browsingPath = null;
+
+        function openFolderBrowser() {
+            document.getElementById('folderModalOverlay').classList.remove('hidden');
+            loadFolder(null);
+        }
+
+        function closeFolderBrowser() {
+            document.getElementById('folderModalOverlay').classList.add('hidden');
+        }
+
+        function loadFolder(path) {
+            const url = path ? `/browse_folders?path=${encodeURIComponent(path)}` : '/browse_folders';
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success === false) {
+                        alert(data.message || 'Could not open that folder.');
+                        return;
+                    }
+                    browsingPath = data.path;
+                    renderBreadcrumb(data.path);
+                    renderFolderList(data);
+                })
+                .catch(() => alert('Failed to load folders.'));
+        }
+
+        function renderBreadcrumb(path) {
+            const breadcrumb = document.getElementById('folderBreadcrumb');
+            breadcrumb.innerHTML = '';
+
+            const rootCrumb = document.createElement('span');
+            rootCrumb.className = 'breadcrumb-item';
+            rootCrumb.innerText = 'This PC';
+            rootCrumb.onclick = () => loadFolder(null);
+            breadcrumb.appendChild(rootCrumb);
+
+            if (!path) return;
+
+            const separator = (parts_index) => {
+                const sep = document.createElement('span');
+                sep.className = 'breadcrumb-sep';
+                sep.innerText = '›';
+                breadcrumb.appendChild(sep);
+            };
+
+            const isWindowsDrive = /^[A-Za-z]:\\?$/.test(path);
+            const parts = path.split(/[\\/]/).filter(p => p.length > 0);
+            let accumulated = '';
+
+            parts.forEach((part, index) => {
+                separator(index);
+                if (index === 0 && isWindowsDrive) {
+                    accumulated = part.endsWith(':') ? part + '\\' : part;
+                } else {
+                    accumulated = accumulated.endsWith('\\') || accumulated.endsWith('/')
+                        ? accumulated + part
+                        : accumulated + '\\' + part;
+                }
+                const crumbPath = accumulated;
+                const crumb = document.createElement('span');
+                crumb.className = 'breadcrumb-item';
+                crumb.innerText = part;
+                crumb.onclick = () => loadFolder(crumbPath);
+                breadcrumb.appendChild(crumb);
+            });
+        }
+
+        function renderFolderList(data) {
+            const list = document.getElementById('folderList');
+            list.innerHTML = '';
+
+            if (data.folders.length === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'folder-empty';
+                empty.innerText = 'No subfolders here.';
+                list.appendChild(empty);
+                return;
+            }
+
+            data.folders.forEach(folder => {
+                const row = document.createElement('div');
+                row.className = 'folder-row';
+                row.innerHTML = `
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                    <span>${folder.name}</span>`;
+                row.onclick = () => loadFolder(folder.path);
+                list.appendChild(row);
+            });
+        }
+
+        function chooseCurrentFolder() {
+            if (!browsingPath) {
+                alert('Pick a folder first.');
+                return;
+            }
+            fetch('/set_library_folder', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path: browsingPath })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert(data.message || 'Could not use that folder.');
+                }
+            })
+            .catch(() => alert('Failed to save the folder.'));
         }
 
         socket.on('progress', function(data) {

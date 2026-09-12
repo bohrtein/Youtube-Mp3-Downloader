@@ -44,7 +44,14 @@ SELECT
 FROM albums alb
 JOIN artists art ON alb.artist_id = art.artist_id
 ORDER BY alb.release_date DESC;
+
+CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT
+);
 """
+
+DEFAULT_LIBRARY_FOLDER = Path(__file__).resolve().parent.parent / 'downloads'
 
 def connect_to_db():
     """
@@ -74,6 +81,42 @@ def init_db():
     connection.commit()
     connection.close()
     interfaceComponents.Print_Tag(f"Database ready at {DB_PATH}", tag="DB Success")
+
+def get_library_folder():
+    """
+    Returns the configured library/download folder as an absolute path
+    string. Falls back to <project_root>/downloads if nothing has been
+    set yet - the app's original default.
+    """
+    connection = sqlite3.connect(DB_PATH)
+    row = connection.execute("SELECT value FROM settings WHERE key = 'library_folder'").fetchone()
+    connection.close()
+    if row and row[0]:
+        return row[0]
+    return str(DEFAULT_LIBRARY_FOLDER)
+
+def set_library_folder(path):
+    """
+    Persists the chosen library/download folder.
+
+    Args:
+        path (str): An existing directory path.
+
+    Raises:
+        NotADirectoryError: If the given path is not an existing directory.
+    """
+    resolved = Path(path).resolve()
+    if not resolved.is_dir():
+        raise NotADirectoryError(f"Not a directory: {path}")
+
+    connection = sqlite3.connect(DB_PATH)
+    connection.execute(
+        "INSERT INTO settings (key, value) VALUES ('library_folder', ?) "
+        "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        (str(resolved),)
+    )
+    connection.commit()
+    connection.close()
 
 def disconnect_to_db(connection):
     """
