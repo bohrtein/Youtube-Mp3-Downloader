@@ -96,8 +96,10 @@ A list that tells Git to ignore temporary files, library.db, generated covers, a
 
 `.claude/skills/youtube-music-download/SKILL.md` teaches an agent (e.g. Claude Code)
 to search YouTube Music and download a song, an album, or an artist's studio
-discography straight to the computer's Downloads folder - completely separate
-from the library folder/`library.db` above. It's backed by three new modules:
+discography straight to the repo's own `downloads/` folder above, running the
+same download-then-process chain (`core/playlistDownloader.py` +
+`core/processAlbumCover.py`) the rest of the app already uses. It's backed by
+three new modules:
 
 - `core/musicSearch.py` - searches YouTube Music for songs, album candidates, and an artist's releases (yt-dlp wrappers, no scraping).
 - `core/releaseDedup.py` - normalizes release titles so duplicate editions (deluxe/extended/remaster) collapse to one, and filters out live albums/compilations.

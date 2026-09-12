@@ -8,16 +8,18 @@ import core.playlistDownloader as playlistDownloader
 import core.processAlbumCover as processAlbumCover
 import core.releaseDedup as releaseDedup
 import core.interfaceComponents as interfaceComponents
+import database.databaseConnector as databaseConnector
 
 
 def get_default_download_folder():
     """
-    Returns the OS Downloads folder. Deliberately independent from
-    database.databaseConnector.get_library_folder() - that setting (and
-    library.db) belong to the MP3-player sync workflow and this skill never
-    touches either.
+    Returns the repo's own downloads/ folder at the project root - the same
+    path database.databaseConnector.DEFAULT_LIBRARY_FOLDER points at. This is
+    a fixed location on disk, not whatever custom folder might currently be
+    configured via database.databaseConnector.get_library_folder() (e.g. an
+    MP3 player's drive that isn't always connected).
     """
-    return str(Path.home() / "Downloads")
+    return str(databaseConnector.DEFAULT_LIBRARY_FOLDER)
 
 
 def plan_song(query):
@@ -162,14 +164,14 @@ def execute_plan(plan, dest=None):
 def _main():
     parser = argparse.ArgumentParser(
         description="Search YouTube Music and download smartly to a folder "
-                    "(default: the OS Downloads folder). Prints a plan by "
-                    "default; pass --download to actually fetch."
+                    "(default: the repo's own downloads/ folder). Prints a "
+                    "plan by default; pass --download to actually fetch."
     )
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--song", metavar="QUERY", help="Search for a single song.")
     group.add_argument("--album", nargs=2, metavar=("ARTIST", "ALBUM"), help="Search for one album.")
     group.add_argument("--artist", metavar="NAME", help="Search for an artist's full studio discography.")
-    parser.add_argument("--dest", metavar="PATH", help="Destination folder (default: OS Downloads folder).")
+    parser.add_argument("--dest", metavar="PATH", help="Destination folder (default: the repo's downloads/ folder).")
     parser.add_argument("--download", action="store_true", help="Actually download; otherwise only prints the plan.")
     args = parser.parse_args()
 

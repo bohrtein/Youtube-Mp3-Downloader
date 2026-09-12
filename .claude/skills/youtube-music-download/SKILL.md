@@ -1,15 +1,18 @@
 ---
 name: youtube-music-download
-description: Search YouTube Music and download a song, an album, or an artist's studio discography straight to the computer's Downloads folder - as FLAC, deduped so only one edition of each release is kept. Use when the user asks to "download this album", "get me the new X album", "download everything by Y", "grab this song off youtube/youtube music", or similar. Do NOT use this for the app's normal library-sync workflow (the Dashboard's configured library folder / MP3 player / library.db) - that's a separate, unrelated flow.
+description: Search YouTube Music and download a song, an album, or an artist's studio discography straight to the repo's own downloads/ folder - as FLAC, deduped so only one edition of each release is kept. Use when the user asks to "download this album", "get me the new X album", "download everything by Y", "grab this song off youtube/youtube music", or similar. Do NOT use this for the app's normal library-sync workflow (the Dashboard's configured library folder / MP3 player / library.db) - that's a separate, unrelated flow.
 ---
 
 # YouTube Music Download
 
-This skill drives this repo's own download engine to fetch music **onto the
-computer's Downloads folder** - a separate, disposable location from the
-app's normal "library folder" (the one configured on the Dashboard, which
-feeds the user's MP3 player and gets synced into `library.db`). Never mix
-the two up.
+This skill drives this repo's own download engine to fetch music into the
+repo's own **`downloads/` folder at the project root** - the same fixed
+location `database.databaseConnector.DEFAULT_LIBRARY_FOLDER` points at.
+That's a plain path on disk, not necessarily the same thing as whatever
+custom folder is currently configured via the Dashboard's "library folder"
+setting (e.g. an MP3 player's drive that isn't always plugged in) - this
+skill always writes to the repo's `downloads/` folder regardless of what
+`get_library_folder()` currently returns.
 
 ## Orientation
 
@@ -18,8 +21,8 @@ the two up.
 - `core/processAlbumCover.py` - the normalization step: cleans the artist tag (keeps only the primary artist) and crops/resizes embedded cover art to a square 250x250 JPEG. **This is not optional** - it's what makes downloaded files look like the rest of the structured library instead of raw, inconsistent yt-dlp output.
 - `core/musicSearch.py` **(new, added for this skill)** - searches YouTube Music for songs, album candidates, and an artist's channel/releases. Pure yt-dlp wrappers, no scraping.
 - `core/releaseDedup.py` **(new)** - normalizes release titles (so "Album", "Album (Deluxe Edition)", "Album (Extended)" are recognized as the same release) and filters out live albums/compilations.
-- `core/smartDownload.py` **(new)** - ties the above together into one CLI: builds a plan (what would be downloaded, what's being skipped and why), and only downloads when told to. `execute_plan()` runs the **same chain of command** `main.program_start()` uses for the library workflow - `checkDependencies.dependencies_check()` → `playlistDownloader.download_file_flac()` per item → `processAlbumCover.process_album_covers_loop_flac()` once at the end - just pointed at the Downloads folder instead of the configured library folder. Never call `download_file_flac()` directly and skip the cover/tag processing step; that's the whole reason it's a separate step in the original app.
-- `database/databaseConnector.py`'s `get_library_folder()` / `library.db` / `database/syncLibrary.py` - the **unrelated** MP3-player library workflow. This skill never reads or writes any of that, and never needs the Flask app (`app.py`) running.
+- `core/smartDownload.py` **(new)** - ties the above together into one CLI: builds a plan (what would be downloaded, what's being skipped and why), and only downloads when told to. `execute_plan()` runs the **same chain of command** `main.program_start()` uses for the library workflow - `checkDependencies.dependencies_check()` → `playlistDownloader.download_file_flac()` per item → `processAlbumCover.process_album_covers_loop_flac()` once at the end - just pointed at the repo's `downloads/` folder (`get_default_download_folder()`) instead of whatever the Dashboard's configured library folder currently is. Never call `download_file_flac()` directly and skip the cover/tag processing step; that's the whole reason it's a separate step in the original app.
+- `database/databaseConnector.py`'s `get_library_folder()` / `library.db` / `database/syncLibrary.py` - the **unrelated** MP3-player library workflow (only relevant if the Dashboard's library folder has been pointed somewhere other than the default `downloads/` folder). This skill never reads or writes `library.db`, and never needs the Flask app (`app.py`) running.
 
 ## Procedure
 
@@ -37,7 +40,7 @@ the two up.
    - Does `kept` look like the right song/album/artist? If the request was ambiguous (a common album/artist name, multiple plausible matches) or `plan_artist` came back with an `error` (channel/releases couldn't be confidently found), **ask the user** rather than guessing at a URL.
    - Do the `skipped` entries make sense? They should be genuine duplicate editions (deluxe/extended/remaster) or, for artist requests, live albums/compilations - not something the user actually wanted.
 
-4. **Only once the plan looks right**, re-run the same command with `--download` added. Optionally add `--dest PATH` to override the destination; otherwise it defaults to the OS Downloads folder (`~/Downloads` / `%USERPROFILE%\Downloads`).
+4. **Only once the plan looks right**, re-run the same command with `--download` added. Optionally add `--dest PATH` to override the destination; otherwise it defaults to the repo's own `downloads/` folder at the project root.
 
 5. **Report back** what was downloaded (title + where), and what was skipped and why - so the user can see the "smart" filtering that happened rather than a silent black box.
 
@@ -45,7 +48,7 @@ the two up.
 
 - **Never download more than one edition of the same release** (e.g. standard + deluxe + extended cut of the same album) unless the user explicitly names the specific edition they want.
 - **"Download all of this artist's albums" means studio albums only** - live albums, concert recordings, and compilations ("Greatest Hits", "Best Of", anthologies) are skipped automatically, unless the user explicitly asks for those too.
-- **Never touch the configured library folder or `library.db`** for this workflow - that belongs to the Dashboard/MP3-player sync flow, not to ad-hoc downloads.
+- **Never write to `library.db`** for this workflow - that belongs to the Dashboard/MP3-player sync flow, not to ad-hoc downloads. (If the Dashboard's library folder happens to still be the default `downloads/` folder, the files will physically land in the same place - that's fine, just don't run a DB sync as part of this skill.)
 - **Never guess a channel or URL when discovery is ambiguous** (`plan_artist` returning an `error`, or an album search matching an unexpected artist) - ask the user instead of downloading the wrong thing.
 - Downloads are FLAC with embedded metadata/thumbnail, matching the rest of the app's existing pipeline - there's no need (or flag) to change format.
 
@@ -61,4 +64,4 @@ $ python -m core.smartDownload --album "Daft Punk" "Random Access Memories"
   ]
 }
 ```
-Plan looks right → re-run with `--download` to actually fetch it into the Downloads folder.
+Plan looks right → re-run with `--download` to actually fetch it into the repo's `downloads/` folder.
