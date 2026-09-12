@@ -1,5 +1,3 @@
-Markdown
-
 # 🎵 YouTube FLAC Downloader
 
 A web-based tool to download high-quality music from YouTube and manage a local digital library.
@@ -9,9 +7,19 @@ This program specifically designed to download music to fioo snowsky echo mini
 
 No server, no setup. The "Library" and "Album" views are backed by a local SQLite file, `library.db`, created automatically at the project root the first time you run the app. Album covers are saved alongside it as plain JPEG files in `static/covers/`.
 
----
-### Local Library Screenshot
-<img width="2559" height="1439" alt="Screenshot 2026-01-26 231516" src="https://github.com/user-attachments/assets/b75112ae-ffc4-42f5-88be-ca0b9f3a8500" />
+## Screenshots
+
+### Dashboard
+Pick your library folder with the built-in folder browser, then download, sync, deduplicate, or process covers — all from one page.
+![Dashboard](docs/screenshots/dashboard.png)
+
+### Library
+Every synced album, browsable and searchable.
+![Library](docs/screenshots/library.png)
+
+### Album
+Track list with duration, bitrate, and a link back to the original source video.
+![Album detail](docs/screenshots/album.png)
 
 ## 🛠️ Quick Start
 
@@ -25,25 +33,28 @@ python app.py
 ```
 Once running, open your browser to: http://127.0.0.1:5000
 
+### 3. Set Your Library Folder
+On the Dashboard, click **Change** next to "Library Folder" and browse to wherever your music should live. This is saved automatically and used right away — no restart needed, and no more hardcoded `downloads/` folder.
+
 ----
 ## 🌐 The Interface Layer
 These files handle everything the user sees in their browser.
 
 #### app.py
-The heart of the web server. It routes user requests (like clicking "Download") to the backend and uses SocketIO to send live updates back to your screen without refreshing the page.
+The heart of the web server. It routes user requests (like clicking "Download") to the backend, uses SocketIO to send live updates back to your screen without refreshing the page, and exposes the folder-browser endpoints (`/browse_folders`, `/set_library_folder`) behind the Dashboard's folder picker.
 
 #### templates/
 Contains the HTML structure for your pages (main, library, and album).
 
 #### Static/style.css
-The design file that makes the website look clean and organized.d sync tasks.
+The design file that makes the website look clean and organized.
 
 ----
 ## ⚙️ The Backend Engine
 Located mostly in core/, these scripts do the heavy lifting.
 
 #### main.py
-The "Boss" script. It coordinates between the web server and the individual processing tasks.
+The "Boss" script. It coordinates between the web server and the individual processing tasks, always reading the current library folder from the database so a change takes effect immediately.
 
 #### playlistDownloader.py
 Controls yt-dlp.exe. It manages the download queue and ensures files are saved with the correct naming convention.
@@ -63,10 +74,10 @@ The "Janitor." It scans for duplicate songs and makes sure you don't have multip
 These files manage how your music is saved and remembered.
 
 #### database/databaseConnector.py
-Opens the local SQLite file (library.db) and creates the schema automatically if it doesn't exist yet.
+Opens the local SQLite file (library.db) and creates the schema automatically if it doesn't exist yet. Also stores app settings — currently just your chosen library folder — in a small `settings` table.
 
 #### database/syncLibrary.py
-The "Librarian." It looks at the files in your downloads/ folder and writes their information (title, bitrate, duration) into the SQL tables, saving cover art as a JPEG in static/covers/.
+The "Librarian." It looks at the files in your library folder and writes their information (title, bitrate, duration) into the SQL tables, saving cover art as a JPEG in static/covers/.
 
 #### sqlFiles/database.sql
 The blueprint, kept for reference. This is the schema databaseConnector.py builds automatically in library.db.
@@ -75,12 +86,10 @@ The blueprint, kept for reference. This is the schema databaseConnector.py build
 Where processed 250x250 album cover JPEGs live, one per album (`<album_id>.jpg`).
 
 #### downloads/
-The physical folder where your music lives. Organized by Playlist Name / Track Number - Title.flac.
+The default library folder where your music lives if you haven't picked a different one on the Dashboard. Organized by Playlist Name / Track Number - Title.flac.
 
 ## 🔑 Configuration
 #### .gitignore
 A list that tells Git to ignore temporary files, library.db, generated covers, and your actual music downloads so your GitHub repository stays small and clean.
 
 Developed by bohrtein
-
-
