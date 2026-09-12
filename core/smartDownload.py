@@ -5,6 +5,7 @@ from pathlib import Path
 import core.checkDependencies as checkDependencies
 import core.musicSearch as musicSearch
 import core.playlistDownloader as playlistDownloader
+import core.processAlbumCover as processAlbumCover
 import core.releaseDedup as releaseDedup
 import core.interfaceComponents as interfaceComponents
 
@@ -121,8 +122,18 @@ def plan_artist(artist):
 
 def execute_plan(plan, dest=None):
     """
-    Downloads every item in plan["kept"] as FLAC via the existing
-    playlistDownloader pipeline.
+    Runs the same chain of command main.program_start() uses for the normal
+    library workflow - dependency check, download, then process covers - just
+    pointed at our own destination folder instead of the configured library
+    folder:
+
+        checkDependencies.dependencies_check()
+        playlistDownloader.download_file_flac(url, target_dir)   # per item
+        processAlbumCover.process_album_covers_loop_flac(target_dir)  # once, after
+
+    Skipping that last step is what leaves files with messy multi-artist tags
+    and non-square/oversized cover art instead of the cleaned-up, structured
+    output the rest of the app produces - so it always runs here too.
 
     Args:
         plan (dict): A plan returned by plan_song/plan_album/plan_artist.
@@ -141,6 +152,10 @@ def execute_plan(plan, dest=None):
         interfaceComponents.Print_Tag(f"Downloading: {item['title']}", tag="SmartDL")
         playlistDownloader.download_file_flac(item["url"], target_dir)
         downloaded.append(item["title"])
+
+    if downloaded:
+        processAlbumCover.process_album_covers_loop_flac(target_dir)
+
     return downloaded
 
 

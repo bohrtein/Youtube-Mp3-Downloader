@@ -15,9 +15,10 @@ the two up.
 
 - `core/playlistDownloader.py` - the actual yt-dlp-based FLAC downloader. Already used by the rest of the app; this skill calls it too, just with a different destination folder.
 - `core/checkDependencies.py` - ensures `yt-dlp.exe`/`ffmpeg.exe`/`ffprobe.exe` are present. Always gets called before a real download.
+- `core/processAlbumCover.py` - the normalization step: cleans the artist tag (keeps only the primary artist) and crops/resizes embedded cover art to a square 250x250 JPEG. **This is not optional** - it's what makes downloaded files look like the rest of the structured library instead of raw, inconsistent yt-dlp output.
 - `core/musicSearch.py` **(new, added for this skill)** - searches YouTube Music for songs, album candidates, and an artist's channel/releases. Pure yt-dlp wrappers, no scraping.
 - `core/releaseDedup.py` **(new)** - normalizes release titles (so "Album", "Album (Deluxe Edition)", "Album (Extended)" are recognized as the same release) and filters out live albums/compilations.
-- `core/smartDownload.py` **(new)** - ties the above together into one CLI: builds a plan (what would be downloaded, what's being skipped and why), and only downloads when told to.
+- `core/smartDownload.py` **(new)** - ties the above together into one CLI: builds a plan (what would be downloaded, what's being skipped and why), and only downloads when told to. `execute_plan()` runs the **same chain of command** `main.program_start()` uses for the library workflow - `checkDependencies.dependencies_check()` → `playlistDownloader.download_file_flac()` per item → `processAlbumCover.process_album_covers_loop_flac()` once at the end - just pointed at the Downloads folder instead of the configured library folder. Never call `download_file_flac()` directly and skip the cover/tag processing step; that's the whole reason it's a separate step in the original app.
 - `database/databaseConnector.py`'s `get_library_folder()` / `library.db` / `database/syncLibrary.py` - the **unrelated** MP3-player library workflow. This skill never reads or writes any of that, and never needs the Flask app (`app.py`) running.
 
 ## Procedure
