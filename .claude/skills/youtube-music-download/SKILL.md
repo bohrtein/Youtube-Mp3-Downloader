@@ -1,15 +1,15 @@
 ---
 name: youtube-music-download
-description: Search YouTube Music and download a song, an album, or an artist's studio discography straight to the computer's Downloads folder - as FLAC, deduped so only one edition of each release is kept. Use when the user asks to "download this album", "get me the new X album", "download everything by Y", "grab this song off youtube/youtube music", or similar. Do NOT use this for the app's normal library-sync workflow (the Dashboard's configured library folder / MP3 player / library.db) - that's a separate, unrelated flow.
+description: Search YouTube Music and download a song, an album, or an artist's studio discography straight to this repo's own downloads/ folder - as FLAC, deduped so only one edition of each release is kept. Use when the user asks to "download this album", "get me the new X album", "download everything by Y", "grab this song off youtube/youtube music", or similar. Do NOT use this for the app's normal library-sync workflow (the Dashboard's configured library folder / MP3 player / library.db) - that's a separate, unrelated flow.
 ---
 
 # YouTube Music Download
 
-This skill drives this repo's own download engine to fetch music **onto the
-computer's Downloads folder** - a separate, disposable location from the
-app's normal "library folder" (the one configured on the Dashboard, which
-feeds the user's MP3 player and gets synced into `library.db`). Never mix
-the two up.
+This skill drives this repo's own download engine to fetch music **into the
+repo's own `downloads/` folder** (`C:\youtubemp3\downloads`, gitignored) -
+a separate, disposable location from the app's normal "library folder" (the
+one configured on the Dashboard, which feeds the user's MP3 player and gets
+synced into `library.db`). Never mix the two up.
 
 ## Orientation
 
@@ -36,7 +36,7 @@ the two up.
    - Does `kept` look like the right song/album/artist? If the request was ambiguous (a common album/artist name, multiple plausible matches) or `plan_artist` came back with an `error` (channel/releases couldn't be confidently found), **ask the user** rather than guessing at a URL.
    - Do the `skipped` entries make sense? They should be genuine duplicate editions (deluxe/extended/remaster) or, for artist requests, live albums/compilations - not something the user actually wanted.
 
-4. **Only once the plan looks right**, re-run the same command with `--download` added. Optionally add `--dest PATH` to override the destination; otherwise it defaults to the OS Downloads folder (`~/Downloads` / `%USERPROFILE%\Downloads`).
+4. **Only once the plan looks right**, re-run the same command with `--download` added. Optionally add `--dest PATH` to override the destination; otherwise it defaults to the repo's own `downloads/` folder (`C:\youtubemp3\downloads`).
 
 5. **Report back** what was downloaded (title + where), and what was skipped and why - so the user can see the "smart" filtering that happened rather than a silent black box.
 

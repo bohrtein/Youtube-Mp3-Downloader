@@ -11,12 +11,13 @@ import core.interfaceComponents as interfaceComponents
 
 def get_default_download_folder():
     """
-    Returns the OS Downloads folder. Deliberately independent from
+    Returns the repo's own downloads/ folder (gitignored scratch space),
+    not the OS Downloads folder. Deliberately independent from
     database.databaseConnector.get_library_folder() - that setting (and
     library.db) belong to the MP3-player sync workflow and this skill never
     touches either.
     """
-    return str(Path.home() / "Downloads")
+    return str(Path(__file__).resolve().parent.parent / "downloads")
 
 
 def plan_song(query):
