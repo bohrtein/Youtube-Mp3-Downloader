@@ -52,7 +52,7 @@ def download_file_flac(url, output_dir):
     # Define the file naming and folder hierarchy logic:
     # Subfolders are named after the Playlist title.
     # Files are prefixed with their position in the playlist (01 - Title.flac).
-    output_template = f"{output_dir}/%(playlist_title)s/%(playlist_index)02d - %(title)s.%(ext)s"
+    output_template = f"{output_dir}/Album - %(playlist_title)s/%(playlist_index)02d - %(title)s.%(ext)s"
     
     # Command Arguments:
     # -c: continue | -i: ignore errors | -w: no overwrites | -x: extract audio
