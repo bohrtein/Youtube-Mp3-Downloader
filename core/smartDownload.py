@@ -11,12 +11,13 @@ import core.interfaceComponents as interfaceComponents
 
 def get_default_download_folder():
     """
-    Returns the OS Downloads folder. Deliberately independent from
+    Returns the repo's own downloads/ folder (gitignored scratch space),
+    not the OS Downloads folder. Deliberately independent from
     database.databaseConnector.get_library_folder() - that setting (and
     library.db) belong to the MP3-player sync workflow and this skill never
     touches either.
     """
-    return str(Path.home() / "Downloads")
+    return str(Path(__file__).resolve().parent.parent / "downloads")
 
 
 def plan_song(query):
@@ -88,20 +89,12 @@ def plan_artist(artist):
         {"kind": "artist", "kept": [], "skipped": [], "error": "..."} if the
         artist's channel/releases couldn't be confidently discovered.
     """
-    channel_url = musicSearch.discover_artist_channel(artist)
-    if not channel_url:
-        return {
-            "kind": "artist", "kept": [], "skipped": [],
-            "error": f"Could not confidently find a YouTube Music channel for '{artist}'. "
-                     "Ask the user for the exact artist name or a direct channel URL.",
-        }
-
-    releases = musicSearch.list_artist_releases(channel_url)
+    releases = musicSearch.list_artist_releases(artist)
     if not releases:
         return {
             "kind": "artist", "kept": [], "skipped": [],
-            "error": f"Found a channel for '{artist}' but no releases/albums tab resolved. "
-                     "Ask the user for a direct album URL instead of guessing.",
+            "error": f"Could not confidently find '{artist}' on YouTube Music. "
+                     "Ask the user for the exact artist name or a direct album URL.",
         }
 
     skipped = []
