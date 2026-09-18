@@ -8,7 +8,7 @@
 </head>
 <body>
     <div class="container">
-        <a href="/library" class="back-link">
+        <a href="{{ url_for('library_view') }}" class="back-link">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
             Back to Library
         </a>
@@ -58,9 +58,13 @@
     </div>
 
     <script>
+        // See main.html for why this exists: makes fetch() calls below work
+        // both standalone and proxied under the app hub's path prefix.
+        const APP_ROOT = "{{ request.script_root }}";
+
         function removeSong(songId) {
             if (confirm("Remove this song from the database?")) {
-                fetch(`/delete_song/${songId}`, {
+                fetch(`${APP_ROOT}/delete_song/${songId}`, {
                     method: 'DELETE',
                     headers: {
                         'Content-Type': 'application/json'

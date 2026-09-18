@@ -8,7 +8,7 @@
 </head>
 <body>
     <nav class="topbar">
-        <a class="brand" href="/">
+        <a class="brand" href="{{ url_for('main_dashboard') }}">
             <span class="mark">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
             </span>
@@ -19,7 +19,7 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                 <input type="text" id="librarySearch" placeholder="Search albums or artists..." onkeyup="filterLibrary()">
             </div>
-            <a href="/" class="btn">← Dashboard</a>
+            <a href="{{ url_for('main_dashboard') }}" class="btn">← Dashboard</a>
         </div>
     </nav>
 
@@ -50,7 +50,7 @@
                         </div>
                     </div>
 
-                    <a href="/album/{{ album.album_id }}" class="album-link">
+                    <a href="{{ url_for('album_detail', album_id=album.album_id) }}" class="album-link">
                         <div class="album-cover-wrap">
                             <img src="{{ url_for('static', filename='covers/' ~ album.album_id ~ '.jpg') }}"
                                  alt="{{ album.album_name }}"
@@ -69,6 +69,10 @@
     </div>
 
     <script>
+        // See main.html for why this exists: makes fetch() calls below work
+        // both standalone and proxied under the app hub's path prefix.
+        const APP_ROOT = "{{ request.script_root }}";
+
         function toggleMenu(event, albumId) {
             event.preventDefault();
             event.stopPropagation();
@@ -91,7 +95,7 @@
 
         function removeAlbum(albumId, albumName) {
             if (confirm(`Delete entire album "${albumName}"?`)) {
-                fetch(`/delete_album/${albumId}`, { method: 'DELETE' })
+                fetch(`${APP_ROOT}/delete_album/${albumId}`, { method: 'DELETE' })
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {

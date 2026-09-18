@@ -8,8 +8,25 @@ import database.databaseConnector as databaseConnector
 import core.checkDependencies as checkDependencies
 import main
 
+
+class PrefixMiddleware:
+    """Tells Flask it's mounted under a path prefix (set by the app hub via
+    APP_PREFIX) so url_for()/redirect()/static links come out correctly
+    prefixed instead of pointing at the hub's own root."""
+
+    def __init__(self, wsgi_app, prefix=""):
+        self.wsgi_app = wsgi_app
+        self.prefix = prefix.rstrip("/")
+
+    def __call__(self, environ, start_response):
+        if self.prefix:
+            environ["SCRIPT_NAME"] = self.prefix
+        return self.wsgi_app(environ, start_response)
+
+
 # Initialize Flask application and SocketIO for real-time communication
 app = Flask(__name__)
+app.wsgi_app = PrefixMiddleware(app.wsgi_app, prefix=os.environ.get("APP_PREFIX", ""))
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Ensure the local SQLite database and schema exist before the first request
@@ -230,4 +247,8 @@ def run_covers_only():
 
 if __name__ == '__main__':
     # Starts the Flask-SocketIO server
-    socketio.run(app, debug=True)
+    # Bind to the port the app hub assigns via PORT, and turn off the
+    # debug reloader -- it spawns its own child process, which fights with
+    # the hub's own subprocess supervision (start/stop/idle-timeout).
+    port = int(os.environ.get('PORT', 5000))
+    socketio.run(app, host='127.0.0.1', port=port, debug=False)

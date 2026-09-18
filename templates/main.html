@@ -8,14 +8,14 @@
 </head>
 <body>
     <nav class="topbar">
-        <a class="brand" href="/">
+        <a class="brand" href="{{ url_for('main_dashboard') }}">
             <span class="mark">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
             </span>
             Music Manager
         </a>
         <div class="topbar-actions">
-            <a class="btn" href="/library">View Library →</a>
+            <a class="btn" href="{{ url_for('library_view') }}">View Library →</a>
         </div>
     </nav>
 
@@ -100,10 +100,16 @@
 
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script>
+        // The app's own base path -- "" when run standalone, or
+        // "/app/<slug>" when proxied behind the app hub. Every fetch() to a
+        // same-app endpoint below is prefixed with this so it still resolves
+        // once the hub has moved the app under a path prefix.
+        const APP_ROOT = "{{ request.script_root }}";
+
         // The Werkzeug dev server can't complete a real WebSocket upgrade,
         // which would otherwise log a caught ConnectionError on every visit.
         // Long-polling is plenty for these occasional progress updates.
-        const socket = io({ transports: ['polling'] });
+        const socket = io({ transports: ['polling'], path: '{{ request.script_root }}/socket.io/' });
 
         socket.on('connect', () => {
             console.log("Connected to server!");
@@ -153,7 +159,7 @@
         }
 
         function loadFolder(path) {
-            const url = path ? `/browse_folders?path=${encodeURIComponent(path)}` : '/browse_folders';
+            const url = path ? `${APP_ROOT}/browse_folders?path=${encodeURIComponent(path)}` : `${APP_ROOT}/browse_folders`;
             fetch(url)
                 .then(response => response.json())
                 .then(data => {
@@ -237,7 +243,7 @@
                 alert('Pick a folder first.');
                 return;
             }
-            fetch('/set_library_folder', {
+            fetch(`${APP_ROOT}/set_library_folder`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ path: browsingPath })

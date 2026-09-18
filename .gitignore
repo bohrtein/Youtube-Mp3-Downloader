@@ -9,3 +9,9 @@ databaseAccount.py
 __pycache__/
 library.db
 static/covers/
+
+# Local-only: written by whatever app-hub/launcher this checkout is
+# deployed under, not part of the project itself.
+app.toml
+.apphub-source.json
+.venv/
