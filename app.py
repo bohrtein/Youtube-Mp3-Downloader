@@ -308,4 +308,8 @@ if __name__ == '__main__':
     # debug reloader -- it spawns its own child process, which fights with
     # the hub's own subprocess supervision (start/stop/idle-timeout).
     port = int(os.environ.get('PORT', 5000))
-    socketio.run(app, host='127.0.0.1', port=port, debug=False)
+    # flask-socketio refuses to run the (insecure-for-the-open-internet)
+    # Werkzeug dev server unless this is set explicitly. That's fine here:
+    # this process only binds to 127.0.0.1, reachable exclusively through
+    # the app hub's own reverse proxy, never directly from the network.
+    socketio.run(app, host='127.0.0.1', port=port, debug=False, allow_unsafe_werkzeug=True)
