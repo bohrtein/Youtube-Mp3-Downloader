@@ -35,7 +35,12 @@ def start_downloading(url):
     Args:
         url (str): The YouTube/Media URL provided by the user.
     """
-    playlistDownloader.download_file_flac(url, databaseConnector.get_library_folder())
+    file_paths = playlistDownloader.download_file_flac(url, databaseConnector.get_library_folder())
+    if not file_paths:
+        # See download_for_device: without this, a failed download (missing
+        # yt-dlp, blocked video, etc.) is swallowed and the batch just
+        # reports "complete" with nothing actually downloaded.
+        raise RuntimeError(f"No file was downloaded for {url} — check the server log for the actual yt-dlp error.")
 
 def download_for_device(url, staging_dir):
     """
@@ -54,10 +59,15 @@ def download_for_device(url, staging_dir):
         stream back to the browser and then delete.
     """
     file_paths = playlistDownloader.download_file_flac(url, staging_dir)
+    if not file_paths:
+        # download_file_flac already printed the real reason (missing
+        # yt-dlp, network failure, blocked video, etc.) via Print_Tag; raise
+        # here so the caller's error handling actually surfaces a failure
+        # instead of silently reporting "complete" with nothing downloaded.
+        raise RuntimeError(f"No file was downloaded for {url} — check the server log for the actual yt-dlp error.")
     for file_path in file_paths:
         processAlbumCover.process_album_cover_flac(Path(file_path))
-    if file_paths:
-        syncLibrary.Sync_Folder_To_Db(staging_dir)
+    syncLibrary.Sync_Folder_To_Db(staging_dir)
     return file_paths
 
 def sync_to_library():

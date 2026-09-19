@@ -1,5 +1,7 @@
-import zipfile  
+import zipfile
 import subprocess
+import shutil
+import platform
 from pathlib import Path
 import core.interfaceComponents as interfaceComponents
 
@@ -13,12 +15,45 @@ def dependencies_check():
     check_ffmpeg()
     interfaceComponents.Print_Tag("Dependencies verified.", tag="Success")
 
+def resolve_ytdlp():
+    """
+    Returns the command to invoke yt-dlp with.
+
+    Prefers a binary already on PATH (an `apt`/`pip`/`pipx` install on
+    Linux/Mac, or a manually-installed yt-dlp on Windows), since that's the
+    expected setup on a server. Falls back to the standalone ./yt-dlp.exe
+    this module downloads on Windows when nothing on PATH is found. If
+    neither exists, still returns "yt-dlp" so the caller's subprocess call
+    fails loudly (FileNotFoundError) instead of silently doing nothing.
+    """
+    found = shutil.which("yt-dlp") or shutil.which("yt-dlp.exe")
+    if found:
+        return found
+    if platform.system() == "Windows" and Path("./yt-dlp.exe").exists():
+        return "./yt-dlp.exe"
+    return "yt-dlp"
+
 def check_ytdlp():
     """
-    Ensures yt-dlp.exe is present in the root directory.
-    Downloads the standalone executable directly from GitHub if missing.
+    Ensures a working yt-dlp is available. Prefers one already on PATH; on
+    Windows, where installing via a package manager is less common, falls
+    back to downloading the standalone yt-dlp.exe into the project root.
+    On other platforms, a missing yt-dlp is reported rather than silently
+    ignored, since there's no safe standalone binary to fetch for an
+    unknown Linux/Mac environment.
     """
-    interfaceComponents.Print_Tag("Verifying yt-dlp.exe", tag="System")
+    interfaceComponents.Print_Tag("Verifying yt-dlp", tag="System")
+    if shutil.which("yt-dlp") or shutil.which("yt-dlp.exe"):
+        interfaceComponents.Print_Tag("yt-dlp verified (found on PATH)!", tag="Success")
+        return
+
+    if platform.system() != "Windows":
+        interfaceComponents.Print_Tag(
+            "yt-dlp not found on PATH. Install it, e.g. `pip install yt-dlp`.",
+            tag="Error"
+        )
+        return
+
     if not Path("./yt-dlp.exe").exists():
         interfaceComponents.Print_Tag("yt-dlp.exe not found.", tag="Warning")
         try:
@@ -32,10 +67,22 @@ def check_ytdlp():
 
 def check_ffprobe():
     """
-    Ensures ffprobe.exe is present. 
-    Downloads the zipped binary from ffbinaries and extracts it if missing.
+    Ensures a working ffprobe is available. Prefers one already on PATH
+    (e.g. `apt install ffmpeg` on Linux, which provides ffprobe too); on
+    Windows falls back to downloading the standalone binary from ffbinaries.
     """
-    interfaceComponents.Print_Tag("Verifying ffprobe.exe", tag="System")
+    interfaceComponents.Print_Tag("Verifying ffprobe", tag="System")
+    if shutil.which("ffprobe") or shutil.which("ffprobe.exe"):
+        interfaceComponents.Print_Tag("ffprobe verified (found on PATH)!", tag="Success")
+        return
+
+    if platform.system() != "Windows":
+        interfaceComponents.Print_Tag(
+            "ffprobe not found on PATH. Install it, e.g. `apt install ffmpeg`.",
+            tag="Error"
+        )
+        return
+
     if not Path("./ffprobe.exe").exists():
         interfaceComponents.Print_Tag("ffprobe.exe not found.", tag="Warning")
         try:
@@ -49,10 +96,22 @@ def check_ffprobe():
 
 def check_ffmpeg():
     """
-    Ensures ffmpeg.exe is present. 
-    Downloads the zipped binary from ffbinaries and extracts it if missing.
+    Ensures a working ffmpeg is available. Prefers one already on PATH
+    (e.g. `apt install ffmpeg` on Linux); on Windows falls back to
+    downloading the standalone binary from ffbinaries.
     """
-    interfaceComponents.Print_Tag("Verifying ffmpeg.exe", tag="System")
+    interfaceComponents.Print_Tag("Verifying ffmpeg", tag="System")
+    if shutil.which("ffmpeg") or shutil.which("ffmpeg.exe"):
+        interfaceComponents.Print_Tag("ffmpeg verified (found on PATH)!", tag="Success")
+        return
+
+    if platform.system() != "Windows":
+        interfaceComponents.Print_Tag(
+            "ffmpeg not found on PATH. Install it, e.g. `apt install ffmpeg`.",
+            tag="Error"
+        )
+        return
+
     if not Path("./ffmpeg.exe").exists():
         interfaceComponents.Print_Tag("ffmpeg.exe not found.", tag="Warning")
         try:

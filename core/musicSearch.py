@@ -1,10 +1,7 @@
 import json
 import subprocess
 import core.interfaceComponents as interfaceComponents
-
-# Same binary playlistDownloader.py already shells out to. Callers should run
-# checkDependencies.dependencies_check() first to make sure it's present.
-YTDLP_BIN = "./yt-dlp.exe"
+import core.checkDependencies as checkDependencies
 
 
 def _run_flat_playlist_json(target):
@@ -19,7 +16,7 @@ def _run_flat_playlist_json(target):
     Returns:
         list[dict]: Parsed entries, or [] if yt-dlp fails or returns nothing.
     """
-    cmd = [YTDLP_BIN, "--flat-playlist", "--dump-json", "--ignore-errors", target]
+    cmd = [checkDependencies.resolve_ytdlp(), "--flat-playlist", "--dump-json", "--ignore-errors", target]
     try:
         result = subprocess.run(cmd, check=True, capture_output=True, text=True)
     except Exception as e:

@@ -1,4 +1,5 @@
 import core.interfaceComponents as interfaceComponents
+import core.checkDependencies as checkDependencies
 import subprocess
 
 def initiate_playlist_loop():
@@ -62,7 +63,7 @@ def download_file_flac(url, output_dir):
     # --print after_move:filepath reports the final on-disk path for each item,
     # which callers need to stream/tag the file without re-scanning the folder.
     cmd = [
-        "./yt-dlp.exe", "-ciw", "-x",
+        checkDependencies.resolve_ytdlp(), "-ciw", "-x",
         "--audio-format", "flac",
         "--audio-quality", "0",
         "--embed-metadata", "--embed-thumbnail",
