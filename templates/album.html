@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='matrix.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
     <script src="{{ url_for('static', filename='matrix.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='app.js') }}" defer></script>
 </head>
 <body class="mx">
 
@@ -39,7 +40,7 @@
     </section>
 
     <section class="mx-panel mx-glass">
-        <h2 class="mx-panel-title">tracks</h2>
+        <h2 class="mx-panel-title" data-decode>tracks</h2>
         <div class="mx-rows">
             {% for song in songs %}
             {# --mx-i staggers the slide-in (see .mx-row.mx-enter in app.css). #}

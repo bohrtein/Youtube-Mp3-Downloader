@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='matrix.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
     <script src="{{ url_for('static', filename='matrix.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='app.js') }}" defer></script>
 </head>
 <body class="mx mx-has-cmdbar">
 
@@ -22,7 +23,7 @@
     <div class="mx-topbar">
         <div class="mx-brand">
             <span class="mx-mark">music manager</span>
-            <p class="mx-tagline" id="tagline">library control<span class="mx-caret" aria-hidden="true"></span></p>
+            <p class="mx-tagline" data-decode>library control<span class="mx-caret" aria-hidden="true"></span></p>
         </div>
         <a class="mx-btn" href="{{ url_for('library_view') }}">Library</a>
     </div>
@@ -30,7 +31,7 @@
     <div class="mx-stack">
         <div class="mx-col">
             <section class="mx-panel mx-glass">
-                <h2 class="mx-panel-title">library folder</h2>
+                <h2 class="mx-panel-title" data-decode>library folder</h2>
                 <div style="display:flex; align-items:center; gap:10px;">
                     <div class="mx-readout" id="currentFolderPath" style="flex:1 1 auto;">{{ library_folder }}</div>
                     <button class="mx-btn" type="button" onclick="openFolderBrowser()">Change</button>
@@ -38,7 +39,7 @@
             </section>
 
             <section class="mx-panel mx-glass">
-                <h2 class="mx-panel-title">download</h2>
+                <h2 class="mx-panel-title" data-decode>download</h2>
                 <div class="mx-field">
                     <div class="mx-field-head">
                         <label class="mx-label" for="urlInput">urls</label>
@@ -51,19 +52,19 @@
 
         <div class="mx-col">
             <section class="mx-panel mx-glass">
-                <h2 class="mx-panel-title">deduplicate</h2>
+                <h2 class="mx-panel-title" data-decode>deduplicate</h2>
                 <p class="mx-hint" style="margin-bottom:14px;">Deletes files from 'downloads' if they are already in the database.</p>
                 <button class="mx-btn mx-btn-wide" type="button" onclick="confirmAndCleanup()">Remove repeats</button>
             </section>
 
             <section class="mx-panel mx-glass">
-                <h2 class="mx-panel-title">sync</h2>
+                <h2 class="mx-panel-title" data-decode>sync</h2>
                 <p class="mx-hint" style="margin-bottom:14px;">Scan your 'downloads' folder and update the database.</p>
                 <button class="mx-btn mx-btn-wide" type="button" onclick="startAction('sync')">Run Database Sync</button>
             </section>
 
             <section class="mx-panel mx-glass">
-                <h2 class="mx-panel-title">covers</h2>
+                <h2 class="mx-panel-title" data-decode>covers</h2>
                 <p class="mx-hint" style="margin-bottom:14px;">Process and optimize album artwork.</p>
                 <button class="mx-btn mx-btn-wide" type="button" onclick="startAction('processCovers')">Process Covers</button>
             </section>
@@ -71,7 +72,7 @@
     </div>
 
     <section class="mx-panel mx-glass" id="progressContainer" hidden>
-        <h2 class="mx-panel-title">progress</h2>
+        <h2 class="mx-panel-title" data-decode>progress</h2>
         <div class="mx-readout" id="statusText">Waiting for task...</div>
         <div class="mx-progress-track">
             <div class="mx-progress-fill" id="progressBar"></div>
@@ -85,7 +86,7 @@
 
 <div class="mx-overlay" id="folderModalOverlay" onclick="if (event.target === this) closeFolderBrowser()">
     <div class="mx-panel mx-glass mx-sheet">
-        <h2 class="mx-panel-title">select library folder</h2>
+        <h2 class="mx-panel-title" data-decode>select library folder</h2>
         <div class="mx-breadcrumb" id="folderBreadcrumb"></div>
         <div class="mx-folder-list" id="folderList"></div>
         <div class="mx-sheet-actions">
@@ -119,16 +120,6 @@
 
     socket.on('connect', () => {
         console.log("Connected to server!");
-    });
-
-    // One-off decode on the tagline, the same spot the ticket printer
-    // does it. matrix.js is deferred, so MX only exists from
-    // DOMContentLoaded on; decode() rewrites textContent each frame,
-    // which would drop the caret, so the callback puts it back.
-    document.addEventListener('DOMContentLoaded', () => {
-        const line = document.getElementById('tagline');
-        const caret = line.querySelector('.mx-caret');
-        MX.decode(line, 'library control', el => el.appendChild(caret));
     });
 
     function confirmAndCleanup() {
@@ -167,7 +158,10 @@
         const bar = document.getElementById('progressBar');
         const cmdStatus = document.getElementById('cmdStatus');
 
-        container.hidden = false;
+        if (container.hidden) {
+            container.hidden = false;
+            APP.decodeAll(container);   // its title was skipped on load while hidden
+        }
         status.className = 'mx-readout mx-busy';
         status.textContent = message;
         bar.className = 'mx-progress-fill mx-busy';
@@ -178,7 +172,9 @@
     let browsingPath = null;
 
     function openFolderBrowser() {
-        document.getElementById('folderModalOverlay').classList.add('mx-open');
+        const overlay = document.getElementById('folderModalOverlay');
+        overlay.classList.add('mx-open');
+        APP.decodeAll(overlay);   // the sheet title, skipped on page load while hidden
         loadFolder(null);
     }
 
