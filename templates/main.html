@@ -41,10 +41,6 @@
                 <h3>Download</h3>
                 <p>Paste one or multiple URLs (one per line).</p>
                 <textarea id="urlInput" rows="4" placeholder="https://youtube.com/...&#10;https://youtube.com/..."></textarea>
-                <div class="download-mode-toggle">
-                    <label><input type="radio" name="downloadMode" value="library" checked> Save to library folder</label>
-                    <label><input type="radio" name="downloadMode" value="device"> Download to my device</label>
-                </div>
                 <button onclick="startAction('download')" class="btn btn-primary btn-block">Start Batch Download</button>
             </div>
 
@@ -88,12 +84,6 @@
                 <div id="progressBar" class="progress-fill"></div>
             </div>
         </div>
-
-        <div id="deviceDownloadsPanel" class="card device-downloads hidden">
-            <h4>Device downloads</h4>
-            <p class="device-downloads-hint">Your browser only allows one automatic download per click, so files land here as they finish — click each one to save it.</p>
-            <div id="deviceDownloadsItems"></div>
-        </div>
     </div>
 
     <div id="folderModalOverlay" class="modal-overlay hidden" onclick="if (event.target === this) closeFolderBrowser()">
@@ -134,12 +124,7 @@
             }
         }
 
-        // Populated with a directory handle (File System Access API) when the
-        // user picks one for a "download to my device" batch; null falls back
-        // to plain <a download> links, one per finished file.
-        let deviceDirHandle = null;
-
-        async function startAction(actionType) {
+        function startAction(actionType) {
             const container = document.getElementById('progressContainer');
 
             if (actionType === 'download') {
@@ -151,25 +136,8 @@
                     return;
                 }
 
-                const mode = document.querySelector('input[name="downloadMode"]:checked').value;
-
-                deviceDirHandle = null;
-                const devicePanel = document.getElementById('deviceDownloadsPanel');
-                document.getElementById('deviceDownloadsItems').innerHTML = '';
-                devicePanel.classList.add('hidden');
-
-                if (mode === 'device' && window.showDirectoryPicker) {
-                    try {
-                        deviceDirHandle = await window.showDirectoryPicker();
-                    } catch (err) {
-                        // User cancelled the picker, or the browser blocked it — fall
-                        // back to a clickable list of per-file links instead of aborting.
-                        deviceDirHandle = null;
-                    }
-                }
-
                 container.classList.remove('hidden');
-                socket.emit('start_download_batch', { urls: urls, mode: mode });
+                socket.emit('start_download_batch', { urls: urls });
             } else if (actionType === 'sync') {
                 container.classList.remove('hidden');
                 socket.emit('start_sync');
@@ -302,72 +270,8 @@
             status.innerText = data.status;
 
             if (data.status === 'complete') {
-                if (data.mode === 'device') {
-                    // Files were already handed to the browser as each one
-                    // finished (see device_file_ready) — no library folder
-                    // changed, so there's nothing on this page to refresh.
-                    status.innerText = "All files sent to your device!";
-                } else {
-                    status.innerText = "Task Finished!";
-                    setTimeout(() => { location.reload(); }, 2000);
-                }
-            }
-        });
-
-        function addDeviceDownloadRow(filename, state, token) {
-            const panel = document.getElementById('deviceDownloadsPanel');
-            const items = document.getElementById('deviceDownloadsItems');
-            panel.classList.remove('hidden');
-
-            const row = document.createElement('div');
-            row.className = 'device-download-row';
-
-            if (state === 'saved') {
-                row.innerHTML = `<span class="device-download-name">✓ ${filename}</span>`;
-            } else {
-                const label = document.createElement('span');
-                label.className = 'device-download-name';
-                label.innerText = state === 'error' ? `${filename} — fetch failed, retry:` : filename;
-                row.appendChild(label);
-
-                const link = document.createElement('a');
-                link.href = `${APP_ROOT}/download_file/${token}/${encodeURIComponent(filename)}`;
-                link.download = filename;
-                link.className = 'device-download-link';
-                link.innerText = state === 'error' ? 'Retry' : 'Download';
-                row.appendChild(link);
-            }
-
-            items.appendChild(row);
-        }
-
-        // Fires once per finished file when downloading in "device" mode.
-        //
-        // With a picked directory handle (File System Access API), the write
-        // needs no further user interaction, so it's saved automatically.
-        // Without one, browsers block automatic/synthetic downloads that
-        // aren't tied to a direct click — especially the 2nd+ file in a
-        // batch — so instead a real link is rendered for the user to click.
-        socket.on('device_file_ready', async function(data) {
-            if (!deviceDirHandle) {
-                addDeviceDownloadRow(data.filename, 'link', data.token);
-                return;
-            }
-
-            try {
-                const response = await fetch(`${APP_ROOT}/download_file/${data.token}/${encodeURIComponent(data.filename)}`);
-                if (!response.ok) {
-                    throw new Error(`Server returned ${response.status}`);
-                }
-                const blob = await response.blob();
-                const fileHandle = await deviceDirHandle.getFileHandle(data.filename, { create: true });
-                const writable = await fileHandle.createWritable();
-                await writable.write(blob);
-                await writable.close();
-                addDeviceDownloadRow(data.filename, 'saved');
-            } catch (err) {
-                console.error('Error saving device download:', data.filename, err);
-                addDeviceDownloadRow(data.filename, 'error', data.token);
+                status.innerText = "Task Finished!";
+                setTimeout(() => { location.reload(); }, 2000);
             }
         });
     </script>

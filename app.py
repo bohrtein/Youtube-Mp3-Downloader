@@ -1,10 +1,8 @@
 import os
 import string
 import threading
-import tempfile
-import uuid
 from pathlib import Path
-from flask import Flask, render_template, request, jsonify, send_file
+from flask import Flask, render_template, request, jsonify
 from flask_socketio import SocketIO
 import database.databaseConnector as databaseConnector
 import core.checkDependencies as checkDependencies
@@ -33,11 +31,6 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Ensure the local SQLite database and schema exist before the first request
 databaseConnector.init_db()
-
-# Maps a one-time download token to the staged file it points to, for the
-# "download to my device" flow. In-memory is fine: this is a single-user,
-# single-process local app, and tokens are only valid for one browser session.
-pending_device_downloads = {}
 
 # --- WEB ROUTES ---
 
@@ -93,42 +86,6 @@ def set_library_folder():
         return jsonify({"success": True, "path": databaseConnector.get_library_folder()})
     except NotADirectoryError as e:
         return jsonify({"success": False, "message": str(e)}), 400
-
-@app.route('/download_file/<token>/<path:filename>')
-def download_file(token, filename):
-    """
-    Streams a staged "download to my device" file to the browser as an
-    attachment, then deletes the server-side staging copy. The DB/cover-art
-    record was already written by main.download_for_device before this
-    token was handed out, so removing the file here doesn't affect the
-    library view.
-
-    `filename` in the URL is cosmetic only -- the token is what's actually
-    looked up. It's there so a right-click "Save link as" (which guesses a
-    name straight from the URL, before the response/Content-Disposition
-    header ever arrives) still shows the real filename instead of the bare
-    token.
-    """
-    file_path = pending_device_downloads.pop(token, None)
-    if not file_path or not os.path.isfile(file_path):
-        return jsonify({"success": False, "message": "File not found or already downloaded"}), 404
-
-    def cleanup():
-        try:
-            os.remove(file_path)
-            parent = os.path.dirname(file_path)
-            if not os.listdir(parent):
-                os.rmdir(parent)
-        except OSError:
-            pass
-
-    # send_file streams the file lazily, so the request context (and any
-    # after_this_request callback) tears down before the bytes are actually
-    # sent to the client. call_on_close fires once the response is truly
-    # done, which is the safe point to delete the staging file.
-    response = send_file(file_path, as_attachment=True, download_name=os.path.basename(file_path))
-    response.call_on_close(cleanup)
-    return response
 
 @app.route('/library')
 def library_view():
@@ -238,22 +195,12 @@ def handle_download_batch(data):
     """
     Manages the sequential download of multiple URLs in a background thread.
     Emits progress updates to the frontend for each item.
-
-    data['mode'] selects the destination:
-      - 'library' (default): saved to the configured library folder, as before.
-      - 'device': downloaded to a short-lived staging folder on the server,
-        registered in the DB/cover-art just like the library flow, then
-        streamed to the browser as an attachment (see /download_file) and
-        removed from the server.
     """
     urls = data.get('urls', [])
-    mode = data.get('mode', 'library')
 
     def background_task():
         total_urls = len(urls)
         checkDependencies.dependencies_check() # Ensure yt-dlp/ffmpeg are present
-
-        staging_dir = tempfile.mkdtemp(prefix='ytmp3_device_') if mode == 'device' else None
 
         for index, url in enumerate(urls):
             current_item = index + 1
@@ -264,17 +211,7 @@ def handle_download_batch(data):
             })
 
             try:
-                if mode == 'device':
-                    file_paths = main.download_for_device(url, staging_dir)
-                    for file_path in file_paths:
-                        token = uuid.uuid4().hex
-                        pending_device_downloads[token] = file_path
-                        socketio.emit('device_file_ready', {
-                            'token': token,
-                            'filename': os.path.basename(file_path)
-                        })
-                else:
-                    main.start_downloading(url)
+                main.start_downloading(url)
             except Exception as e:
                 print(f"Error downloading {url}: {e}")
                 socketio.emit('progress', {
@@ -282,7 +219,7 @@ def handle_download_batch(data):
                     'status': f'Error on item {current_item}'
                 })
 
-        socketio.emit('progress', {'percent': 100, 'status': 'complete', 'mode': mode})
+        socketio.emit('progress', {'percent': 100, 'status': 'complete'})
 
     threading.Thread(target=background_task).start()
 
