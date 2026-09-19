@@ -27,42 +27,48 @@
         <a class="mx-btn" href="{{ url_for('library_view') }}">Library</a>
     </div>
 
-    <section class="mx-panel mx-glass">
-        <h2 class="mx-panel-title">library folder</h2>
-        <div style="display:flex; align-items:center; gap:10px;">
-            <div class="mx-readout" id="currentFolderPath" style="flex:1 1 auto;">{{ library_folder }}</div>
-            <button class="mx-btn" type="button" onclick="openFolderBrowser()">Change</button>
+    <div class="mx-stack">
+        <div class="mx-col">
+            <section class="mx-panel mx-glass">
+                <h2 class="mx-panel-title">library folder</h2>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <div class="mx-readout" id="currentFolderPath" style="flex:1 1 auto;">{{ library_folder }}</div>
+                    <button class="mx-btn" type="button" onclick="openFolderBrowser()">Change</button>
+                </div>
+            </section>
+
+            <section class="mx-panel mx-glass">
+                <h2 class="mx-panel-title">download</h2>
+                <div class="mx-field">
+                    <div class="mx-field-head">
+                        <label class="mx-label" for="urlInput">urls</label>
+                    </div>
+                    <textarea class="mx-textarea" id="urlInput" rows="4" placeholder="https://youtube.com/...&#10;https://youtube.com/..."></textarea>
+                    <p class="mx-hint">One URL per line. Use the Download button below to start the batch.</p>
+                </div>
+            </section>
         </div>
-    </section>
 
-    <section class="mx-panel mx-glass">
-        <h2 class="mx-panel-title">download</h2>
-        <div class="mx-field">
-            <div class="mx-field-head">
-                <label class="mx-label" for="urlInput">urls</label>
-            </div>
-            <textarea class="mx-textarea" id="urlInput" rows="4" placeholder="https://youtube.com/...&#10;https://youtube.com/..."></textarea>
-            <p class="mx-hint">One URL per line. Use the Download button below to start the batch.</p>
+        <div class="mx-col">
+            <section class="mx-panel mx-glass">
+                <h2 class="mx-panel-title">deduplicate</h2>
+                <p class="mx-hint" style="margin-bottom:14px;">Deletes files from 'downloads' if they are already in the database.</p>
+                <button class="mx-btn mx-btn-wide" type="button" onclick="confirmAndCleanup()">Remove repeats</button>
+            </section>
+
+            <section class="mx-panel mx-glass">
+                <h2 class="mx-panel-title">sync</h2>
+                <p class="mx-hint" style="margin-bottom:14px;">Scan your 'downloads' folder and update the database.</p>
+                <button class="mx-btn mx-btn-wide" type="button" onclick="startAction('sync')">Run Database Sync</button>
+            </section>
+
+            <section class="mx-panel mx-glass">
+                <h2 class="mx-panel-title">covers</h2>
+                <p class="mx-hint" style="margin-bottom:14px;">Process and optimize album artwork.</p>
+                <button class="mx-btn mx-btn-wide" type="button" onclick="startAction('processCovers')">Process Covers</button>
+            </section>
         </div>
-    </section>
-
-    <section class="mx-panel mx-glass">
-        <h2 class="mx-panel-title">deduplicate</h2>
-        <p class="mx-hint" style="margin-bottom:14px;">Deletes files from 'downloads' if they are already in the database.</p>
-        <button class="mx-btn mx-btn-wide" type="button" onclick="confirmAndCleanup()">Remove repeats</button>
-    </section>
-
-    <section class="mx-panel mx-glass">
-        <h2 class="mx-panel-title">sync</h2>
-        <p class="mx-hint" style="margin-bottom:14px;">Scan your 'downloads' folder and update the database.</p>
-        <button class="mx-btn mx-btn-wide" type="button" onclick="startAction('sync')">Run Database Sync</button>
-    </section>
-
-    <section class="mx-panel mx-glass">
-        <h2 class="mx-panel-title">covers</h2>
-        <p class="mx-hint" style="margin-bottom:14px;">Process and optimize album artwork.</p>
-        <button class="mx-btn mx-btn-wide" type="button" onclick="startAction('processCovers')">Process Covers</button>
-    </section>
+    </div>
 
     <section class="mx-panel mx-glass" id="progressContainer" hidden>
         <h2 class="mx-panel-title">progress</h2>
