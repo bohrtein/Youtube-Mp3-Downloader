@@ -46,8 +46,8 @@ The heart of the web server. It routes user requests (like clicking "Download") 
 #### templates/
 Contains the HTML structure for your pages (main, library, and album).
 
-#### Static/style.css
-The design file that makes the website look clean and organized.
+#### static/matrix.css, static/matrix.js, static/app.css
+The "Matrix" design system (phosphor-on-black terminal look, digital rain background, liquid glass panels) plus this app's own page-specific layout built on top of it.
 
 ----
 ## ⚙️ The Backend Engine

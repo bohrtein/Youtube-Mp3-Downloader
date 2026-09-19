@@ -1,0 +1,319 @@
+/* =====================================================================
+   Music Manager — page composition on top of matrix.css.
+
+   Everything here is built from the Matrix token set (var(--mx-*)); no
+   new colours are introduced. This file only adds layout matrix.css
+   doesn't ship a component for: the folder-picker sheet, the album
+   grid/cards, the album-detail hero and the track rows.
+   ===================================================================== */
+
+/* An opaque panel for surfaces repeated many times (album cards), where
+   a per-card backdrop-filter would be expensive. See --mx-panel-sol in
+   matrix.css's token table. */
+.mx-panel-solid {
+  background: var(--mx-panel-sol);
+  border: 1px solid var(--mx-line-soft);
+}
+
+/* --- readout / cmd-status "waiting" state --------------------------------
+   matrix.css only ships mx-ok (green) and mx-err (red) variants; amber is
+   this app's "waiting" state (mid-download/sync), per the one-accent rule. */
+.mx-readout.mx-busy {
+  color: var(--mx-amber);
+  background: rgba(255, 201, 74, 0.08);
+  border-color: rgba(255, 201, 74, 0.35);
+}
+.mx-cmd-status.mx-busy { color: var(--mx-amber); }
+
+/* --- progress fill -------------------------------------------------------- */
+.mx-progress-track {
+  height: 8px;
+  margin-top: 12px;
+  border-radius: 999px;
+  background: var(--mx-sunken);
+  border: 1px solid var(--mx-line-soft);
+  overflow: hidden;
+}
+.mx-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--mx-green);
+  box-shadow: 0 0 10px rgba(0, 255, 90, 0.5);
+  transition: width 0.3s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+}
+.mx-progress-fill.mx-busy { background: var(--mx-amber); box-shadow: 0 0 10px rgba(255, 201, 74, 0.5); }
+.mx-progress-fill.mx-err  { background: var(--mx-red);   box-shadow: 0 0 10px rgba(255, 91, 82, 0.5); }
+
+/* --- folder-picker overlay -------------------------------------------------
+   A bottom sheet on phones (thumb reach, one-handed), a centred sheet
+   from 640px. mx-drawer's 320px cap is too small for a scrollable
+   breadcrumb + folder list, so this is the "mx-panel overlay" option
+   the brief calls out. */
+.mx-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 4, 0, 0.72);
+  -webkit-backdrop-filter: blur(2px);
+          backdrop-filter: blur(2px);
+  padding: 0;
+}
+.mx-overlay.mx-open { display: flex; }
+.mx-overlay .mx-sheet {
+  width: 100%;
+  max-width: 560px;
+  max-height: min(78vh, 620px);
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--mx-r-lg) var(--mx-r-lg) 0 0;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+}
+@media (min-width: 640px) {
+  .mx-overlay { align-items: center; padding: 24px; }
+  .mx-overlay .mx-sheet { border-radius: var(--mx-r-lg); max-height: min(80vh, 640px); padding-bottom: 16px; }
+}
+
+.mx-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  margin-bottom: 10px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+.mx-breadcrumb-item {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 5px;
+  color: var(--mx-ink-dim);
+  cursor: pointer;
+  white-space: nowrap;
+  border-radius: var(--mx-r-sm);
+}
+.mx-breadcrumb-item:last-child { color: var(--mx-ink-hot); }
+.mx-breadcrumb-item:active { background: var(--mx-green-low); color: var(--mx-green); }
+.mx-breadcrumb-sep { color: var(--mx-ink-faint); padding: 0 1px; }
+
+.mx-folder-list {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 4px 0 14px;
+  min-height: 120px;
+}
+.mx-folder-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--mx-tap);
+  padding: 0 12px;
+  border: 1px solid rgba(150, 255, 200, 0.14);
+  border-radius: var(--mx-r-sm);
+  background: linear-gradient(160deg, rgba(12, 54, 32, 0.22), rgba(0, 12, 6, 0.08));
+  color: var(--mx-ink);
+  font-size: 13px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.mx-folder-row:active { background: var(--mx-green-low); border-color: var(--mx-line); }
+.mx-folder-row svg { flex: 0 0 auto; width: 18px; height: 18px; color: var(--mx-ink-dim); }
+.mx-folder-row span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mx-sheet-actions { display: flex; gap: 10px; flex: 0 0 auto; }
+.mx-sheet-actions .mx-btn-go { flex: 1 1 auto; }
+
+/* --- search field ----------------------------------------------------------- */
+.mx-search { position: relative; margin: 4px 0 18px; }
+.mx-search svg {
+  position: absolute;
+  left: 13px; top: 50%;
+  transform: translateY(-50%);
+  width: 16px; height: 16px;
+  color: var(--mx-ink-dim);
+  pointer-events: none;
+}
+.mx-search input.mx-input { padding-left: 38px; }
+
+/* --- album grid --------------------------------------------------------------
+   One column on a phone, two from 900px -- matrix's own breakpoint
+   (--mx-break), applied the same way here. */
+.mx-album-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
+@media (min-width: 900px) { .mx-album-grid { grid-template-columns: repeat(2, 1fr); } }
+
+.mx-album-card { padding: 0; overflow: visible; display: flex; flex-direction: column; transition: opacity 0.4s ease; }
+.mx-album-link { display: block; color: inherit; text-decoration: none; }
+.mx-album-cover-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  background: var(--mx-sunken);
+  overflow: hidden;
+  border-radius: var(--mx-r-lg) var(--mx-r-lg) 0 0;
+}
+.mx-album-cover-wrap img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.mx-album-meta { display: flex; align-items: flex-start; gap: 4px; padding: 12px 8px 12px 14px; }
+.mx-album-text { flex: 1 1 auto; min-width: 0; }
+.mx-album-text .mx-album-name {
+  font-size: 13.5px; color: var(--mx-ink-hot);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mx-album-text .mx-album-artist {
+  font-size: 11.5px; color: var(--mx-ink-dim); margin-top: 3px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mx-album-text .mx-album-year {
+  font-size: 10px; color: var(--mx-ink-faint); margin-top: 3px; letter-spacing: 0.06em;
+}
+.mx-album-menu-wrap { position: relative; flex: 0 0 auto; }
+.mx-dots-btn {
+  width: var(--mx-tap); height: var(--mx-tap);
+  margin: -10px -8px -10px 0;
+  display: flex; align-items: center; justify-content: center;
+  background: none; border: 0;
+  color: var(--mx-ink-dim);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.mx-dots-btn:active { color: var(--mx-green); }
+.mx-dots-btn svg { width: 18px; height: 18px; }
+.mx-menu-popover {
+  display: none;
+  position: absolute;
+  top: 38px; right: 6px;
+  z-index: 10;
+  min-width: 172px;
+  background: var(--mx-panel-sol);
+  border: 1px solid var(--mx-line);
+  border-radius: var(--mx-r-sm);
+  box-shadow: 0 16px 34px -12px rgba(0, 0, 0, 0.85);
+  padding: 6px;
+}
+.mx-menu-popover.mx-open { display: block; }
+.mx-menu-item {
+  display: flex; align-items: center; gap: 9px;
+  width: 100%;
+  min-height: var(--mx-tap);
+  padding: 0 12px;
+  background: none; border: 0; border-radius: var(--mx-r-sm);
+  color: var(--mx-red);
+  font: inherit;
+  font-size: 11.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.mx-menu-item svg { flex: 0 0 auto; width: 15px; height: 15px; }
+.mx-menu-item:active { background: var(--mx-red-low); }
+
+/* --- back link ---------------------------------------------------------------- */
+.mx-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--mx-tap);
+  padding: 0 4px;
+  margin-bottom: 4px;
+  color: var(--mx-ink-dim);
+  text-decoration: none;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.mx-back-link:active { color: var(--mx-green); }
+.mx-back-link svg { width: 16px; height: 16px; flex: 0 0 auto; }
+
+/* --- album hero ----------------------------------------------------------------- */
+.mx-album-hero { position: relative; overflow: hidden; padding: 0; }
+.mx-album-hero-bg {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  filter: blur(26px) saturate(1.3) brightness(0.5);
+  transform: scale(1.15);
+}
+.mx-album-hero-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+  padding: 30px 18px 26px;
+  background: linear-gradient(180deg, rgba(0, 4, 0, 0.10), rgba(0, 4, 0, 0.55) 65%, rgba(0, 4, 0, 0.80));
+}
+.mx-album-hero-cover {
+  width: 148px; height: 148px;
+  object-fit: cover;
+  border-radius: var(--mx-r-md);
+  border: 1px solid var(--mx-glass-edge);
+  box-shadow: var(--mx-glow), 0 20px 46px -18px rgba(0, 0, 0, 0.85);
+}
+.mx-album-hero-text h1 { margin: 0; word-break: break-word; }
+.mx-album-hero-text p { margin: 6px 0 0; }
+@media (min-width: 640px) {
+  .mx-album-hero-content { flex-direction: row; text-align: left; align-items: center; }
+  .mx-album-hero-cover { width: 172px; height: 172px; }
+}
+
+/* --- track rows ------------------------------------------------------------------- */
+.mx-track {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--mx-tap);
+  padding: 8px 10px 8px 12px;
+}
+.mx-track-num {
+  flex: 0 0 auto;
+  width: 18px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--mx-ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+.mx-track-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--mx-ink);
+  overflow: hidden;
+}
+.mx-track-title a { color: inherit; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mx-track-title a:active { color: var(--mx-green); }
+.mx-track-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mx-track-title svg { flex: 0 0 auto; width: 12px; height: 12px; color: var(--mx-ink-faint); }
+.mx-track-duration {
+  flex: 0 0 auto;
+  min-width: 30px;
+  text-align: right;
+  font-size: 10.5px;
+  color: var(--mx-ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+.mx-track-delete {
+  flex: 0 0 auto;
+  width: var(--mx-tap); height: var(--mx-tap);
+  margin-right: -8px;
+  display: flex; align-items: center; justify-content: center;
+  background: none; border: 0;
+  color: var(--mx-ink-faint);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.mx-track-delete:active { color: var(--mx-red); }
+.mx-track-delete svg { width: 15px; height: 15px; }
+@media (max-width: 360px) { .mx-track-duration { display: none; } }

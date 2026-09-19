@@ -2,91 +2,102 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#000400">
+    <meta name="color-scheme" content="dark">
     <title>{{ album.album_name }}</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='matrix.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+    <script src="{{ url_for('static', filename='matrix.js') }}" defer></script>
 </head>
-<body>
-    <div class="container">
-        <a href="{{ url_for('library_view') }}" class="back-link">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
-            Back to Library
-        </a>
+<body class="mx">
 
-        <div class="album-hero">
-            <div class="album-hero-bg" style="background-image: url('{{ url_for('static', filename='covers/' ~ album_id ~ '.jpg') }}');"></div>
-            <div class="album-hero-overlay"></div>
-            <div class="album-hero-content">
-                <img class="album-hero-cover"
-                     src="{{ url_for('static', filename='covers/' ~ album_id ~ '.jpg') }}"
-                     alt="{{ album.album_name }}"
-                     onerror="this.onerror=null;this.src='data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 fill=%22%2317171b%22/><path d=%22M35 65V32l30-5v33%22 stroke=%22%233a3a40%22 stroke-width=%223%22 fill=%22none%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22/><circle cx=%2230%22 cy=%2265%22 r=%226%22 stroke=%22%233a3a40%22 stroke-width=%223%22 fill=%22none%22/><circle cx=%2260%22 cy=%2260%22 r=%226%22 stroke=%22%233a3a40%22 stroke-width=%223%22 fill=%22none%22/></svg>'">
-                <div class="album-hero-text">
-                    <h1>{{ album.album_name }}</h1>
-                    <p>{{ album.artist_name }}</p>
-                </div>
+<canvas id="mx-rain-bloom" aria-hidden="true"></canvas>
+<canvas id="mx-rain" aria-hidden="true"></canvas>
+<div class="mx-vignette" aria-hidden="true"></div>
+<div class="mx-scanlines" aria-hidden="true"></div>
+
+<div class="mx-shell">
+
+    <a href="{{ url_for('library_view') }}" class="mx-back-link">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+        Back to Library
+    </a>
+
+    <section class="mx-panel mx-glass mx-album-hero">
+        <div class="mx-album-hero-bg" style="background-image: url('{{ url_for('static', filename='covers/' ~ album_id ~ '.jpg') }}');"></div>
+        <div class="mx-album-hero-content">
+            <img class="mx-album-hero-cover"
+                 src="{{ url_for('static', filename='covers/' ~ album_id ~ '.jpg') }}"
+                 alt="{{ album.album_name }}"
+                 onerror="this.onerror=null;this.src='data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 fill=%22%2303150c%22/><path d=%22M35 65V32l30-5v33%22 stroke=%22%232c6042%22 stroke-width=%223%22 fill=%22none%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22/><circle cx=%2230%22 cy=%2265%22 r=%226%22 stroke=%22%232c6042%22 stroke-width=%223%22 fill=%22none%22/><circle cx=%2260%22 cy=%2260%22 r=%226%22 stroke=%22%232c6042%22 stroke-width=%223%22 fill=%22none%22/></svg>'">
+            <div class="mx-album-hero-text">
+                <h1 class="mx-mark" style="font-size:clamp(22px, 6vw, 30px);">{{ album.album_name }}</h1>
+                <p class="mx-tagline">{{ album.artist_name }}</p>
             </div>
         </div>
+    </section>
 
-        <div class="track-list">
-            <div class="track-row head">
-                <span>#</span>
-                <span>Title</span>
-                <span>Duration</span>
-                <span>Quality</span>
-                <span></span>
-            </div>
+    <section class="mx-panel mx-glass">
+        <h2 class="mx-panel-title">tracks</h2>
+        <div class="mx-rows">
             {% for song in songs %}
-            <div class="track-row" id="row-{{ song.song_id }}">
-                <span class="track-num">{{ song.track_number }}</span>
-                <span class="track-title">
-                    {% if song.source_url %}
-                        <a href="{{ song.source_url }}" target="_blank">{{ song.song_title }}</a>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                    {% else %}
-                        {{ song.song_title }}
-                    {% endif %}
-                </span>
-                <span class="track-duration">{{ (song.duration_seconds // 60) }}:{{ "%02d" % (song.duration_seconds % 60) }}</span>
-                <span class="track-quality"><span class="badge">{{ song.bit_rate }}</span></span>
-                <button class="btn-icon" onclick="removeSong('{{ song.song_id }}')" title="Remove from database">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
-                </button>
+            <div class="mx-row" id="row-{{ song.song_id }}">
+                <div class="mx-track">
+                    <span class="mx-track-num">{{ song.track_number }}</span>
+                    <span class="mx-track-title">
+                        {% if song.source_url %}
+                            <a href="{{ song.source_url }}" target="_blank" rel="noopener"><span class="mx-track-name">{{ song.song_title }}</span></a>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                        {% else %}
+                            <span class="mx-track-name">{{ song.song_title }}</span>
+                        {% endif %}
+                    </span>
+                    <span class="mx-track-duration">{{ (song.duration_seconds // 60) }}:{{ "%02d" % (song.duration_seconds % 60) }}</span>
+                    <span class="mx-pill">{{ song.bit_rate }}</span>
+                    <button class="mx-track-delete" type="button" onclick="removeSong('{{ song.song_id }}')" aria-label="Remove from database">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                    </button>
+                </div>
             </div>
             {% endfor %}
         </div>
-    </div>
+    </section>
 
-    <script>
-        // See main.html for why this exists: makes fetch() calls below work
-        // both standalone and proxied under the app hub's path prefix.
-        const APP_ROOT = "{{ request.script_root }}";
+</div>
 
-        function removeSong(songId) {
-            if (confirm("Remove this song from the database?")) {
-                fetch(`${APP_ROOT}/delete_song/${songId}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        const element = document.getElementById(`row-${songId}`);
-                        element.style.transition = "opacity 0.5s";
-                        element.style.opacity = "0";
-                        setTimeout(() => element.remove(), 500);
-                    } else {
-                        alert("Error: " + data.message);
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert("Failed to delete song.");
-                });
-            }
+<div class="mx-toasts" id="toastHost"></div>
+
+<script>
+    // See main.html for why this exists: makes fetch() calls below work
+    // both standalone and proxied under the app hub's path prefix.
+    const APP_ROOT = "{{ request.script_root }}";
+
+    function removeSong(songId) {
+        if (confirm("Remove this song from the database?")) {
+            fetch(`${APP_ROOT}/delete_song/${songId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const element = document.getElementById(`row-${songId}`);
+                    element.style.transition = "opacity 0.5s";
+                    element.style.opacity = "0";
+                    setTimeout(() => element.remove(), 500);
+                } else {
+                    MX.toast(false, "Error: " + data.message, document.getElementById('toastHost'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                MX.toast(false, "Failed to delete song.", document.getElementById('toastHost'));
+            });
         }
-    </script>
+    }
+</script>
 </body>
 </html>

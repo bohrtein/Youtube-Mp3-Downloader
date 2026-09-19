@@ -2,278 +2,304 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#000400">
+    <meta name="color-scheme" content="dark">
     <title>Music Manager Dashboard</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='matrix.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+    <script src="{{ url_for('static', filename='matrix.js') }}" defer></script>
 </head>
-<body>
-    <nav class="topbar">
-        <a class="brand" href="{{ url_for('main_dashboard') }}">
-            <span class="mark">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-            </span>
-            Music Manager
-        </a>
-        <div class="topbar-actions">
-            <a class="btn" href="{{ url_for('library_view') }}">View Library →</a>
+<body class="mx mx-has-cmdbar">
+
+<canvas id="mx-rain-bloom" aria-hidden="true"></canvas>
+<canvas id="mx-rain" aria-hidden="true"></canvas>
+<div class="mx-vignette" aria-hidden="true"></div>
+<div class="mx-scanlines" aria-hidden="true"></div>
+
+<div class="mx-shell">
+
+    <div class="mx-topbar">
+        <div class="mx-brand">
+            <span class="mx-mark">music manager</span>
+            <p class="mx-tagline">library control</p>
         </div>
-    </nav>
-
-    <div class="container">
-        <div class="hero">
-            <h1>Dashboard</h1>
-            <p>Manage your local FLAC library and database</p>
-        </div>
-
-        <div class="card folder-panel">
-            <div class="folder-panel-info">
-                <span class="folder-panel-label">Library Folder</span>
-                <span class="folder-panel-path" id="currentFolderPath">{{ library_folder }}</span>
-            </div>
-            <button class="btn" onclick="openFolderBrowser()">Change</button>
-        </div>
-
-        <div class="action-grid">
-            <div class="card action-card">
-                <div class="action-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                </div>
-                <h3>Download</h3>
-                <p>Paste one or multiple URLs (one per line).</p>
-                <textarea id="urlInput" rows="4" placeholder="https://youtube.com/...&#10;https://youtube.com/..."></textarea>
-                <button onclick="startAction('download')" class="btn btn-primary btn-block">Start Batch Download</button>
-            </div>
-
-            <div class="card action-card">
-                <div class="action-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
-                </div>
-                <h3>Deduplicate</h3>
-                <p>Deletes files from 'downloads' if they are already in the database.</p>
-                <div class="spacer"></div>
-                <button onclick="confirmAndCleanup()" class="btn btn-warning btn-block">Remove repeats</button>
-            </div>
-
-            <div class="card action-card">
-                <div class="action-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-                </div>
-                <h3>Sync</h3>
-                <p>Scan your 'downloads' folder and update the database.</p>
-                <div class="spacer"></div>
-                <button onclick="startAction('sync')" class="btn btn-block">Run Database Sync</button>
-            </div>
-
-            <div class="card action-card">
-                <div class="action-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                </div>
-                <h3>Covers</h3>
-                <p>Process and optimize album artwork.</p>
-                <div class="spacer"></div>
-                <button onclick="startAction('processCovers')" class="btn btn-block">Process Covers</button>
-            </div>
-        </div>
-
-        <div id="progressContainer" class="card progress-panel hidden">
-            <div class="progress-status">
-                <span id="statusText">Waiting for task...</span>
-                <span id="statusPercent">0%</span>
-            </div>
-            <div class="progress-track">
-                <div id="progressBar" class="progress-fill"></div>
-            </div>
-        </div>
+        <a class="mx-btn" href="{{ url_for('library_view') }}">Library</a>
     </div>
 
-    <div id="folderModalOverlay" class="modal-overlay hidden" onclick="if (event.target === this) closeFolderBrowser()">
-        <div class="modal-panel">
-            <h3>Select Library Folder</h3>
-            <div class="breadcrumb" id="folderBreadcrumb"></div>
-            <div class="folder-list" id="folderList"></div>
-            <div class="modal-actions">
-                <button class="btn" onclick="closeFolderBrowser()">Cancel</button>
-                <button class="btn btn-primary" onclick="chooseCurrentFolder()">Select This Folder</button>
+    <section class="mx-panel mx-glass">
+        <h2 class="mx-panel-title">library folder</h2>
+        <div style="display:flex; align-items:center; gap:10px;">
+            <div class="mx-readout" id="currentFolderPath" style="flex:1 1 auto;">{{ library_folder }}</div>
+            <button class="mx-btn" type="button" onclick="openFolderBrowser()">Change</button>
+        </div>
+    </section>
+
+    <section class="mx-panel mx-glass">
+        <h2 class="mx-panel-title">download</h2>
+        <div class="mx-field">
+            <div class="mx-field-head">
+                <label class="mx-label" for="urlInput">urls</label>
             </div>
+            <textarea class="mx-textarea" id="urlInput" rows="4" placeholder="https://youtube.com/...&#10;https://youtube.com/..."></textarea>
+            <p class="mx-hint">One URL per line. Use the Download button below to start the batch.</p>
+        </div>
+    </section>
+
+    <section class="mx-panel mx-glass">
+        <h2 class="mx-panel-title">deduplicate</h2>
+        <p class="mx-hint" style="margin-bottom:14px;">Deletes files from 'downloads' if they are already in the database.</p>
+        <button class="mx-btn mx-btn-wide" type="button" onclick="confirmAndCleanup()">Remove repeats</button>
+    </section>
+
+    <section class="mx-panel mx-glass">
+        <h2 class="mx-panel-title">sync</h2>
+        <p class="mx-hint" style="margin-bottom:14px;">Scan your 'downloads' folder and update the database.</p>
+        <button class="mx-btn mx-btn-wide" type="button" onclick="startAction('sync')">Run Database Sync</button>
+    </section>
+
+    <section class="mx-panel mx-glass">
+        <h2 class="mx-panel-title">covers</h2>
+        <p class="mx-hint" style="margin-bottom:14px;">Process and optimize album artwork.</p>
+        <button class="mx-btn mx-btn-wide" type="button" onclick="startAction('processCovers')">Process Covers</button>
+    </section>
+
+    <section class="mx-panel mx-glass" id="progressContainer" hidden>
+        <h2 class="mx-panel-title">progress</h2>
+        <div class="mx-readout" id="statusText">Waiting for task...</div>
+        <div class="mx-progress-track">
+            <div class="mx-progress-fill" id="progressBar"></div>
+        </div>
+        <div style="text-align:right; margin-top:6px;">
+            <span class="mx-count" id="statusPercent">0%</span>
+        </div>
+    </section>
+
+</div>
+
+<div class="mx-overlay" id="folderModalOverlay" onclick="if (event.target === this) closeFolderBrowser()">
+    <div class="mx-panel mx-glass mx-sheet">
+        <h2 class="mx-panel-title">select library folder</h2>
+        <div class="mx-breadcrumb" id="folderBreadcrumb"></div>
+        <div class="mx-folder-list" id="folderList"></div>
+        <div class="mx-sheet-actions">
+            <button class="mx-btn" type="button" onclick="closeFolderBrowser()">Cancel</button>
+            <button class="mx-btn mx-btn-go" type="button" onclick="chooseCurrentFolder()">Select This Folder</button>
         </div>
     </div>
+</div>
 
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-    <script>
-        // The app's own base path -- "" when run standalone, or
-        // "/app/<slug>" when proxied behind the app hub. Every fetch() to a
-        // same-app endpoint below is prefixed with this so it still resolves
-        // once the hub has moved the app under a path prefix.
-        const APP_ROOT = "{{ request.script_root }}";
+<div class="mx-cmdbar">
+    <div class="mx-cmdbar-inner">
+        <div class="mx-cmd-status" id="cmdStatus"><span class="mx-prompt">&gt;</span>ready</div>
+        <button class="mx-btn mx-btn-go" type="button" onclick="startAction('download')">Download</button>
+    </div>
+</div>
 
-        // The Werkzeug dev server can't complete a real WebSocket upgrade,
-        // which would otherwise log a caught ConnectionError on every visit.
-        // Long-polling is plenty for these occasional progress updates.
-        const socket = io({ transports: ['polling'], path: '{{ request.script_root }}/socket.io/' });
+<div class="mx-toasts" id="toastHost"></div>
 
-        socket.on('connect', () => {
-            console.log("Connected to server!");
-        });
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script>
+    // The app's own base path -- "" when run standalone, or
+    // "/app/<slug>" when proxied behind the app hub. Every fetch() to a
+    // same-app endpoint below is prefixed with this so it still resolves
+    // once the hub has moved the app under a path prefix.
+    const APP_ROOT = "{{ request.script_root }}";
 
-        function confirmAndCleanup() {
-            if (confirm("⚠️ Delete physical repeats on G: drive?")) {
-                if (confirm("⚠️ Delete duplicate records from the database?")) {
-                    socket.emit('trigger_cleanup');
-                    document.getElementById('progressContainer').classList.remove('hidden');
-                }
+    // The Werkzeug dev server can't complete a real WebSocket upgrade,
+    // which would otherwise log a caught ConnectionError on every visit.
+    // Long-polling is plenty for these occasional progress updates.
+    const socket = io({ transports: ['polling'], path: '{{ request.script_root }}/socket.io/' });
+
+    socket.on('connect', () => {
+        console.log("Connected to server!");
+    });
+
+    function confirmAndCleanup() {
+        if (confirm("⚠️ Delete physical repeats on G: drive?")) {
+            if (confirm("⚠️ Delete duplicate records from the database?")) {
+                socket.emit('trigger_cleanup');
+                setBusy('Starting cleanup...');
             }
         }
+    }
 
-        function startAction(actionType) {
-            const container = document.getElementById('progressContainer');
+    function startAction(actionType) {
+        if (actionType === 'download') {
+            const rawInput = document.getElementById('urlInput').value;
+            const urls = rawInput.split('\n').map(u => u.trim()).filter(u => u.length > 0);
 
-            if (actionType === 'download') {
-                const rawInput = document.getElementById('urlInput').value;
-                const urls = rawInput.split('\n').map(u => u.trim()).filter(u => u.length > 0);
-
-                if (urls.length === 0) {
-                    alert("Please paste at least one URL!");
-                    return;
-                }
-
-                container.classList.remove('hidden');
-                socket.emit('start_download_batch', { urls: urls });
-            } else if (actionType === 'sync') {
-                container.classList.remove('hidden');
-                socket.emit('start_sync');
-            } else if (actionType === 'processCovers') {
-                container.classList.remove('hidden');
-                socket.emit('start_covers');
-            }
-        }
-
-        let browsingPath = null;
-
-        function openFolderBrowser() {
-            document.getElementById('folderModalOverlay').classList.remove('hidden');
-            loadFolder(null);
-        }
-
-        function closeFolderBrowser() {
-            document.getElementById('folderModalOverlay').classList.add('hidden');
-        }
-
-        function loadFolder(path) {
-            const url = path ? `${APP_ROOT}/browse_folders?path=${encodeURIComponent(path)}` : `${APP_ROOT}/browse_folders`;
-            fetch(url)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success === false) {
-                        alert(data.message || 'Could not open that folder.');
-                        return;
-                    }
-                    browsingPath = data.path;
-                    renderBreadcrumb(data.path);
-                    renderFolderList(data);
-                })
-                .catch(() => alert('Failed to load folders.'));
-        }
-
-        function renderBreadcrumb(path) {
-            const breadcrumb = document.getElementById('folderBreadcrumb');
-            breadcrumb.innerHTML = '';
-
-            const rootCrumb = document.createElement('span');
-            rootCrumb.className = 'breadcrumb-item';
-            rootCrumb.innerText = 'This PC';
-            rootCrumb.onclick = () => loadFolder(null);
-            breadcrumb.appendChild(rootCrumb);
-
-            if (!path) return;
-
-            const separator = (parts_index) => {
-                const sep = document.createElement('span');
-                sep.className = 'breadcrumb-sep';
-                sep.innerText = '›';
-                breadcrumb.appendChild(sep);
-            };
-
-            const isWindowsDrive = /^[A-Za-z]:\\?$/.test(path);
-            const parts = path.split(/[\\/]/).filter(p => p.length > 0);
-            let accumulated = '';
-
-            parts.forEach((part, index) => {
-                separator(index);
-                if (index === 0 && isWindowsDrive) {
-                    accumulated = part.endsWith(':') ? part + '\\' : part;
-                } else {
-                    accumulated = accumulated.endsWith('\\') || accumulated.endsWith('/')
-                        ? accumulated + part
-                        : accumulated + '\\' + part;
-                }
-                const crumbPath = accumulated;
-                const crumb = document.createElement('span');
-                crumb.className = 'breadcrumb-item';
-                crumb.innerText = part;
-                crumb.onclick = () => loadFolder(crumbPath);
-                breadcrumb.appendChild(crumb);
-            });
-        }
-
-        function renderFolderList(data) {
-            const list = document.getElementById('folderList');
-            list.innerHTML = '';
-
-            if (data.folders.length === 0) {
-                const empty = document.createElement('div');
-                empty.className = 'folder-empty';
-                empty.innerText = 'No subfolders here.';
-                list.appendChild(empty);
+            if (urls.length === 0) {
+                MX.toast(false, "Paste at least one URL first.", document.getElementById('toastHost'));
                 return;
             }
 
-            data.folders.forEach(folder => {
-                const row = document.createElement('div');
-                row.className = 'folder-row';
-                row.innerHTML = `
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-                    <span>${folder.name}</span>`;
-                row.onclick = () => loadFolder(folder.path);
-                list.appendChild(row);
-            });
+            setBusy(`Downloading ${urls.length} item${urls.length === 1 ? '' : 's'}...`);
+            socket.emit('start_download_batch', { urls: urls });
+        } else if (actionType === 'sync') {
+            setBusy('Syncing...');
+            socket.emit('start_sync');
+        } else if (actionType === 'processCovers') {
+            setBusy('Processing covers...');
+            socket.emit('start_covers');
         }
+    }
 
-        function chooseCurrentFolder() {
-            if (!browsingPath) {
-                alert('Pick a folder first.');
-                return;
-            }
-            fetch(`${APP_ROOT}/set_library_folder`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ path: browsingPath })
-            })
+    function setBusy(message) {
+        const container = document.getElementById('progressContainer');
+        const status = document.getElementById('statusText');
+        const bar = document.getElementById('progressBar');
+        const cmdStatus = document.getElementById('cmdStatus');
+
+        container.hidden = false;
+        status.className = 'mx-readout mx-busy';
+        status.textContent = message;
+        bar.className = 'mx-progress-fill mx-busy';
+        cmdStatus.className = 'mx-cmd-status mx-busy';
+        cmdStatus.innerHTML = '<span class="mx-prompt">&gt;</span>' + message;
+    }
+
+    let browsingPath = null;
+
+    function openFolderBrowser() {
+        document.getElementById('folderModalOverlay').classList.add('mx-open');
+        loadFolder(null);
+    }
+
+    function closeFolderBrowser() {
+        document.getElementById('folderModalOverlay').classList.remove('mx-open');
+    }
+
+    function loadFolder(path) {
+        const url = path ? `${APP_ROOT}/browse_folders?path=${encodeURIComponent(path)}` : `${APP_ROOT}/browse_folders`;
+        fetch(url)
             .then(response => response.json())
             .then(data => {
-                if (data.success) {
-                    location.reload();
-                } else {
-                    alert(data.message || 'Could not use that folder.');
+                if (data.success === false) {
+                    MX.toast(false, data.message || 'Could not open that folder.', document.getElementById('toastHost'));
+                    return;
                 }
+                browsingPath = data.path;
+                renderBreadcrumb(data.path);
+                renderFolderList(data);
             })
-            .catch(() => alert('Failed to save the folder.'));
+            .catch(() => MX.toast(false, 'Failed to load folders.', document.getElementById('toastHost')));
+    }
+
+    function renderBreadcrumb(path) {
+        const breadcrumb = document.getElementById('folderBreadcrumb');
+        breadcrumb.innerHTML = '';
+
+        const rootCrumb = document.createElement('span');
+        rootCrumb.className = 'mx-breadcrumb-item';
+        rootCrumb.innerText = 'This PC';
+        rootCrumb.onclick = () => loadFolder(null);
+        breadcrumb.appendChild(rootCrumb);
+
+        if (!path) return;
+
+        const separator = () => {
+            const sep = document.createElement('span');
+            sep.className = 'mx-breadcrumb-sep';
+            sep.innerText = '›';
+            breadcrumb.appendChild(sep);
+        };
+
+        const isWindowsDrive = /^[A-Za-z]:\\?$/.test(path);
+        const parts = path.split(/[\\/]/).filter(p => p.length > 0);
+        let accumulated = '';
+
+        parts.forEach((part, index) => {
+            separator();
+            if (index === 0 && isWindowsDrive) {
+                accumulated = part.endsWith(':') ? part + '\\' : part;
+            } else {
+                accumulated = accumulated.endsWith('\\') || accumulated.endsWith('/')
+                    ? accumulated + part
+                    : accumulated + '\\' + part;
+            }
+            const crumbPath = accumulated;
+            const crumb = document.createElement('span');
+            crumb.className = 'mx-breadcrumb-item';
+            crumb.innerText = part;
+            crumb.onclick = () => loadFolder(crumbPath);
+            breadcrumb.appendChild(crumb);
+        });
+    }
+
+    function renderFolderList(data) {
+        const list = document.getElementById('folderList');
+        list.innerHTML = '';
+
+        if (data.folders.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'mx-empty';
+            empty.innerText = 'No subfolders here.';
+            list.appendChild(empty);
+            return;
         }
 
-        socket.on('progress', function(data) {
-            console.log("Progress received:", data);
-            const bar = document.getElementById('progressBar');
-            const status = document.getElementById('statusText');
-            const percent = document.getElementById('statusPercent');
-
-            bar.style.width = data.percent + '%';
-            percent.innerText = Math.round(data.percent) + '%';
-            status.innerText = data.status;
-
-            if (data.status === 'complete') {
-                status.innerText = "Task Finished!";
-                setTimeout(() => { location.reload(); }, 2000);
-            }
+        data.folders.forEach(folder => {
+            const row = document.createElement('div');
+            row.className = 'mx-folder-row';
+            row.innerHTML = `
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                <span>${folder.name}</span>`;
+            row.onclick = () => loadFolder(folder.path);
+            list.appendChild(row);
         });
-    </script>
+    }
+
+    function chooseCurrentFolder() {
+        if (!browsingPath) {
+            MX.toast(false, 'Pick a folder first.', document.getElementById('toastHost'));
+            return;
+        }
+        fetch(`${APP_ROOT}/set_library_folder`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path: browsingPath })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                MX.toast(false, data.message || 'Could not use that folder.', document.getElementById('toastHost'));
+            }
+        })
+        .catch(() => MX.toast(false, 'Failed to save the folder.', document.getElementById('toastHost')));
+    }
+
+    socket.on('progress', function(data) {
+        console.log("Progress received:", data);
+        const container = document.getElementById('progressContainer');
+        const bar = document.getElementById('progressBar');
+        const status = document.getElementById('statusText');
+        const percent = document.getElementById('statusPercent');
+        const cmdStatus = document.getElementById('cmdStatus');
+
+        container.hidden = false;
+        bar.style.width = data.percent + '%';
+        percent.innerText = Math.round(data.percent) + '%';
+
+        if (data.status === 'complete') {
+            status.className = 'mx-readout mx-ok';
+            status.textContent = 'Task finished!';
+            bar.className = 'mx-progress-fill';
+            cmdStatus.className = 'mx-cmd-status mx-ok';
+            cmdStatus.innerHTML = '<span class="mx-prompt">&gt;</span>ready';
+            MX.toast(true, 'Task finished!', document.getElementById('toastHost'));
+            setTimeout(() => { location.reload(); }, 2000);
+        } else {
+            const isError = /error/i.test(data.status);
+            status.className = isError ? 'mx-readout mx-err' : 'mx-readout mx-busy';
+            status.textContent = data.status;
+            bar.className = isError ? 'mx-progress-fill mx-err' : 'mx-progress-fill mx-busy';
+            cmdStatus.className = isError ? 'mx-cmd-status mx-err' : 'mx-cmd-status mx-busy';
+            cmdStatus.innerHTML = '<span class="mx-prompt">&gt;</span>' + data.status;
+        }
+    });
+</script>
 </body>
 </html>
