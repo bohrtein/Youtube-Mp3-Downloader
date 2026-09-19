@@ -88,6 +88,12 @@
                 <div id="progressBar" class="progress-fill"></div>
             </div>
         </div>
+
+        <div id="deviceDownloadsPanel" class="card device-downloads hidden">
+            <h4>Device downloads</h4>
+            <p class="device-downloads-hint">Your browser only allows one automatic download per click, so files land here as they finish — click each one to save it.</p>
+            <div id="deviceDownloadsItems"></div>
+        </div>
     </div>
 
     <div id="folderModalOverlay" class="modal-overlay hidden" onclick="if (event.target === this) closeFolderBrowser()">
@@ -148,12 +154,16 @@
                 const mode = document.querySelector('input[name="downloadMode"]:checked').value;
 
                 deviceDirHandle = null;
+                const devicePanel = document.getElementById('deviceDownloadsPanel');
+                document.getElementById('deviceDownloadsItems').innerHTML = '';
+                devicePanel.classList.add('hidden');
+
                 if (mode === 'device' && window.showDirectoryPicker) {
                     try {
                         deviceDirHandle = await window.showDirectoryPicker();
                     } catch (err) {
                         // User cancelled the picker, or the browser blocked it — fall
-                        // back to per-file <a download> links instead of aborting.
+                        // back to a clickable list of per-file links instead of aborting.
                         deviceDirHandle = null;
                     }
                 }
@@ -304,35 +314,60 @@
             }
         });
 
+        function addDeviceDownloadRow(filename, state, token) {
+            const panel = document.getElementById('deviceDownloadsPanel');
+            const items = document.getElementById('deviceDownloadsItems');
+            panel.classList.remove('hidden');
+
+            const row = document.createElement('div');
+            row.className = 'device-download-row';
+
+            if (state === 'saved') {
+                row.innerHTML = `<span class="device-download-name">✓ ${filename}</span>`;
+            } else {
+                const label = document.createElement('span');
+                label.className = 'device-download-name';
+                label.innerText = state === 'error' ? `${filename} — fetch failed, retry:` : filename;
+                row.appendChild(label);
+
+                const link = document.createElement('a');
+                link.href = `${APP_ROOT}/download_file/${token}`;
+                link.download = filename;
+                link.className = 'device-download-link';
+                link.innerText = state === 'error' ? 'Retry' : 'Download';
+                row.appendChild(link);
+            }
+
+            items.appendChild(row);
+        }
+
         // Fires once per finished file when downloading in "device" mode.
-        // Fetches the file from the server and hands it to the browser, then
-        // the server deletes its own staging copy (see /download_file).
+        //
+        // With a picked directory handle (File System Access API), the write
+        // needs no further user interaction, so it's saved automatically.
+        // Without one, browsers block automatic/synthetic downloads that
+        // aren't tied to a direct click — especially the 2nd+ file in a
+        // batch — so instead a real link is rendered for the user to click.
         socket.on('device_file_ready', async function(data) {
+            if (!deviceDirHandle) {
+                addDeviceDownloadRow(data.filename, 'link', data.token);
+                return;
+            }
+
             try {
-                const response = await fetch(`/download_file/${data.token}`);
+                const response = await fetch(`${APP_ROOT}/download_file/${data.token}`);
                 if (!response.ok) {
-                    console.error('Failed to fetch device download:', data.filename);
-                    return;
+                    throw new Error(`Server returned ${response.status}`);
                 }
                 const blob = await response.blob();
-
-                if (deviceDirHandle) {
-                    const fileHandle = await deviceDirHandle.getFileHandle(data.filename, { create: true });
-                    const writable = await fileHandle.createWritable();
-                    await writable.write(blob);
-                    await writable.close();
-                } else {
-                    const objectUrl = URL.createObjectURL(blob);
-                    const link = document.createElement('a');
-                    link.href = objectUrl;
-                    link.download = data.filename;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    URL.revokeObjectURL(objectUrl);
-                }
+                const fileHandle = await deviceDirHandle.getFileHandle(data.filename, { create: true });
+                const writable = await fileHandle.createWritable();
+                await writable.write(blob);
+                await writable.close();
+                addDeviceDownloadRow(data.filename, 'saved');
             } catch (err) {
                 console.error('Error saving device download:', data.filename, err);
+                addDeviceDownloadRow(data.filename, 'error', data.token);
             }
         });
     </script>

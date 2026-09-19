@@ -4,7 +4,7 @@ import threading
 import tempfile
 import uuid
 from pathlib import Path
-from flask import Flask, render_template, request, jsonify, send_file, after_this_request
+from flask import Flask, render_template, request, jsonify, send_file
 from flask_socketio import SocketIO
 import database.databaseConnector as databaseConnector
 import core.checkDependencies as checkDependencies
@@ -103,13 +103,11 @@ def download_file(token):
     token was handed out, so removing the file here doesn't affect the
     library view.
     """
-    file_path = pending_device_downloads.get(token)
+    file_path = pending_device_downloads.pop(token, None)
     if not file_path or not os.path.isfile(file_path):
         return jsonify({"success": False, "message": "File not found or already downloaded"}), 404
 
-    @after_this_request
-    def cleanup(response):
-        pending_device_downloads.pop(token, None)
+    def cleanup():
         try:
             os.remove(file_path)
             parent = os.path.dirname(file_path)
@@ -117,9 +115,14 @@ def download_file(token):
                 os.rmdir(parent)
         except OSError:
             pass
-        return response
 
-    return send_file(file_path, as_attachment=True, download_name=os.path.basename(file_path))
+    # send_file streams the file lazily, so the request context (and any
+    # after_this_request callback) tears down before the bytes are actually
+    # sent to the client. call_on_close fires once the response is truly
+    # done, which is the safe point to delete the staging file.
+    response = send_file(file_path, as_attachment=True, download_name=os.path.basename(file_path))
+    response.call_on_close(cleanup)
+    return response
 
 @app.route('/library')
 def library_view():
