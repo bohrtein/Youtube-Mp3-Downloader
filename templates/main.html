@@ -22,7 +22,7 @@
     <div class="mx-topbar">
         <div class="mx-brand">
             <span class="mx-mark">music manager</span>
-            <p class="mx-tagline">library control</p>
+            <p class="mx-tagline" id="tagline">library control<span class="mx-caret" aria-hidden="true"></span></p>
         </div>
         <a class="mx-btn" href="{{ url_for('library_view') }}">Library</a>
     </div>
@@ -119,6 +119,16 @@
 
     socket.on('connect', () => {
         console.log("Connected to server!");
+    });
+
+    // One-off decode on the tagline, the same spot the ticket printer
+    // does it. matrix.js is deferred, so MX only exists from
+    // DOMContentLoaded on; decode() rewrites textContent each frame,
+    // which would drop the caret, so the callback puts it back.
+    document.addEventListener('DOMContentLoaded', () => {
+        const line = document.getElementById('tagline');
+        const caret = line.querySelector('.mx-caret');
+        MX.decode(line, 'library control', el => el.appendChild(caret));
     });
 
     function confirmAndCleanup() {

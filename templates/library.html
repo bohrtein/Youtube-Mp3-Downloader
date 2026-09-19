@@ -40,12 +40,16 @@
 
     <div class="mx-album-grid" id="albumGrid">
         {% for album in albums %}
-        <div class="album-item" id="album-container-{{ album.album_id }}">
+        {# --mx-i drives the entrance stagger (see .album-item.mx-enter in app.css);
+           the cap must match STAGGER_CAP in the script below. #}
+        <div class="album-item mx-enter" id="album-container-{{ album.album_id }}" style="--mx-i:{{ [loop.index0, 18]|min }}">
             <div class="mx-panel mx-glass mx-album-card">
                 <div class="mx-album-cover-wrap">
                     <a class="mx-album-link" href="{{ url_for('album_detail', album_id=album.album_id) }}">
                         <img src="{{ url_for('static', filename='covers/' ~ album.album_id ~ '.jpg') }}"
                              alt="{{ album.album_name }}"
+                             loading="lazy" decoding="async"
+                             onload="this.parentNode.parentNode.classList.add('mx-loaded')"
                              onerror="this.onerror=null;this.src='data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 fill=%22%2303150c%22/><path d=%22M35 65V32l30-5v33%22 stroke=%22%232c6042%22 stroke-width=%223%22 fill=%22none%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22/><circle cx=%2230%22 cy=%2265%22 r=%226%22 stroke=%22%232c6042%22 stroke-width=%223%22 fill=%22none%22/><circle cx=%2260%22 cy=%2260%22 r=%226%22 stroke=%22%232c6042%22 stroke-width=%223%22 fill=%22none%22/></svg>'">
                     </a>
                 </div>
@@ -83,6 +87,17 @@
     // both standalone and proxied under the app hub's path prefix.
     const APP_ROOT = "{{ request.script_root }}";
 
+    // Longest entrance delay, in cards. Mirrors the cap in the Jinja loop above.
+    const STAGGER_CAP = 18;
+
+    // Covers that were already in cache can finish before their inline
+    // onload is even wired (bfcache restores, for one); sweep those up.
+    document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('.mx-album-cover-wrap img').forEach(img => {
+            if (img.complete && img.naturalWidth > 0) img.parentNode.parentNode.classList.add('mx-loaded');
+        });
+    });
+
     function toggleMenu(event, albumId) {
         event.preventDefault();
         event.stopPropagation();
@@ -110,7 +125,7 @@
             .then(data => {
                 if (data.success) {
                     const element = document.getElementById(`album-container-${albumId}`);
-                    element.style.opacity = "0";
+                    element.classList.add('mx-leave');
                     setTimeout(() => element.remove(), 400);
                 } else {
                     MX.toast(false, data.message || 'Could not delete that album.', document.getElementById('toastHost'));
@@ -123,15 +138,31 @@
     function filterLibrary() {
         const input = document.getElementById('librarySearch').value.toLowerCase();
         const albums = document.getElementsByClassName('album-item');
+        const shown = [];
+        let changed = false;
         for (let i = 0; i < albums.length; i++) {
             const title = albums[i].querySelector('.mx-album-name').innerText.toLowerCase();
             const artist = albums[i].querySelector('.mx-album-artist').innerText.toLowerCase();
-            if (title.includes(input) || artist.includes(input)) {
-                albums[i].style.display = "";
-            } else {
-                albums[i].style.display = "none";
+            const match = title.includes(input) || artist.includes(input);
+            const display = match ? "" : "none";
+            if (albums[i].style.display !== display) {
+                albums[i].style.display = display;
+                changed = true;
             }
+            if (match) shown.push(albums[i]);
         }
+        if (!changed) return;
+
+        // The grid just re-flowed: run the entrance again over whatever
+        // survived, renumbered from the top so the stagger reads in the
+        // new order. Dropping and re-adding the class (with one forced
+        // layout in between) is what restarts a finished CSS animation.
+        shown.forEach(el => el.classList.remove('mx-enter'));
+        void document.getElementById('albumGrid').offsetWidth;
+        shown.forEach((el, i) => {
+            el.style.setProperty('--mx-i', Math.min(i, STAGGER_CAP));
+            el.classList.add('mx-enter');
+        });
     }
 </script>
 </body>

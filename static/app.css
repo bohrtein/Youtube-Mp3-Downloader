@@ -35,22 +35,45 @@
   overflow: hidden;
 }
 .mx-progress-fill {
+  position: relative;
   height: 100%;
   width: 0%;
+  overflow: hidden;
   background: var(--mx-green);
   box-shadow: 0 0 10px rgba(0, 255, 90, 0.5);
   transition: width 0.3s ease, background-color 0.2s ease, box-shadow 0.2s ease;
 }
 .mx-progress-fill.mx-busy { background: var(--mx-amber); box-shadow: 0 0 10px rgba(255, 201, 74, 0.5); }
 .mx-progress-fill.mx-err  { background: var(--mx-red);   box-shadow: 0 0 10px rgba(255, 91, 82, 0.5); }
+/* Stripes marching along the fill while busy. Between progress events
+   the bar only ever sits still, which reads as stalled; the stripes are
+   the page black laid over the amber, so no second hue appears. One
+   period is 12px along the stripe normal = 16.97px across, and the
+   overlay starts one period to the left so the slide never shows a gap. */
+.mx-progress-fill.mx-busy::after {
+  content: "";
+  position: absolute;
+  top: 0; bottom: 0;
+  left: -17px;
+  width: calc(100% + 17px);
+  background: repeating-linear-gradient(-45deg, rgba(0, 4, 0, 0.22) 0 6px, transparent 6px 12px);
+  animation: mx-stripe 0.5s linear infinite;
+  pointer-events: none;
+}
+@keyframes mx-stripe { to { transform: translateX(16.97px); } }
 
 /* --- folder-picker overlay -------------------------------------------------
    A bottom sheet on phones (thumb reach, one-handed), a centred sheet
    from 640px. mx-drawer's 320px cap is too small for a scrollable
    breadcrumb + folder list, so this is the "mx-panel overlay" option
-   the brief calls out. */
+   the brief calls out.
+
+   Closed, it stays laid out but faded and unreachable (visibility, not
+   display, so both directions can transition): the backdrop fades and
+   the sheet slides up on mx-drawer's curve; on close the same in
+   reverse, with visibility flipping only once the fade has finished. */
 .mx-overlay {
-  display: none;
+  display: flex;
   position: fixed;
   inset: 0;
   z-index: 40;
@@ -60,8 +83,11 @@
   -webkit-backdrop-filter: blur(2px);
           backdrop-filter: blur(2px);
   padding: 0;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.28s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s linear 0.28s;
 }
-.mx-overlay.mx-open { display: flex; }
+.mx-overlay.mx-open { opacity: 1; visibility: visible; transition-delay: 0s; }
 .mx-overlay .mx-sheet {
   width: 100%;
   max-width: 560px;
@@ -71,10 +97,21 @@
   flex-direction: column;
   border-radius: var(--mx-r-lg) var(--mx-r-lg) 0 0;
   padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  transform: translateY(100%);
+  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
 }
+.mx-overlay.mx-open .mx-sheet { transform: none; }
 @media (min-width: 640px) {
   .mx-overlay { align-items: center; padding: 24px; }
-  .mx-overlay .mx-sheet { border-radius: var(--mx-r-lg); max-height: min(80vh, 640px); padding-bottom: 16px; }
+  .mx-overlay .mx-sheet {
+    border-radius: var(--mx-r-lg);
+    max-height: min(80vh, 640px);
+    padding-bottom: 16px;
+    /* Centred, a full-height slide would be a long way; a short rise
+       plus a touch of scale reads as the same gesture. */
+    transform: translateY(28px) scale(0.98);
+  }
+  .mx-overlay.mx-open .mx-sheet { transform: none; }
 }
 
 .mx-breadcrumb {
@@ -160,14 +197,41 @@
   position: relative;
   min-width: 0;
 }
+/* Staggered entrance: each card fades up in turn, 40ms apart, on first
+   paint and again whenever a search narrows the grid. --mx-i is the
+   card's place among the visible ones (Jinja sets it on first paint,
+   filterLibrary() after a search), capped at 18 so a long library lands
+   in well under a second instead of trickling in for ten. `backwards`
+   holds the card invisible through its delay and then lets go, so an
+   inline opacity (the delete fade) still wins once it has landed. */
+.album-item.mx-enter {
+  animation: mx-rise-in 0.36s cubic-bezier(0.4, 0, 0.2, 1) backwards;
+  animation-delay: calc(var(--mx-i, 0) * 40ms);
+}
+@keyframes mx-rise-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+/* A deleted card leaves the way a toast does -- same keyframe. */
+.album-item.mx-leave { animation: mx-toast-out 0.25s ease forwards; pointer-events: none; }
 
 .mx-album-card {
   padding: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  transition: opacity 0.4s ease;
+  transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease;
 }
+/* Lift on hover (pointer devices only, so a tap on a phone doesn't leave
+   a card stuck raised), press with the same 0.97 scale as .mx-btn. The
+   hover reads off .album-item so the dots button over the corner of the
+   art doesn't flicker the card in and out. */
+@media (hover: hover) {
+  .album-item:hover .mx-album-card {
+    transform: translateY(-3px);
+    border-color: rgba(0, 255, 90, 0.45);
+    box-shadow: var(--mx-glass-lift), var(--mx-glow);
+  }
+}
+.mx-album-card:active { transform: translateY(0) scale(0.97); transition-duration: 0.08s; }
+
 .mx-album-cover-wrap {
   position: relative;
   width: 100%;
@@ -175,7 +239,28 @@
   background: var(--mx-sunken);
   overflow: hidden;
 }
-.mx-album-cover-wrap img { display: block; width: 100%; height: 100%; object-fit: cover; }
+/* Skeleton while the cover lazy-loads: a band of the line tint sweeping
+   across the sunken fill. Transform-only, so it costs the compositor and
+   not the main thread, and it's removed the moment the image lands. */
+.mx-album-cover-wrap::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 30%, var(--mx-line) 50%, transparent 70%);
+  transform: translateX(-100%);
+  animation: mx-shimmer 1.4s ease-in-out infinite;
+  pointer-events: none;
+}
+.mx-album-cover-wrap.mx-loaded::before { content: none; animation: none; }
+@keyframes mx-shimmer { to { transform: translateX(100%); } }
+.mx-album-cover-wrap img {
+  display: block;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.mx-album-cover-wrap.mx-loaded img { opacity: 1; }
 .mx-album-link { display: block; color: inherit; text-decoration: none; }
 .mx-album-text { padding: 10px 10px 12px; min-width: 0; }
 .mx-album-text .mx-album-name {
@@ -215,7 +300,6 @@
 .mx-dots-btn:active .mx-dots-visual { background: rgba(0, 60, 30, 0.7); border-color: var(--mx-green); }
 .mx-dots-btn svg { width: 16px; height: 16px; }
 .mx-menu-popover {
-  display: none;
   position: absolute;
   top: calc(100% + 2px); right: 0;
   z-index: 10;
@@ -225,8 +309,15 @@
   border-radius: var(--mx-r-sm);
   box-shadow: 0 16px 34px -12px rgba(0, 0, 0, 0.85);
   padding: 6px;
+  /* Pops out of the button's corner: a fast scale+fade, hidden by
+     visibility (not display) so the close plays too. */
+  opacity: 0;
+  visibility: hidden;
+  transform: scale(0.92) translateY(-4px);
+  transform-origin: top right;
+  transition: opacity 0.15s ease, transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s linear 0.15s;
 }
-.mx-menu-popover.mx-open { display: block; }
+.mx-menu-popover.mx-open { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
 .mx-menu-item {
   display: flex; align-items: center; gap: 9px;
   width: 100%;
@@ -297,6 +388,12 @@
 }
 
 /* --- track rows ------------------------------------------------------------------- */
+/* The tracklist lands top to bottom on mx-slide-in (matrix.css's log-item
+   keyframe), 30ms apart, capped at 20 rows the same way the album grid is. */
+.mx-rows > .mx-row.mx-enter {
+  animation: mx-slide-in 0.22s ease backwards;
+  animation-delay: calc(var(--mx-i, 0) * 30ms);
+}
 .mx-track {
   display: flex;
   align-items: center;
@@ -347,3 +444,17 @@
 .mx-track-delete:active { color: var(--mx-red); }
 .mx-track-delete svg { width: 15px; height: 15px; }
 @media (max-width: 360px) { .mx-track-duration { display: none; } }
+
+/* --- reduced motion ---------------------------------------------------------------
+   matrix.css already zeroes every animation- and transition-duration; what
+   is left to cover here is the stagger delays (a card would otherwise sit
+   invisible for its whole delay), the infinite loops, and the visibility
+   hand-offs that ride on a transition-delay. */
+@media (prefers-reduced-motion: reduce) {
+  .album-item.mx-enter, .mx-rows > .mx-row.mx-enter { animation: none; }
+  .mx-album-cover-wrap::before { content: none; animation: none; }
+  .mx-album-cover-wrap img { opacity: 1; }
+  .mx-progress-fill.mx-busy::after { animation: none; }
+  .mx-overlay, .mx-overlay .mx-sheet, .mx-menu-popover { transition: none; }
+  .album-item:hover .mx-album-card, .mx-album-card:active { transform: none; }
+}

@@ -42,7 +42,8 @@
         <h2 class="mx-panel-title">tracks</h2>
         <div class="mx-rows">
             {% for song in songs %}
-            <div class="mx-row" id="row-{{ song.song_id }}">
+            {# --mx-i staggers the slide-in (see .mx-row.mx-enter in app.css). #}
+            <div class="mx-row mx-enter" id="row-{{ song.song_id }}" style="--mx-i:{{ [loop.index0, 20]|min }}">
                 <div class="mx-track">
                     <span class="mx-track-num">{{ song.track_number }}</span>
                     <span class="mx-track-title">
