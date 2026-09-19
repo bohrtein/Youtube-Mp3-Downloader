@@ -94,14 +94,20 @@ def set_library_folder():
     except NotADirectoryError as e:
         return jsonify({"success": False, "message": str(e)}), 400
 
-@app.route('/download_file/<token>')
-def download_file(token):
+@app.route('/download_file/<token>/<path:filename>')
+def download_file(token, filename):
     """
     Streams a staged "download to my device" file to the browser as an
     attachment, then deletes the server-side staging copy. The DB/cover-art
     record was already written by main.download_for_device before this
     token was handed out, so removing the file here doesn't affect the
     library view.
+
+    `filename` in the URL is cosmetic only -- the token is what's actually
+    looked up. It's there so a right-click "Save link as" (which guesses a
+    name straight from the URL, before the response/Content-Disposition
+    header ever arrives) still shows the real filename instead of the bare
+    token.
     """
     file_path = pending_device_downloads.pop(token, None)
     if not file_path or not os.path.isfile(file_path):

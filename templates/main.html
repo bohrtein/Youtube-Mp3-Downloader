@@ -331,7 +331,7 @@
                 row.appendChild(label);
 
                 const link = document.createElement('a');
-                link.href = `${APP_ROOT}/download_file/${token}`;
+                link.href = `${APP_ROOT}/download_file/${token}/${encodeURIComponent(filename)}`;
                 link.download = filename;
                 link.className = 'device-download-link';
                 link.innerText = state === 'error' ? 'Retry' : 'Download';
@@ -355,7 +355,7 @@
             }
 
             try {
-                const response = await fetch(`${APP_ROOT}/download_file/${data.token}`);
+                const response = await fetch(`${APP_ROOT}/download_file/${data.token}/${encodeURIComponent(data.filename)}`);
                 if (!response.ok) {
                     throw new Error(`Server returned ${response.status}`);
                 }
