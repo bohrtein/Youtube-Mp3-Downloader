@@ -1,8 +1,10 @@
 import os
 import string
 import threading
+import tempfile
+import uuid
 from pathlib import Path
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_file, after_this_request
 from flask_socketio import SocketIO
 import database.databaseConnector as databaseConnector
 import core.checkDependencies as checkDependencies
@@ -31,6 +33,11 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Ensure the local SQLite database and schema exist before the first request
 databaseConnector.init_db()
+
+# Maps a one-time download token to the staged file it points to, for the
+# "download to my device" flow. In-memory is fine: this is a single-user,
+# single-process local app, and tokens are only valid for one browser session.
+pending_device_downloads = {}
 
 # --- WEB ROUTES ---
 
@@ -86,6 +93,33 @@ def set_library_folder():
         return jsonify({"success": True, "path": databaseConnector.get_library_folder()})
     except NotADirectoryError as e:
         return jsonify({"success": False, "message": str(e)}), 400
+
+@app.route('/download_file/<token>')
+def download_file(token):
+    """
+    Streams a staged "download to my device" file to the browser as an
+    attachment, then deletes the server-side staging copy. The DB/cover-art
+    record was already written by main.download_for_device before this
+    token was handed out, so removing the file here doesn't affect the
+    library view.
+    """
+    file_path = pending_device_downloads.get(token)
+    if not file_path or not os.path.isfile(file_path):
+        return jsonify({"success": False, "message": "File not found or already downloaded"}), 404
+
+    @after_this_request
+    def cleanup(response):
+        pending_device_downloads.pop(token, None)
+        try:
+            os.remove(file_path)
+            parent = os.path.dirname(file_path)
+            if not os.listdir(parent):
+                os.rmdir(parent)
+        except OSError:
+            pass
+        return response
+
+    return send_file(file_path, as_attachment=True, download_name=os.path.basename(file_path))
 
 @app.route('/library')
 def library_view():
@@ -195,31 +229,51 @@ def handle_download_batch(data):
     """
     Manages the sequential download of multiple URLs in a background thread.
     Emits progress updates to the frontend for each item.
+
+    data['mode'] selects the destination:
+      - 'library' (default): saved to the configured library folder, as before.
+      - 'device': downloaded to a short-lived staging folder on the server,
+        registered in the DB/cover-art just like the library flow, then
+        streamed to the browser as an attachment (see /download_file) and
+        removed from the server.
     """
     urls = data.get('urls', [])
-    
+    mode = data.get('mode', 'library')
+
     def background_task():
         total_urls = len(urls)
         checkDependencies.dependencies_check() # Ensure yt-dlp/ffmpeg are present
-        
+
+        staging_dir = tempfile.mkdtemp(prefix='ytmp3_device_') if mode == 'device' else None
+
         for index, url in enumerate(urls):
             current_item = index + 1
             # Update UI with progress and a truncated URL
             socketio.emit('progress', {
-                'percent': (index / total_urls) * 100, 
+                'percent': (index / total_urls) * 100,
                 'status': f'Downloading {current_item} of {total_urls}: {url[:30]}...'
             })
-            
+
             try:
-                main.start_downloading(url)
+                if mode == 'device':
+                    file_paths = main.download_for_device(url, staging_dir)
+                    for file_path in file_paths:
+                        token = uuid.uuid4().hex
+                        pending_device_downloads[token] = file_path
+                        socketio.emit('device_file_ready', {
+                            'token': token,
+                            'filename': os.path.basename(file_path)
+                        })
+                else:
+                    main.start_downloading(url)
             except Exception as e:
                 print(f"Error downloading {url}: {e}")
                 socketio.emit('progress', {
-                    'percent': (current_item/total_urls)*100, 
+                    'percent': (current_item/total_urls)*100,
                     'status': f'Error on item {current_item}'
                 })
 
-        socketio.emit('progress', {'percent': 100, 'status': 'complete'})
+        socketio.emit('progress', {'percent': 100, 'status': 'complete', 'mode': mode})
 
     threading.Thread(target=background_task).start()
 

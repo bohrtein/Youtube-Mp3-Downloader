@@ -1,3 +1,4 @@
+from pathlib import Path
 import core.processAlbumCover as processAlbumCover
 import core.playlistDownloader as playlistDownloader
 import core.checkDependencies as checkDependencies
@@ -35,6 +36,29 @@ def start_downloading(url):
         url (str): The YouTube/Media URL provided by the user.
     """
     playlistDownloader.download_file_flac(url, databaseConnector.get_library_folder())
+
+def download_for_device(url, staging_dir):
+    """
+    Downloads a URL into a temporary staging directory instead of the library
+    folder, for the "download to my device" flow. Runs the same cover
+    standardization and DB sync as the library flow, against that staging
+    directory, so the track shows up in the library view even though the
+    file itself never lands in the configured library folder.
+
+    Args:
+        url (str): The YouTube/Media URL provided by the user.
+        staging_dir (str): Short-lived directory the file is downloaded into.
+
+    Returns:
+        list[str]: Absolute paths of the downloaded files, for the caller to
+        stream back to the browser and then delete.
+    """
+    file_paths = playlistDownloader.download_file_flac(url, staging_dir)
+    for file_path in file_paths:
+        processAlbumCover.process_album_cover_flac(Path(file_path))
+    if file_paths:
+        syncLibrary.Sync_Folder_To_Db(staging_dir)
+    return file_paths
 
 def sync_to_library():
     """

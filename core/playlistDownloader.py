@@ -41,35 +41,43 @@ def initiate_playlist_loop():
 def download_file_flac(url, output_dir):
     """
     Executes the yt-dlp binary to download and convert a specific URL.
-    
-    This function configures yt-dlp for high-quality FLAC extraction and 
+
+    This function configures yt-dlp for high-quality FLAC extraction and
     sets a specific directory structure for playlists.
-    
+
     Args:
         url (str): The video or playlist link.
         output_dir (str): The base directory for file storage.
+
+    Returns:
+        list[str]: Absolute paths of the files yt-dlp produced (empty on failure).
     """
     # Define the file naming and folder hierarchy logic:
     # Subfolders are named after the Playlist title.
     # Files are prefixed with their position in the playlist (01 - Title.flac).
     output_template = f"{output_dir}/%(playlist_title)s/%(playlist_index)02d - %(title)s.%(ext)s"
-    
+
     # Command Arguments:
     # -c: continue | -i: ignore errors | -w: no overwrites | -x: extract audio
+    # --print after_move:filepath reports the final on-disk path for each item,
+    # which callers need to stream/tag the file without re-scanning the folder.
     cmd = [
-        "./yt-dlp.exe", "-ciw", "-x", 
-        "--audio-format", "flac", 
-        "--audio-quality", "0", 
-        "--embed-metadata", "--embed-thumbnail", 
+        "./yt-dlp.exe", "-ciw", "-x",
+        "--audio-format", "flac",
+        "--audio-quality", "0",
+        "--embed-metadata", "--embed-thumbnail",
+        "--print", "after_move:filepath",
         "-o", output_template, url
     ]
-    
+
     interfaceComponents.Print_Tag(f"Downloading: {url}", tag="Process")
-    
+
     try:
         # check=True will raise a CalledProcessError if the command fails
-        subprocess.run(cmd, check=True)
+        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
         interfaceComponents.Print_Tag("Download Complete", tag="Success")
+        return [line.strip() for line in result.stdout.splitlines() if line.strip()]
     except Exception as e:
         # Captures network issues, missing binaries, or invalid URLs
         interfaceComponents.Print_Tag(f"Error: {e}", tag="Error")
+        return []

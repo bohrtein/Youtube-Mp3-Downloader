@@ -41,6 +41,10 @@
                 <h3>Download</h3>
                 <p>Paste one or multiple URLs (one per line).</p>
                 <textarea id="urlInput" rows="4" placeholder="https://youtube.com/...&#10;https://youtube.com/..."></textarea>
+                <div class="download-mode-toggle">
+                    <label><input type="radio" name="downloadMode" value="library" checked> Save to library folder</label>
+                    <label><input type="radio" name="downloadMode" value="device"> Download to my device</label>
+                </div>
                 <button onclick="startAction('download')" class="btn btn-primary btn-block">Start Batch Download</button>
             </div>
 
@@ -124,7 +128,12 @@
             }
         }
 
-        function startAction(actionType) {
+        // Populated with a directory handle (File System Access API) when the
+        // user picks one for a "download to my device" batch; null falls back
+        // to plain <a download> links, one per finished file.
+        let deviceDirHandle = null;
+
+        async function startAction(actionType) {
             const container = document.getElementById('progressContainer');
 
             if (actionType === 'download') {
@@ -136,8 +145,21 @@
                     return;
                 }
 
+                const mode = document.querySelector('input[name="downloadMode"]:checked').value;
+
+                deviceDirHandle = null;
+                if (mode === 'device' && window.showDirectoryPicker) {
+                    try {
+                        deviceDirHandle = await window.showDirectoryPicker();
+                    } catch (err) {
+                        // User cancelled the picker, or the browser blocked it — fall
+                        // back to per-file <a download> links instead of aborting.
+                        deviceDirHandle = null;
+                    }
+                }
+
                 container.classList.remove('hidden');
-                socket.emit('start_download_batch', { urls: urls });
+                socket.emit('start_download_batch', { urls: urls, mode: mode });
             } else if (actionType === 'sync') {
                 container.classList.remove('hidden');
                 socket.emit('start_sync');
@@ -270,8 +292,47 @@
             status.innerText = data.status;
 
             if (data.status === 'complete') {
-                status.innerText = "Task Finished!";
-                setTimeout(() => { location.reload(); }, 2000);
+                if (data.mode === 'device') {
+                    // Files were already handed to the browser as each one
+                    // finished (see device_file_ready) — no library folder
+                    // changed, so there's nothing on this page to refresh.
+                    status.innerText = "All files sent to your device!";
+                } else {
+                    status.innerText = "Task Finished!";
+                    setTimeout(() => { location.reload(); }, 2000);
+                }
+            }
+        });
+
+        // Fires once per finished file when downloading in "device" mode.
+        // Fetches the file from the server and hands it to the browser, then
+        // the server deletes its own staging copy (see /download_file).
+        socket.on('device_file_ready', async function(data) {
+            try {
+                const response = await fetch(`/download_file/${data.token}`);
+                if (!response.ok) {
+                    console.error('Failed to fetch device download:', data.filename);
+                    return;
+                }
+                const blob = await response.blob();
+
+                if (deviceDirHandle) {
+                    const fileHandle = await deviceDirHandle.getFileHandle(data.filename, { create: true });
+                    const writable = await fileHandle.createWritable();
+                    await writable.write(blob);
+                    await writable.close();
+                } else {
+                    const objectUrl = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = objectUrl;
+                    link.download = data.filename;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(objectUrl);
+                }
+            } catch (err) {
+                console.error('Error saving device download:', data.filename, err);
             }
         });
     </script>
