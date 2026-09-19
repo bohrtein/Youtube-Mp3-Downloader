@@ -2,6 +2,7 @@ import zipfile
 import subprocess
 import shutil
 import platform
+import sys
 from pathlib import Path
 import core.interfaceComponents as interfaceComponents
 
@@ -15,18 +16,36 @@ def dependencies_check():
     check_ffmpeg()
     interfaceComponents.Print_Tag("Dependencies verified.", tag="Success")
 
+def _venv_bin_candidate(name):
+    """
+    Path to `name` next to the currently-running Python interpreter, i.e.
+    this venv's bin/ (or Scripts/ on Windows) directory.
+
+    A pip-installed console script (like yt-dlp) lands there regardless of
+    whether the venv was actually `source activate`d — which matters
+    because a launcher that runs `.venv/bin/python app.py` directly (as
+    App Hub does) does NOT put that bin/ directory on PATH, so
+    shutil.which() alone would miss it even though it's installed.
+    """
+    exe_names = [name, f"{name}.exe"] if platform.system() == "Windows" else [name]
+    for exe_name in exe_names:
+        candidate = Path(sys.executable).parent / exe_name
+        if candidate.exists():
+            return str(candidate)
+    return None
+
 def resolve_ytdlp():
     """
     Returns the command to invoke yt-dlp with.
 
-    Prefers a binary already on PATH (an `apt`/`pip`/`pipx` install on
-    Linux/Mac, or a manually-installed yt-dlp on Windows), since that's the
-    expected setup on a server. Falls back to the standalone ./yt-dlp.exe
-    this module downloads on Windows when nothing on PATH is found. If
-    neither exists, still returns "yt-dlp" so the caller's subprocess call
+    Checks, in order: this venv's own bin/ (covers a pip install even when
+    the launcher didn't activate the venv, e.g. App Hub's `.venv/bin/python
+    app.py`), then PATH (an apt/pipx install, or one on Windows), then the
+    standalone ./yt-dlp.exe this module downloads on Windows. If none of
+    those exist, still returns "yt-dlp" so the caller's subprocess call
     fails loudly (FileNotFoundError) instead of silently doing nothing.
     """
-    found = shutil.which("yt-dlp") or shutil.which("yt-dlp.exe")
+    found = _venv_bin_candidate("yt-dlp") or shutil.which("yt-dlp") or shutil.which("yt-dlp.exe")
     if found:
         return found
     if platform.system() == "Windows" and Path("./yt-dlp.exe").exists():
@@ -35,21 +54,22 @@ def resolve_ytdlp():
 
 def check_ytdlp():
     """
-    Ensures a working yt-dlp is available. Prefers one already on PATH; on
-    Windows, where installing via a package manager is less common, falls
-    back to downloading the standalone yt-dlp.exe into the project root.
-    On other platforms, a missing yt-dlp is reported rather than silently
-    ignored, since there's no safe standalone binary to fetch for an
-    unknown Linux/Mac environment.
+    Ensures a working yt-dlp is available. Prefers one already installed
+    (this venv's own bin/, or PATH); on Windows, where installing via a
+    package manager is less common, falls back to downloading the
+    standalone yt-dlp.exe into the project root. On other platforms, a
+    missing yt-dlp is reported rather than silently ignored, since there's
+    no safe standalone binary to fetch for an unknown Linux/Mac environment.
     """
     interfaceComponents.Print_Tag("Verifying yt-dlp", tag="System")
-    if shutil.which("yt-dlp") or shutil.which("yt-dlp.exe"):
-        interfaceComponents.Print_Tag("yt-dlp verified (found on PATH)!", tag="Success")
+    found = _venv_bin_candidate("yt-dlp") or shutil.which("yt-dlp") or shutil.which("yt-dlp.exe")
+    if found:
+        interfaceComponents.Print_Tag(f"yt-dlp verified ({found})!", tag="Success")
         return
 
     if platform.system() != "Windows":
         interfaceComponents.Print_Tag(
-            "yt-dlp not found on PATH. Install it, e.g. `pip install yt-dlp`.",
+            "yt-dlp not found. Install it, e.g. `pip install yt-dlp`.",
             tag="Error"
         )
         return
@@ -72,13 +92,14 @@ def check_ffprobe():
     Windows falls back to downloading the standalone binary from ffbinaries.
     """
     interfaceComponents.Print_Tag("Verifying ffprobe", tag="System")
-    if shutil.which("ffprobe") or shutil.which("ffprobe.exe"):
-        interfaceComponents.Print_Tag("ffprobe verified (found on PATH)!", tag="Success")
+    found = _venv_bin_candidate("ffprobe") or shutil.which("ffprobe") or shutil.which("ffprobe.exe")
+    if found:
+        interfaceComponents.Print_Tag(f"ffprobe verified ({found})!", tag="Success")
         return
 
     if platform.system() != "Windows":
         interfaceComponents.Print_Tag(
-            "ffprobe not found on PATH. Install it, e.g. `apt install ffmpeg`.",
+            "ffprobe not found. Install it, e.g. `apt install ffmpeg`.",
             tag="Error"
         )
         return
@@ -101,13 +122,14 @@ def check_ffmpeg():
     downloading the standalone binary from ffbinaries.
     """
     interfaceComponents.Print_Tag("Verifying ffmpeg", tag="System")
-    if shutil.which("ffmpeg") or shutil.which("ffmpeg.exe"):
-        interfaceComponents.Print_Tag("ffmpeg verified (found on PATH)!", tag="Success")
+    found = _venv_bin_candidate("ffmpeg") or shutil.which("ffmpeg") or shutil.which("ffmpeg.exe")
+    if found:
+        interfaceComponents.Print_Tag(f"ffmpeg verified ({found})!", tag="Success")
         return
 
     if platform.system() != "Windows":
         interfaceComponents.Print_Tag(
-            "ffmpeg not found on PATH. Install it, e.g. `apt install ffmpeg`.",
+            "ffmpeg not found. Install it, e.g. `apt install ffmpeg`.",
             tag="Error"
         )
         return
