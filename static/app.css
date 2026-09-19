@@ -142,36 +142,53 @@
 }
 .mx-search input.mx-input { padding-left: 38px; }
 
-/* --- album grid --------------------------------------------------------------
-   One column on a phone, two from 900px -- matrix's own breakpoint
-   (--mx-break), applied the same way here. */
-.mx-album-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
-@media (min-width: 900px) { .mx-album-grid { grid-template-columns: repeat(2, 1fr); } }
+/* --- album list ----------------------------------------------------------------
+   A dense row per album, the same density as the reference ticket app's
+   own "archive" list (mx-rows: one line, small furniture, many items per
+   screen) -- not a grid of big square cards. One column on a phone, two
+   from 900px, matrix's own breakpoint (--mx-break). */
+.mx-album-list { display: flex; flex-direction: column; gap: 8px; }
+@media (min-width: 900px) {
+  .mx-album-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 16px; }
+  /* .album-item (the Jinja loop wrapper) is the actual grid item here --
+     without min-width: 0 its default "auto" minimum falls back to its
+     content's min-content size, and one long album title is enough to
+     blow a column way past its 1fr share. */
+  .mx-album-list > .album-item { min-width: 0; }
+}
 
-.mx-album-card { padding: 0; overflow: visible; display: flex; flex-direction: column; transition: opacity 0.4s ease; }
-.mx-album-link { display: block; color: inherit; text-decoration: none; }
-.mx-album-cover-wrap {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  background: var(--mx-sunken);
+.mx-album-row { padding: 0; min-width: 0; display: flex; align-items: center; transition: opacity 0.4s ease; }
+.mx-album-row-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: var(--mx-tap);
+  padding: 7px 4px 7px 10px;
+  color: inherit;
+  text-decoration: none;
+}
+.mx-album-thumb {
+  flex: 0 0 auto;
+  width: 44px; height: 44px;
+  border-radius: var(--mx-r-sm);
   overflow: hidden;
-  border-radius: var(--mx-r-lg) var(--mx-r-lg) 0 0;
+  background: var(--mx-sunken);
 }
-.mx-album-cover-wrap img { display: block; width: 100%; height: 100%; object-fit: cover; }
-.mx-album-meta { display: flex; align-items: flex-start; gap: 4px; padding: 12px 8px 12px 14px; }
-.mx-album-text { flex: 1 1 auto; min-width: 0; }
-.mx-album-text .mx-album-name {
-  font-size: 13.5px; color: var(--mx-ink-hot);
+.mx-album-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.mx-album-row-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.mx-album-row-text .mx-album-name {
+  display: block;
+  font-size: 13px; color: var(--mx-ink-hot);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.mx-album-text .mx-album-artist {
-  font-size: 11.5px; color: var(--mx-ink-dim); margin-top: 3px;
+.mx-album-row-sub {
+  display: block;
+  font-size: 11px; color: var(--mx-ink-dim);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.mx-album-text .mx-album-year {
-  font-size: 10px; color: var(--mx-ink-faint); margin-top: 3px; letter-spacing: 0.06em;
-}
+.mx-album-row-sub .mx-album-year { color: var(--mx-ink-faint); }
 .mx-album-menu-wrap { position: relative; flex: 0 0 auto; }
 .mx-dots-btn {
   width: var(--mx-tap); height: var(--mx-tap);
@@ -187,7 +204,7 @@
 .mx-menu-popover {
   display: none;
   position: absolute;
-  top: 38px; right: 6px;
+  top: calc(100% + 2px); right: 6px;
   z-index: 10;
   min-width: 172px;
   background: var(--mx-panel-sol);

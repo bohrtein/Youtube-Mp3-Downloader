@@ -38,33 +38,30 @@
     </div>
     {% endif %}
 
-    <div class="mx-album-grid" id="albumGrid">
+    <div class="mx-album-list" id="albumGrid">
         {% for album in albums %}
         <div class="album-item" id="album-container-{{ album.album_id }}">
-            <div class="mx-panel mx-panel-solid mx-album-card">
-                <a class="mx-album-link" href="{{ url_for('album_detail', album_id=album.album_id) }}">
-                    <div class="mx-album-cover-wrap">
+            <div class="mx-row mx-album-row">
+                <a class="mx-album-row-link" href="{{ url_for('album_detail', album_id=album.album_id) }}">
+                    <span class="mx-album-thumb">
                         <img src="{{ url_for('static', filename='covers/' ~ album.album_id ~ '.jpg') }}"
                              alt="{{ album.album_name }}"
                              onerror="this.onerror=null;this.src='data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 fill=%22%2303150c%22/><path d=%22M35 65V32l30-5v33%22 stroke=%22%232c6042%22 stroke-width=%223%22 fill=%22none%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22/><circle cx=%2230%22 cy=%2265%22 r=%226%22 stroke=%22%232c6042%22 stroke-width=%223%22 fill=%22none%22/><circle cx=%2260%22 cy=%2260%22 r=%226%22 stroke=%22%232c6042%22 stroke-width=%223%22 fill=%22none%22/></svg>'">
-                    </div>
+                    </span>
+                    <span class="mx-album-row-text">
+                        <span class="mx-album-name">{{ album.album_name }}</span>
+                        <span class="mx-album-row-sub"><span class="mx-album-artist">{{ album.artist_name }}</span> · <span class="mx-album-year">{{ album.release_date }}</span></span>
+                    </span>
                 </a>
-                <div class="mx-album-meta">
-                    <a class="mx-album-link mx-album-text" href="{{ url_for('album_detail', album_id=album.album_id) }}">
-                        <div class="mx-album-name">{{ album.album_name }}</div>
-                        <div class="mx-album-artist">{{ album.artist_name }}</div>
-                        <div class="mx-album-year">{{ album.release_date }}</div>
-                    </a>
-                    <div class="mx-album-menu-wrap">
-                        <button class="mx-dots-btn" type="button" aria-label="Album actions" onclick="toggleMenu(event, '{{ album.album_id }}')">
-                            <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
+                <div class="mx-album-menu-wrap">
+                    <button class="mx-dots-btn" type="button" aria-label="Album actions" onclick="toggleMenu(event, '{{ album.album_id }}')">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
+                    </button>
+                    <div id="menu-{{ album.album_id }}" class="mx-menu-popover">
+                        <button class="mx-menu-item" type="button" onclick="removeAlbum('{{ album.album_id }}', '{{ album.album_name|escape }}')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                            Delete Album
                         </button>
-                        <div id="menu-{{ album.album_id }}" class="mx-menu-popover">
-                            <button class="mx-menu-item" type="button" onclick="removeAlbum('{{ album.album_id }}', '{{ album.album_name|escape }}')">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
-                                Delete Album
-                            </button>
-                        </div>
                     </div>
                 </div>
             </div>
