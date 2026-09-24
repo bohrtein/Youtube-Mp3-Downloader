@@ -177,6 +177,7 @@
     --mx-rail-w:     84px;            /* nav rail, medium */
     --mx-sidebar-w:  232px;           /* nav sidebar, expanded and up */
     --mx-kb:         0px;             /* set by matrix.js when the iOS keyboard is up */
+    --mx-top-inset:  0px;             /* chrome over the page's top edge, e.g. App Hub's bar */
 
     /* --- motion ------------------------------------------------------ */
     --mx-ease:     cubic-bezier(0.4, 0, 0.2, 1);
@@ -436,8 +437,8 @@
     .mx-layout-list-detail > .mx-ld-detail { display: block; }
     .mx-layout-list-detail > .mx-ld-list {
       position: sticky;
-      top: var(--mx-space-4);
-      max-height: calc(100dvh - 2 * var(--mx-space-4));
+      top: calc(var(--mx-top-inset) + var(--mx-space-4));
+      max-height: calc(100dvh - var(--mx-top-inset) - 2 * var(--mx-space-4));
       overflow-y: auto;
     }
     .mx-ld-back { display: none; }
@@ -565,7 +566,7 @@
   }
   @media (min-width: 600px) {
     .mx-nav {
-      top: 0; bottom: 0; left: 0;
+      top: var(--mx-top-inset); bottom: 0; left: 0;
       width: calc(var(--mx-rail-w) + env(safe-area-inset-left));
       flex-direction: column;
       gap: var(--mx-space-1);
@@ -606,7 +607,7 @@
   /* TV beats every width: a top menu, in the page flow. */
   :root[data-mx-device="tv"] .mx-nav {
     position: sticky;
-    top: 0;
+    top: var(--mx-top-inset);
     width: auto;
     height: auto;
     flex-direction: row;
@@ -627,7 +628,7 @@
      From expanded up every panel shows and the tabs hide. */
   .mx-tabs {
     position: sticky;
-    top: 0;
+    top: var(--mx-top-inset);
     z-index: 5;
     display: grid;
     grid-auto-flow: column;
