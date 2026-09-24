@@ -1,8 +1,9 @@
+import hmac
 import os
 import string
 import threading
 from pathlib import Path
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, abort
 from flask_socketio import SocketIO
 import database.databaseConnector as databaseConnector
 import core.checkDependencies as checkDependencies
@@ -31,6 +32,44 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Ensure the local SQLite database and schema exist before the first request
 databaseConnector.init_db()
+
+# --- ACCESS CONTROL ---
+# The app hub sends this secret (X-Apphub-Auth) only on requests that passed
+# its login; public friend pages arrive without it. Unset means the app is
+# running standalone for development, bound to 127.0.0.1.
+HUB_PROXY_SECRET = os.environ.get("APPHUB_PROXY_SECRET", "")
+PUBLIC_BLUEPRINTS = {"friends_public"}
+PUBLIC_ENDPOINTS = {"static", "healthz"}
+
+if not HUB_PROXY_SECRET:
+    print("[ WARNING ] APPHUB_PROXY_SECRET is not set: admin routes are unprotected (standalone dev mode).")
+
+def is_hub_authenticated():
+    if not HUB_PROXY_SECRET:
+        return True
+    return hmac.compare_digest(request.headers.get("X-Apphub-Auth", ""), HUB_PROXY_SECRET)
+
+@app.before_request
+def require_hub_login():
+    """
+    Everything except the friend pages, static files and the health check
+    is admin-only. A 404 (not 403) so admin URLs are indistinguishable from
+    ones that don't exist.
+    """
+    if request.endpoint in PUBLIC_ENDPOINTS or request.blueprint in PUBLIC_BLUEPRINTS:
+        return
+    if not is_hub_authenticated():
+        abort(404)
+
+@socketio.on('connect')
+def on_socket_connect(auth=None):
+    # Socket.IO requests bypass Flask's before_request hooks, so the same
+    # check runs here; returning False refuses the connection.
+    return is_hub_authenticated()
+
+@app.route('/healthz')
+def healthz():
+    return "ok"
 
 # --- WEB ROUTES ---
 
