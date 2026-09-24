@@ -23,7 +23,9 @@
    No dependencies, no build step, ES5 syntax so it runs anywhere.
    Honours prefers-reduced-motion throughout.
    ===================================================================== */
-window.MX = (function () {
+// A page may load two copies: the live one from App Hub, then the
+// project's synced copy as a fallback. The second one does nothing.
+window.MX = window.MX || (function () {
   "use strict";
 
   var VERSION = "1.1.0";

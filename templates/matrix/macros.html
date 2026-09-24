@@ -16,20 +16,21 @@
 -#}
 
 {#- The tags that load Matrix. With `live` (App Hub's "/ds/1/") the page
-    uses the shared copy and falls back to `local` (the project's synced
-    copy, ending in "/") if that fails -- e.g. running on its own. The
-    script loads in order (no defer), so if the live copy is missing the
-    local one is in place before any page script asks for MX.
+    uses the shared copy, with `local` (the project's synced copy, ending
+    in "/") underneath it as the fallback -- for when the app runs on its
+    own. No inline script or event handler, so it works under a strict
+    Content-Security-Policy:
+      - the local stylesheet loads first and the live one on top of it;
+      - the live matrix.js loads first, and the local one does nothing
+        when MX already exists.
       {{ mx.head(mx_live, mx_local) }} -#}
 {%- macro head(live, local) -%}
-{%- if live -%}
-<link rel="stylesheet" href="{{ live }}matrix.css" onerror="this.onerror=null;this.href='{{ local }}matrix.css'">
-<script src="{{ live }}matrix.js"></script>
-<script>window.MX || document.write('<script src="{{ local }}matrix.js"><\/script>')</script>
-{%- else -%}
 <link rel="stylesheet" href="{{ local }}matrix.css">
+{%- if live %}
+<link rel="stylesheet" href="{{ live }}matrix.css">
+<script src="{{ live }}matrix.js"></script>
+{%- endif %}
 <script src="{{ local }}matrix.js"></script>
-{%- endif -%}
 {%- endmacro -%}
 
 {%- macro _mods(variant=None, size=None, state=None, shape=None, selected=False, cls=None) -%}
