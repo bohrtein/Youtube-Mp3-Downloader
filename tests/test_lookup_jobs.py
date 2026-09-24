@@ -1,3 +1,4 @@
+import json
 import time
 
 import pytest
@@ -65,49 +66,77 @@ def test_empty_results_are_an_error_not_cached(friend, monkeypatch):
     assert suggestionsRepo.cache_get(lookupJobs.search_cache_key("song", "zzzz"), 60) is None
 
 
-def test_spotify_links_need_configuration(friend, monkeypatch):
+def test_spotify_links_need_no_keys(friend, monkeypatch):
     monkeypatch.delenv("SPOTIFY_CLIENT_ID", raising=False)
-    with pytest.raises(lookupJobs.LookupRefused):
-        lookupJobs.start_resolve(friend["friend_id"], "https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M")
+    monkeypatch.setattr(spotifyClient, "playlist_tracks", lambda pid, limit: ([], False))
+    state, job_id = lookupJobs.start_resolve(friend["friend_id"], "https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M")
+    assert state == "queued"
+    assert "no songs" in wait_for(job_id, friend["friend_id"])["error"]
 
 
 def test_spotify_playlist_is_matched_track_by_track(friend, monkeypatch):
-    monkeypatch.setenv("SPOTIFY_CLIENT_ID", "id")
-    monkeypatch.setenv("SPOTIFY_CLIENT_SECRET", "secret")
     tracks = [
-        {"sp_track_id": "t1", "sp_title": "Judith", "sp_artist": "A Perfect Circle", "sp_album": "Mer de Noms", "sp_duration_seconds": 246},
+        {"sp_track_id": "t1", "sp_title": "Judith - 2004 Remaster", "sp_artist": "A Perfect Circle", "sp_album": "Mer de Noms", "sp_duration_seconds": 246},
         {"sp_track_id": "t2", "sp_title": "Nothing Like It", "sp_artist": "Nobody", "sp_album": "X", "sp_duration_seconds": 200},
     ]
-    monkeypatch.setattr(spotifyClient, "playlist_tracks", lambda pid, limit: (tracks, False))
-    monkeypatch.setattr(musicSearch, "search_songs", lambda q, n: [] if "Nobody" in q else [
-        {"youtube_id": "c" * 11, "title": "Judith", "channel": "A Perfect Circle - Topic", "duration": 246}])
+    queries = []
+
+    def fake_search(query, limit):
+        queries.append(query)
+        return [] if "Nobody" in query else [
+            {"youtube_id": "c" * 11, "title": "Judith", "channel": "A Perfect Circle - Topic", "duration": 246}]
+
+    monkeypatch.setattr(spotifyClient, "playlist_tracks", lambda pid, limit: (tracks, True))
+    monkeypatch.setattr(musicSearch, "search_songs", fake_search)
     _, job_id = lookupJobs.start_resolve(friend["friend_id"], "https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M")
     job = wait_for(job_id, friend["friend_id"])
     assert job["status"] == "done"
-    assert [s["sp_title"] for s in job["results"]] == ["Judith"]
+    assert queries[0] == "A Perfect Circle - Judith"  # edition suffix left out of the search
+    assert [s["youtube_id"] for s in job["results"]] == ["c" * 11]
     assert job["results"][0]["album"] == "Mer de Noms" and job["results"][0]["source"] == "spotify"
-    assert "Nothing Like It" in job["note"]
+    assert "Nothing Like It" in job["note"] and "first 100" in job["note"]
 
 
-def test_spotify_track_parsing(monkeypatch):
-    pages = {
-        "/playlists/p/tracks": {"items": [
-            {"track": {"type": "track", "id": "1", "name": "Judith", "duration_ms": 246500,
-                       "artists": [{"name": "A Perfect Circle"}, {"name": "Guest"}], "album": {"name": "Mer de Noms"}}},
-            {"track": {"type": "episode", "id": "2", "name": "A podcast"}},
-            {"track": None},
-        ], "next": "https://api.spotify.com/v1/next-page"},
-        "https://api.spotify.com/v1/next-page": {"items": [
-            {"track": {"type": "track", "id": "3", "name": "Orestes", "duration_ms": 289000,
-                       "artists": [{"name": "A Perfect Circle"}], "album": {"name": "Mer de Noms"}}},
-        ], "next": None},
-    }
-    monkeypatch.setattr(spotifyClient, "_api_get", lambda path, params=None: pages[path])
-    tracks, truncated = spotifyClient.playlist_tracks("p", limit=10)
-    assert not truncated
-    assert tracks == [
-        {"sp_track_id": "1", "sp_title": "Judith", "sp_artist": "A Perfect Circle", "sp_album": "Mer de Noms", "sp_duration_seconds": 246},
-        {"sp_track_id": "3", "sp_title": "Orestes", "sp_artist": "A Perfect Circle", "sp_album": "Mer de Noms", "sp_duration_seconds": 289},
+def embed_page(entity):
+    data = {"props": {"pageProps": {"state": {"data": {"entity": entity}}}}}
+    return f'<html><script id="__NEXT_DATA__" type="application/json">{json.dumps(data)}</script></html>'
+
+
+def test_embed_playlist_parsing(monkeypatch):
+    track_list = [
+        {"uri": "spotify:track:1", "title": "Bass Persuades", "subtitle": "Miley Cyrus, Someone", "duration": 202460, "entityType": "track"},
+        {"uri": "spotify:episode:2", "title": "A podcast", "subtitle": "Show", "duration": 1, "entityType": "episode"},
+        {"uri": "spotify:track:3", "title": "", "subtitle": "x", "duration": 1},
     ]
-    tracks, truncated = spotifyClient.playlist_tracks("p", limit=1)
-    assert len(tracks) == 1 and truncated
+    html = embed_page({"type": "playlist", "name": "Mix", "trackList": track_list})
+    monkeypatch.setattr(spotifyClient, "_fetch_entity", lambda kind, sid: spotifyClient.parse_entity(html))
+    tracks, truncated = spotifyClient.playlist_tracks("p", limit=10)
+    assert tracks == [{"sp_track_id": "1", "sp_title": "Bass Persuades", "sp_artist": "Miley Cyrus, Someone",
+                       "sp_album": None, "sp_duration_seconds": 202}]
+    assert not truncated
+
+    full = embed_page({"type": "playlist", "name": "Big", "trackList": [dict(track_list[0], uri=f"spotify:track:{n}") for n in range(100)]})
+    monkeypatch.setattr(spotifyClient, "_fetch_entity", lambda kind, sid: spotifyClient.parse_entity(full))
+    tracks, truncated = spotifyClient.playlist_tracks("p", limit=100)
+    assert len(tracks) == 100 and truncated  # embed pages stop at 100
+
+
+def test_embed_album_and_track_parsing(monkeypatch):
+    pages = {
+        "album": embed_page({"type": "album", "name": "The Dark Side of the Moon", "trackList": [
+            {"uri": "spotify:track:a", "title": "Breathe (In the Air)", "subtitle": "Pink Floyd", "duration": 169000}]}),
+        "track": embed_page({"type": "track", "id": "t", "name": "Knights of Cydonia",
+                             "artists": [{"name": "Muse"}], "duration": 366213}),
+    }
+    monkeypatch.setattr(spotifyClient, "_fetch_entity", lambda kind, sid: spotifyClient.parse_entity(pages[kind]))
+    tracks, _ = spotifyClient.album_tracks("a", limit=100)
+    assert tracks[0]["sp_album"] == "The Dark Side of the Moon" and tracks[0]["sp_artist"] == "Pink Floyd"
+    tracks, _ = spotifyClient.single_track("t")
+    assert tracks == [{"sp_track_id": "t", "sp_title": "Knights of Cydonia", "sp_artist": "Muse",
+                       "sp_album": None, "sp_duration_seconds": 366}]
+
+
+@pytest.mark.parametrize("html", ["<html>nothing here</html>", embed_page(None), embed_page({"name": "no type"})])
+def test_missing_or_private_links_raise_friendly_error(html):
+    with pytest.raises(spotifyClient.SpotifyError):
+        spotifyClient.parse_entity(html)

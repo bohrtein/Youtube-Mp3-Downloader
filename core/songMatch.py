@@ -25,13 +25,24 @@ def normalize_artist(name):
     return fold(name)
 
 
+_VERSION_SUFFIX_RE = re.compile(
+    r"\s+-\s+[^-]*\b(remaster(ed)?|version|edit|mono|stereo|mix|live|acoustic|demo|bonus|anniversary|recorded)\b[^-]*$",
+    re.IGNORECASE,
+)
+
+
+def strip_version_suffix(title):
+    """Spotify's edition suffixes: 'Dreams - 2004 Remaster' -> 'Dreams'."""
+    return _VERSION_SUFFIX_RE.sub("", title or "").strip() or (title or "")
+
+
 def normalize_title(title, artist=None):
     """
     Reduces a video or track title to the song name so different uploads
     compare equal: 'A Perfect Circle - Judith (Official Music Video)' and
     'Judith' both become 'judith' (given the artist).
     """
-    title = _BRACKETS_RE.sub(" ", title or "")
+    title = strip_version_suffix(_BRACKETS_RE.sub(" ", title or "").strip())
     title = _FEAT_RE.sub("", title)
     title = _TRACK_NUMBER_RE.sub("", title)
     artist_key = normalize_artist(artist) if artist else ""
@@ -89,7 +100,17 @@ def artist_from_upload(title, channel):
     return clean_channel_name(channel)
 
 
+_ARTIST_LIST_SPLIT_RE = re.compile(r",\s*|\s+&\s+|\s+(?:feat\.?|ft\.?|featuring)\s+", re.IGNORECASE)
+
+
 def artist_matches(channel_or_artist, artist):
-    """True if a channel/artist string belongs to artist (either contains the other)."""
-    a, b = normalize_artist(channel_or_artist), normalize_artist(artist)
-    return bool(a and b) and (a in b or b in a)
+    """
+    True if a channel/artist string belongs to artist (either contains the
+    other). A credit list like 'Miley Cyrus, Someone' matches any one of them.
+    """
+    a = normalize_artist(channel_or_artist)
+    if not a:
+        return False
+    names = {normalize_artist(artist)}
+    names.update(n for n in (normalize_artist(p) for p in _ARTIST_LIST_SPLIT_RE.split(artist or "")) if len(n) >= 3)
+    return any(b and (a in b or b in a) for b in names)

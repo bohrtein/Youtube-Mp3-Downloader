@@ -131,8 +131,6 @@ def start_resolve(friend_id, raw_link):
         link = linkResolver.parse_link(raw_link)
     except linkResolver.LinkError as e:
         raise LookupRefused(str(e), status=400)
-    if link["kind"].startswith("spotify_") and not spotifyClient.configured():
-        raise LookupRefused("Spotify links aren't set up on this server yet. Paste YouTube links instead.", status=400)
     return _start(friend_id, "resolve", link_cache_key(link), LINK_CACHE_TTL, {"link": link})
 
 
@@ -257,7 +255,8 @@ def _run_spotify(job, link):
         job["progress"] = f"Matching {index + 1} of {len(tracks)} on YouTube"
         match = suggestionsRepo.cache_get(f"spmatch:{track['sp_track_id']}", SPOTIFY_MATCH_CACHE_TTL)
         if match is None:
-            candidates = _ytdlp(musicSearch.search_songs, f"{track['sp_artist']} - {track['sp_title']}", 5)
+            query = f"{track['sp_artist']} - {songMatch.strip_version_suffix(track['sp_title'])}"
+            candidates = _ytdlp(musicSearch.search_songs, query, 5)
             match = best_youtube_match(track, candidates) or {}
             suggestionsRepo.cache_set(f"spmatch:{track['sp_track_id']}", match)
         if match:
@@ -268,7 +267,8 @@ def _run_spotify(job, link):
 
     notes = []
     if truncated:
-        notes.append(f"Only the first {MAX_SPOTIFY_TRACKS} songs were matched.")
+        notes.append(f"Spotify only shares the first {MAX_SPOTIFY_TRACKS} songs of a playlist; "
+                     "search for the rest or paste them as YouTube links.")
     if unmatched:
         notes.append(f"No YouTube match for: {', '.join(unmatched[:10])}{'...' if len(unmatched) > 10 else ''}")
     if not songs:

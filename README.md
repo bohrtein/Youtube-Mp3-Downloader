@@ -106,7 +106,7 @@ Friends get a personal link (`/suggest/<token>/`) where they can search (Song / 
 - `routes/suggestAdmin.py`: friends, review, fix match, approve/reject.
 - `core/lookupJobs.py`: friend searches run one at a time in the background (the page polls). Results are cached in `lookup_cache`, per-friend limits (30 searches/hour, 10 links/hour, 5 submissions/day, at most 3 waiting) and a server-wide budget of 300 yt-dlp calls/day are stored in `usage_events`, and yt-dlp calls are spaced 2 s apart.
 - `core/approvedDownloads.py`: downloads approved songs, writes artist/album/title/track tags, moves them into place and syncs just those folders.
-- `core/spotifyClient.py`: reads public Spotify playlists, albums and tracks (Client Credentials, server-side only).
+- `core/spotifyClient.py`: reads Spotify playlists, albums and tracks from Spotify's public embed pages, with no account or API key. The official Web API now needs a Premium developer account and only returns playlists the key's owner made. This is unofficial: if Spotify changes the embed page, Spotify links stop working until it's updated, and only the first 100 songs of a playlist come through. Each song is then matched on YouTube.
 
 ### Server setup (behind the App Hub)
 
@@ -116,13 +116,9 @@ Admin routes return 404 unless the request came through the App Hub login (the h
 health_path = "/healthz"
 idle_timeout_minutes = 60          # approval downloads run in the background
 public_paths = ["/suggest/", "/static/"]
-
-[env]
-SPOTIFY_CLIENT_ID = "..."          # optional: from developer.spotify.com (Client Credentials)
-SPOTIFY_CLIENT_SECRET = "..."
 ```
 
-`app.toml` is gitignored, so the secrets never reach GitHub. Friends reach the app through Tailscale Funnel on its own port, exposing only the public paths:
+Friends reach the app through Tailscale Funnel on its own port, exposing only the public paths:
 
 ```bash
 tailscale funnel --bg --https=8443 --set-path /app/youtube-mp3-downloader/suggest http://127.0.0.1:8000/app/youtube-mp3-downloader/suggest

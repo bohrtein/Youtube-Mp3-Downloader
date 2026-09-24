@@ -1,134 +1,109 @@
-"""Reads public Spotify playlists/albums/tracks with the Client Credentials
-flow: server-side only, friends never sign in to Spotify. Credentials come
-from SPOTIFY_CLIENT_ID / SPOTIFY_CLIENT_SECRET in the environment (on the
-server: the [env] table of this app's app.toml in the app hub)."""
-import base64
+"""Reads Spotify playlists, albums and tracks from Spotify's public embed
+pages (the player widget websites embed), which list each song's title,
+artists and length without an account or API key.
+
+This isn't an official API: the Web API now needs a Premium developer
+account and only returns playlists the key's owner created. If Spotify
+changes the embed page this stops working; everything else in the app is
+unaffected. Embed pages list at most 100 songs of a playlist."""
 import json
-import os
-import threading
-import time
+import re
 import urllib.error
-import urllib.parse
 import urllib.request
 
-TOKEN_URL = "https://accounts.spotify.com/api/token"
-API_URL = "https://api.spotify.com/v1"
+EMBED_URL = "https://open.spotify.com/embed/{kind}/{spotify_id}"
+EMBED_PAGE_TRACK_LIMIT = 100
 REQUEST_TIMEOUT_SECONDS = 15
-MAX_RETRY_AFTER_SECONDS = 10
+MAX_PAGE_BYTES = 5 * 1024 * 1024
+USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+              "(KHTML, like Gecko) Chrome/128.0 Safari/537.36")
 
-_token = {"value": None, "expires_at": 0.0}
-_token_lock = threading.Lock()
+_NEXT_DATA_RE = re.compile(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', re.S)
 
 
 class SpotifyError(RuntimeError):
     """Message is safe to show a friend."""
 
 
-def configured():
-    return bool(os.environ.get("SPOTIFY_CLIENT_ID") and os.environ.get("SPOTIFY_CLIENT_SECRET"))
-
-
-def _access_token():
-    with _token_lock:
-        if _token["value"] and time.time() < _token["expires_at"] - 60:
-            return _token["value"]
-        credentials = f"{os.environ['SPOTIFY_CLIENT_ID']}:{os.environ['SPOTIFY_CLIENT_SECRET']}"
-        request = urllib.request.Request(
-            TOKEN_URL,
-            data=urllib.parse.urlencode({"grant_type": "client_credentials"}).encode(),
-            headers={
-                "Authorization": "Basic " + base64.b64encode(credentials.encode()).decode(),
-                "Content-Type": "application/x-www-form-urlencoded",
-            },
-        )
-        try:
-            with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
-                payload = json.load(response)
-        except urllib.error.HTTPError as e:
-            raise SpotifyError("Spotify links aren't working right now.") from e
-        _token.update(value=payload["access_token"], expires_at=time.time() + int(payload.get("expires_in", 3600)))
-        return _token["value"]
-
-
-def _api_get(path_or_url, params=None, _retried=False):
-    url = path_or_url if path_or_url.startswith("https://") else API_URL + path_or_url
-    if params:
-        url += ("&" if "?" in url else "?") + urllib.parse.urlencode(params)
-    request = urllib.request.Request(url, headers={"Authorization": f"Bearer {_access_token()}"})
+def _fetch_entity(kind, spotify_id):
+    request = urllib.request.Request(
+        EMBED_URL.format(kind=kind, spotify_id=spotify_id), headers={"User-Agent": USER_AGENT}
+    )
     try:
         with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
-            return json.load(response)
+            html = response.read(MAX_PAGE_BYTES).decode("utf-8", errors="replace")
     except urllib.error.HTTPError as e:
-        if e.code == 429 and not _retried:
-            wait = int(e.headers.get("Retry-After", "1") or 1)
-            if wait <= MAX_RETRY_AFTER_SECONDS:
-                time.sleep(wait)
-                return _api_get(path_or_url, params, _retried=True)
-            raise SpotifyError("Spotify is rate-limiting this server. Try again later.") from e
-        if e.code == 401 and not _retried:
-            with _token_lock:
-                _token["value"] = None
-            return _api_get(path_or_url, params, _retried=True)
-        if e.code in (403, 404):
-            raise SpotifyError(
-                "Spotify won't share that one (private, or made by Spotify itself). "
-                "Paste YouTube links instead."
-            ) from e
-        raise SpotifyError("Spotify returned an error. Try again later.") from e
-    except urllib.error.URLError as e:
+        if e.code == 404:
+            raise SpotifyError("Couldn't open that Spotify link (private or deleted?).") from e
+        raise SpotifyError("Spotify didn't answer. Try again later, or paste YouTube links.") from e
+    except (urllib.error.URLError, TimeoutError) as e:
         raise SpotifyError("Couldn't reach Spotify. Try again later.") from e
+    return parse_entity(html)
 
 
-def _track(raw, album_name=None):
-    """Spotify track JSON -> {sp_track_id, sp_title, sp_artist, sp_album, sp_duration_seconds}."""
-    if not raw or raw.get("type", "track") != "track" or not raw.get("name"):
-        return None
-    artists = [a.get("name") for a in raw.get("artists") or [] if a.get("name")]
-    return {
-        "sp_track_id": raw.get("id"),
-        "sp_title": raw["name"],
-        "sp_artist": ", ".join(artists[:1]) if artists else "",
-        "sp_album": album_name or (raw.get("album") or {}).get("name"),
-        "sp_duration_seconds": round((raw.get("duration_ms") or 0) / 1000) or None,
-    }
+def parse_entity(html):
+    """The playlist/album/track described by an embed page, or SpotifyError."""
+    match = _NEXT_DATA_RE.search(html)
+    try:
+        entity = json.loads(match.group(1))["props"]["pageProps"]["state"]["data"]["entity"]
+    except (AttributeError, KeyError, TypeError, ValueError):
+        entity = None
+    if not isinstance(entity, dict) or not entity.get("type"):
+        # A missing or private playlist still answers 200, just without an entity.
+        raise SpotifyError("Couldn't open that Spotify link (private or deleted?).")
+    return entity
+
+
+def _duration_seconds(milliseconds):
+    return round((milliseconds or 0) / 1000) or None
+
+
+def _track_id(uri):
+    return (uri or "").rsplit(":", 1)[-1] or None
+
+
+def _list_tracks(entity, album_name, limit):
+    tracks = []
+    for raw in entity.get("trackList") or []:
+        if raw.get("entityType", "track") != "track" or not raw.get("title"):
+            continue
+        tracks.append({
+            "sp_track_id": _track_id(raw.get("uri")),
+            "sp_title": raw["title"],
+            "sp_artist": raw.get("subtitle") or "",
+            "sp_album": album_name,
+            "sp_duration_seconds": _duration_seconds(raw.get("duration")),
+        })
+    return tracks[:limit]
 
 
 def playlist_tracks(playlist_id, limit):
     """
-    Up to `limit` tracks of a public, user-made playlist. Episodes and local
-    files are skipped.
-
     Returns:
-        (list[dict], bool): tracks, and whether the playlist had more than limit.
+        (list[dict], bool): up to `limit` tracks, and whether the list may be
+        cut short (the embed page never shows more than 100 songs).
     """
-    tracks, truncated = [], False
-    page = _api_get(f"/playlists/{playlist_id}/tracks", {"limit": 100})
-    while page:
-        for entry in page.get("items") or []:
-            track = _track(entry.get("track") or entry.get("item"))
-            if track:
-                if len(tracks) >= limit:
-                    return tracks, True
-                tracks.append(track)
-        page = _api_get(page["next"]) if page.get("next") else None
-    return tracks, truncated
+    entity = _fetch_entity("playlist", playlist_id)
+    raw_count = len(entity.get("trackList") or [])
+    tracks = _list_tracks(entity, None, limit)
+    return tracks, raw_count >= EMBED_PAGE_TRACK_LIMIT or raw_count > limit
 
 
 def album_tracks(album_id, limit):
-    album = _api_get(f"/albums/{album_id}")
-    name = album.get("name")
-    tracks, page = [], album.get("tracks")
-    while page:
-        for raw in page.get("items") or []:
-            track = _track(raw, album_name=name)
-            if track:
-                if len(tracks) >= limit:
-                    return tracks, True
-                tracks.append(track)
-        page = _api_get(page["next"]) if page.get("next") else None
-    return tracks, False
+    entity = _fetch_entity("album", album_id)
+    raw_count = len(entity.get("trackList") or [])
+    return _list_tracks(entity, entity.get("name"), limit), raw_count > limit
 
 
 def single_track(track_id):
-    track = _track(_api_get(f"/tracks/{track_id}"))
-    return ([track] if track else []), False
+    entity = _fetch_entity("track", track_id)
+    if entity.get("type") != "track" or not entity.get("name"):
+        raise SpotifyError("Couldn't open that Spotify link (private or deleted?).")
+    artists = [a.get("name") for a in entity.get("artists") or [] if a.get("name")]
+    return [{
+        "sp_track_id": entity.get("id") or track_id,
+        "sp_title": entity["name"],
+        "sp_artist": ", ".join(artists),
+        "sp_album": None,
+        "sp_duration_seconds": _duration_seconds(entity.get("duration")),
+    }], False

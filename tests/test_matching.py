@@ -32,6 +32,25 @@ def test_artist_matches(channel, artist, expected):
     assert songMatch.artist_matches(channel, artist) is expected
 
 
+@pytest.mark.parametrize("title, expected", [
+    ("Dreams - 2004 Remaster", "Dreams"),
+    ("Stairway to Heaven - Remaster", "Stairway to Heaven"),
+    ("Bohemian Rhapsody - Remastered 2011", "Bohemian Rhapsody"),
+    ("Song - Live at Wembley", "Song"),
+    ("Rammstein - Sonne", "Rammstein - Sonne"),
+    ("Judith", "Judith"),
+])
+def test_strip_version_suffix(title, expected):
+    assert songMatch.strip_version_suffix(title) == expected
+
+
+def test_artist_credit_lists_match_any_artist():
+    assert songMatch.artist_matches("Miley Cyrus - Topic", "Miley Cyrus, Someone Else")
+    assert songMatch.artist_matches("Someone Else", "Miley Cyrus & Someone Else")
+    assert not songMatch.artist_matches("Random Uploads", "Miley Cyrus, Someone Else")
+    assert songMatch.normalize_title("Dreams - 2004 Remaster", "Fleetwood Mac") == songMatch.normalize_title("Dreams", "Fleetwood Mac")
+
+
 def test_clean_song_title():
     assert songMatch.clean_song_title("A Perfect Circle - Judith (Official Music Video)", "A Perfect Circle") == "Judith"
     assert songMatch.clean_song_title("The Hollow", "A Perfect Circle") == "The Hollow"
