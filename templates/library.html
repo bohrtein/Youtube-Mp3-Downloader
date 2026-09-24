@@ -33,6 +33,13 @@
         <input class="mx-input" type="text" id="librarySearch" placeholder="Search albums or artists..." onkeyup="filterLibrary()">
     </div>
 
+    <fieldset class="mx-chips mx-sort-chips" id="librarySort">
+        <legend>Sort albums by</legend>
+        <label><input type="radio" name="sort" value="release" checked><span>Release date</span></label>
+        <label><input type="radio" name="sort" value="added"><span>Recently added</span></label>
+        <label><input type="radio" name="sort" value="name"><span>A–Z</span></label>
+    </fieldset>
+
     {% if albums|length == 0 %}
     <div class="mx-empty" style="text-align:center; padding:60px 20px; font-size:13px;">
         No albums yet. Run a Sync from the Dashboard once you've downloaded some music.
@@ -43,7 +50,8 @@
         {% for album in albums %}
         {# --mx-i drives the entrance stagger (see .album-item.mx-enter in app.css);
            the cap must match STAGGER_CAP in the script below. #}
-        <div class="album-item mx-enter" id="album-container-{{ album.album_id }}" style="--mx-i:{{ [loop.index0, 18]|min }}">
+        <div class="album-item mx-enter" id="album-container-{{ album.album_id }}" style="--mx-i:{{ [loop.index0, 18]|min }}"
+             data-order="{{ loop.index0 }}" data-added="{{ album.last_song_id or 0 }}">
             <div class="mx-panel mx-glass mx-album-card">
                 <div class="mx-album-cover-wrap">
                     <a class="mx-album-link" href="{{ url_for('album_detail', album_id=album.album_id) }}">
@@ -136,6 +144,51 @@
         }
     }
 
+    // Re-runs the entrance over the cards still showing, numbered from the
+    // top so the stagger reads in their new order. Dropping and re-adding
+    // the class (with one forced layout in between) is what restarts a
+    // finished CSS animation.
+    function replayEntrance(shown) {
+        shown.forEach(el => el.classList.remove('mx-enter'));
+        void document.getElementById('albumGrid').offsetWidth;
+        shown.forEach((el, i) => {
+            el.style.setProperty('--mx-i', Math.min(i, STAGGER_CAP));
+            el.classList.add('mx-enter');
+        });
+    }
+
+    const SORT_KEY = 'librarySort';
+    const byName = (a, b) => a.querySelector('.mx-album-name').innerText
+        .localeCompare(b.querySelector('.mx-album-name').innerText, undefined, { sensitivity: 'base', numeric: true });
+    const SORTS = {
+        // The server's own order (newest release first).
+        release: (a, b) => a.dataset.order - b.dataset.order,
+        added: (a, b) => (b.dataset.added - a.dataset.added) || (a.dataset.order - b.dataset.order),
+        name: byName,
+    };
+
+    function sortLibrary(mode, animate) {
+        if (!SORTS[mode]) mode = 'release';
+        const grid = document.getElementById('albumGrid');
+        const albums = Array.from(grid.getElementsByClassName('album-item')).sort(SORTS[mode]);
+        albums.forEach(el => grid.appendChild(el));
+        if (animate) replayEntrance(albums.filter(el => el.style.display !== 'none'));
+        try { localStorage.setItem(SORT_KEY, mode); } catch (e) { /* private mode */ }
+    }
+
+    document.querySelectorAll('#librarySort input').forEach(radio => {
+        radio.addEventListener('change', () => sortLibrary(radio.value, true));
+    });
+    (function restoreSort() {
+        let saved = null;
+        try { saved = localStorage.getItem(SORT_KEY); } catch (e) { /* private mode */ }
+        const radio = saved && document.querySelector(`#librarySort input[value="${saved}"]`);
+        if (radio && saved !== 'release') {
+            radio.checked = true;
+            sortLibrary(saved, false);
+        }
+    })();
+
     function filterLibrary() {
         const input = document.getElementById('librarySearch').value.toLowerCase();
         const albums = document.getElementsByClassName('album-item');
@@ -154,16 +207,8 @@
         }
         if (!changed) return;
 
-        // The grid just re-flowed: run the entrance again over whatever
-        // survived, renumbered from the top so the stagger reads in the
-        // new order. Dropping and re-adding the class (with one forced
-        // layout in between) is what restarts a finished CSS animation.
-        shown.forEach(el => el.classList.remove('mx-enter'));
-        void document.getElementById('albumGrid').offsetWidth;
-        shown.forEach((el, i) => {
-            el.style.setProperty('--mx-i', Math.min(i, STAGGER_CAP));
-            el.classList.add('mx-enter');
-        });
+        // The grid just re-flowed: run the entrance again over whatever survived.
+        replayEntrance(shown);
     }
 </script>
 </body>

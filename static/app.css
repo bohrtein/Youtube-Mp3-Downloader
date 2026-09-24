@@ -178,6 +178,7 @@
   pointer-events: none;
 }
 .mx-search input.mx-input { padding-left: 38px; }
+.mx-chips.mx-sort-chips { grid-template-columns: repeat(3, 1fr); margin-top: -6px; }
 
 /* --- album grid ----------------------------------------------------------------
    Square cover-forward cards. auto-fill instead of a fixed 1/2-column

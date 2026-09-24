@@ -141,10 +141,14 @@ def set_library_folder():
 def library_view():
     """
     Fetches all albums from the database gallery view and renders the library page.
+    Sync only ever inserts, so an album's newest song_id says when music was
+    last added to it - that's what the "Recently added" sort orders by.
     """
     conn = databaseConnector.connect_to_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM album_gallery")
+    cursor.execute("""
+        SELECT g.*, (SELECT MAX(s.song_id) FROM songs s WHERE s.album_id = g.album_id) AS last_song_id
+        FROM album_gallery g""")
     albums = cursor.fetchall()
     cursor.close()
     conn.close()
