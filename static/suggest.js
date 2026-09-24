@@ -166,7 +166,7 @@
         youtube_id: song.youtube_id, title: song.title, channel: song.channel || "",
         artist: song.artist || "", album: song.album || "", duration: song.duration || null,
         in_library: song.in_library || "no", sp_title: song.sp_title || "", sp_artist: song.sp_artist || "",
-        kept: true
+        kept: song.in_library !== "yes"
       });
       added++;
     });
