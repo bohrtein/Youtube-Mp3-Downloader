@@ -4,6 +4,7 @@ import pytest
 
 import core.approvedDownloads as approvedDownloads
 import core.lookupJobs as lookupJobs
+import core.musicSearch as musicSearch
 import core.songMatch as songMatch
 import core.suggestFlags as suggestFlags
 import database.suggestionsRepo as suggestionsRepo
@@ -116,6 +117,25 @@ def test_item_metadata_priority():
     assert meta == {"artist": "A Perfect Circle", "album_artist": "A Perfect Circle", "album": "Mer De Noms",
                     "title": "The Hollow", "track_number": 1, "disc_number": 0, "year": "2000", "genre": "Rock"}
 
+
+
+def test_playlist_position_is_not_a_track_number(monkeypatch):
+    def entry(video_id, index, playlist_id):
+        return {"id": video_id, "ie_key": "Youtube", "title": "Song", "playlist_index": index,
+                "playlist_id": playlist_id, "playlist_title": "Album - Mer De Noms"}
+    monkeypatch.setattr(musicSearch, "_run_flat_playlist_json", lambda *a, **k: [entry("aaaaaaaaaaa", 57, "PLmix")])
+    assert musicSearch.list_playlist_tracks("x")[0]["track_number"] is None
+    monkeypatch.setattr(musicSearch, "_run_flat_playlist_json", lambda *a, **k: [entry("aaaaaaaaaaa", 3, "OLAK5uyAlbum")])
+    track = musicSearch.list_playlist_tracks("x")[0]
+    assert track["track_number"] == 3 and track["album"] == "Mer De Noms"
+
+
+def test_stored_playlist_position_is_ignored_on_download():
+    item = {"title": "The Hollow", "channel": "A Perfect Circle - Topic", "artist": None, "album": None,
+            "track_number": 57, "source": "yt_playlist", "sp_title": None, "sp_artist": None, "sp_album": None}
+    info = {"album": "Mer De Noms", "track_number": 1}
+    assert approvedDownloads.item_metadata(item, info)["track_number"] == 1
+    assert approvedDownloads.item_metadata(dict(item, source="ytm_album"), info)["track_number"] == 57
 
 @pytest.mark.parametrize("title, channel, expected", [
     ("Rammstein - Sonne (Official Video)", "Rammstein Official", "Rammstein"),

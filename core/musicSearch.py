@@ -157,8 +157,10 @@ def list_playlist_tracks(url, limit=MAX_PLAYLIST_TRACKS):
     /browse/ album link) into its individual tracks.
 
     Returns:
-        list[dict]: search_songs() shape plus "track_number", and "album"
-        when the playlist is an auto-generated album ("OLAK5uy..." ID).
+        list[dict]: search_songs() shape plus "album" and "track_number",
+        both None unless the playlist is an auto-generated album
+        ("OLAK5uy..." ID) - in any other playlist the position is just
+        where someone put the song, not its number on its album.
     """
     entries = _run_flat_playlist_json(url, playlist_end=limit, timeout=PLAYLIST_TIMEOUT_SECONDS)
     tracks = []
@@ -168,7 +170,7 @@ def list_playlist_tracks(url, limit=MAX_PLAYLIST_TRACKS):
             continue
         is_album = (entry.get("playlist_id") or "").startswith("OLAK5uy")
         song["album"] = _strip_release_prefix(entry.get("playlist_title")) if is_album else None
-        song["track_number"] = entry.get("playlist_index")
+        song["track_number"] = entry.get("playlist_index") if is_album else None
         tracks.append(song)
     return tracks
 

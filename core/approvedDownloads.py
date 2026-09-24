@@ -77,7 +77,10 @@ def item_metadata(item, info):
     same_release = bool(info_album) and info_album.lower() == album.strip().lower()
 
     title = item.get("sp_title") or _first(info.get("track")) or songMatch.clean_song_title(item.get("title"), artist)
-    track_number = item.get("track_number") or (same_release and info.get("track_number")) or 0
+    # A plain playlist's position isn't an album track number (suggestions
+    # sent before list_playlist_tracks() stopped setting it still carry it).
+    item_track = item.get("track_number") if item.get("source") != "yt_playlist" else None
+    track_number = item_track or (same_release and info.get("track_number")) or 0
     album_artist = _first(info.get("album_artist")) or _first(info.get("album_artists"))
     if not same_release or not album_artist:
         album_artist = artist
