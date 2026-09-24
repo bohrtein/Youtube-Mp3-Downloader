@@ -17,22 +17,22 @@
         <a class="mx-btn" href="{{ url_for('friends_public.library') }}">Library</a>
     </div>
 
-    <div class="mx-stack">
+    <div class="mx-layout-split">
         <div class="mx-col">
-            <section class="mx-panel mx-glass">
+            <section class="mx-panel">
                 <h2 class="mx-panel-title" data-decode>find songs</h2>
                 <form id="searchForm" autocomplete="off">
                     <div class="sg-row-form">
                         <input class="mx-input" type="search" id="searchInput" maxlength="300"
                                placeholder="Song, artist, album - or paste a link" aria-label="Search or paste a link">
-                        <button class="mx-btn mx-btn-go" type="submit">Search</button>
+                        <button class="mx-btn mx-primary" type="submit">Search</button>
                     </div>
                     <p class="mx-hint">YouTube, YouTube Music and Spotify links open straight away.</p>
                 </form>
                 <p class="sg-status" id="lookupStatus" aria-live="polite"></p>
             </section>
 
-            <section class="mx-panel mx-glass" id="resultsPanel" hidden>
+            <section class="mx-panel" id="resultsPanel" hidden>
                 <h2 class="mx-panel-title" data-decode>results</h2>
                 <div class="sg-drill" id="drillHead" hidden>
                     <button class="mx-btn sg-btn-sm" type="button" id="backBtn">&larr; Back</button>
@@ -62,7 +62,7 @@
         </div>
 
         <div class="mx-col">
-            <section class="mx-panel mx-glass">
+            <section class="mx-panel">
                 <h2 class="mx-panel-title" data-decode>basket</h2>
                 <div class="sg-head-actions">
                     <span class="mx-count" id="basketCount">empty</span>
@@ -74,10 +74,10 @@
                     <label class="mx-label" for="messageInput">note (optional)</label>
                     <textarea class="mx-textarea" id="messageInput" rows="2" maxlength="500" placeholder="Why these?"></textarea>
                 </div>
-                <button class="mx-btn mx-btn-go mx-btn-wide" type="button" id="submitBtn">Send suggestions</button>
+                <button class="mx-btn mx-primary mx-block" type="button" id="submitBtn">Send suggestions</button>
             </section>
 
-            <section class="mx-panel mx-glass">
+            <section class="mx-panel">
                 <h2 class="mx-panel-title" data-decode>sent</h2>
                 <div class="sg-list" id="sentList"><p class="sg-empty">Nothing sent yet.</p></div>
             </section>

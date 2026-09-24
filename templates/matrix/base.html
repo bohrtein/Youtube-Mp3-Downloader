@@ -1,0 +1,45 @@
+{#- Matrix page shell for Jinja apps (Flask, FastAPI/Starlette).
+
+    {% extends "matrix/base.html" %}
+    {% import "matrix/macros.html" as mx %}
+    {% block title %}Library{% endblock %}
+    {% block content %} ... {% endblock %}
+
+    Context it reads (a Flask context processor is the easy way, see README):
+      mx_local   URL of the project's synced copy, ending in "/"   required
+      mx_live    URL of the live copy served by App Hub, "/ds/1/"   optional
+      mx_theme   force a theme ("amber", "ice")                     optional
+      mx_device  "tv" for a TV app                                  optional
+
+    With mx_live set, the page loads the live copy and falls back to the
+    local one if it fails (running the app on its own, outside the hub).
+
+    Blocks: title, head, body_class, body_attrs, nav, shell_class, topbar,
+    content, overlays, cmdbar, scripts.
+-#}
+<!doctype html>
+<html lang="{{ mx_lang | default('en') }}"
+      {%- if mx_theme %} data-mx-theme="{{ mx_theme }}"{% endif %}
+      {%- if mx_device %} data-mx-device="{{ mx_device }}"{% endif %}>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="color-scheme" content="dark">
+<title>{% block title %}{% endblock %}</title>
+{% import "matrix/macros.html" as _mx %}
+{{ _mx.head(mx_live, mx_local) }}
+{% block head %}{% endblock %}
+</head>
+<body class="mx {% block body_class %}{% endblock %}"{% block body_attrs %}{% endblock %}>
+{% block nav %}{% endblock %}
+<div class="mx-shell {% block shell_class %}{% endblock %}">
+{% block topbar %}{% endblock %}
+{% block content %}{% endblock %}
+</div>
+{% block overlays %}{% endblock %}
+{% block cmdbar %}{% endblock %}
+<div class="mx-toasts" role="status" aria-live="polite"></div>
+{% block scripts %}{% endblock %}
+</body>
+</html>

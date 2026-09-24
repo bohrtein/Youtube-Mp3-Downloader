@@ -50,8 +50,8 @@ The heart of the web server. It routes user requests (like clicking "Download") 
 #### templates/
 Contains the HTML structure for your pages (main, library, and album).
 
-#### static/matrix.css, static/matrix.js, static/app.css
-The "Matrix" design system (phosphor-on-black terminal look, digital rain background, liquid glass panels) plus this app's own page-specific layout built on top of it.
+#### Matrix design system: static/matrix/, templates/matrix/, static/app.css
+The look (pitch-black panels, digital rain, one accent) and every shared component come from [Matrix](https://github.com/bohrtein/matrix_design). Behind the app hub, pages load it live from the hub at `/ds/1/`, the one copy every app shares. `static/matrix/` is a synced fallback copy, and it's the only copy when the app runs on its own; `MX_LIVE` overrides the choice (see `matrix_design()` in `app.py`). Never edit `static/matrix/`. Update it with `python ../matrix_design/tools/sync.py static/matrix --templates templates/matrix`, which refuses to overwrite hand edits. `static/app.css` and `static/suggest.css` hold only this app's own pieces (`yt-` and `sg-` classes, Matrix tokens only); `python ../matrix_design/tools/lint.py static templates` checks that.
 
 ----
 ## ⚙️ The Backend Engine

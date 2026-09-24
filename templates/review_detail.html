@@ -49,30 +49,30 @@
             <span class="mx-mark">music manager</span>
             <p class="mx-tagline" data-decode>from {{ submission.friend_name }}</p>
         </div>
-        <div class="sg-nav">
+        <div class="mx-topbar-nav">
             <a class="mx-btn" href="{{ url_for('suggest_admin.review_list') }}">All suggestions</a>
         </div>
     </div>
 
-    <section class="mx-panel mx-glass">
+    <section class="mx-panel">
         <h2 class="mx-panel-title" data-decode>submission</h2>
         <p class="sg-song-meta" style="margin:0 0 8px;">{{ submission.created_at }} · {{ submission.status|replace('_', ' ') }} · {{ kept|length }} kept, {{ unticked|length }} unticked</p>
         {% if submission.message %}<p class="sg-message">{{ submission.message }}</p>{% endif %}
     </section>
 
-    <section class="mx-panel mx-glass">
+    <section class="mx-panel">
         <h2 class="mx-panel-title" data-decode>kept</h2>
         {% if not kept %}<p class="sg-empty">None.</p>{% endif %}
         <div class="sg-list">{% for item in kept %}{{ item_row(item) }}{% endfor %}</div>
     </section>
 
-    <section class="mx-panel mx-glass">
+    <section class="mx-panel">
         <h2 class="mx-panel-title" data-decode>unticked by {{ submission.friend_name }}</h2>
         {% if not unticked %}<p class="sg-empty">None - they kept everything they added.</p>{% endif %}
         <div class="sg-list">{% for item in unticked %}{{ item_row(item) }}{% endfor %}</div>
     </section>
 
-    <section class="mx-panel mx-glass">
+    <section class="mx-panel">
         <h2 class="mx-panel-title" data-decode>decide</h2>
         <label class="mx-toggle">
             <input type="checkbox" id="mp3Toggle">
@@ -80,7 +80,7 @@
             MP3 320kbps / 48kHz instead of FLAC
         </label>
         <div class="sg-friend-actions">
-            <button class="mx-btn mx-btn-go" type="button" id="approveBtn">Download selected</button>
+            <button class="mx-btn mx-primary" type="button" id="approveBtn">Download selected</button>
             {% if submission.status in ('pending', 'in_review') %}
             <button class="mx-btn" type="button" id="rejectBtn">Reject all</button>
             {% endif %}
@@ -88,7 +88,7 @@
         <p class="mx-hint">Downloading is the decision for this submission: anything left unticked is marked skipped. Songs go to Artist/Album/NN - Title in your library folder. Ticking a song that's already downloaded re-downloads it and replaces its file.</p>
         <div id="progressBox" hidden style="margin-top:12px;">
             <div class="mx-readout mx-busy" id="progressText">Starting...</div>
-            <div class="mx-progress-track"><div class="mx-progress-fill mx-busy" id="progressBar"></div></div>
+            <div class="mx-progress"><div class="mx-progress-fill mx-busy" id="progressBar"></div></div>
         </div>
     </section>
 {% endblock %}

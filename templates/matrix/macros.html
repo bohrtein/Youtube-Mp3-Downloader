@@ -1,0 +1,206 @@
+{#- Matrix component macros. They write the same markup the style guide
+    shows, so every app builds a button, tile or field the same way.
+
+    {% import "matrix/macros.html" as mx %}
+    {{ mx.button("Download", variant="primary", icon="down") }}
+    {{ mx.tile(album.name, album.artist, href=url, image=cover_url) }}
+    {% call mx.panel("library") %} ... {% endcall %}
+
+    Shared arguments, same meaning everywhere:
+      variant  "primary" | "secondary" | "ghost" | "danger"
+      size     "sm" | "md" | "lg"
+      state    "ok" | "busy" | "err"
+      shape    "square" | "round" | "block"
+      attrs    dict of extra HTML attributes, e.g. {"id": "go", "data-x": 1}
+      cls      extra classes
+-#}
+
+{#- The two tags that load Matrix. With `live` (App Hub's "/ds/1/") the
+    page uses the shared copy and falls back to `local` (the project's
+    synced copy, ending in "/") if that fails -- e.g. running on its own.
+      {{ mx.head(mx_live, mx_local) }} -#}
+{%- macro head(live, local) -%}
+{%- if live -%}
+<link rel="stylesheet" href="{{ live }}matrix.css" onerror="this.onerror=null;this.href='{{ local }}matrix.css'">
+<script src="{{ live }}matrix.js" defer onerror="var s=document.createElement('script');s.src='{{ local }}matrix.js';document.head.appendChild(s)"></script>
+{%- else -%}
+<link rel="stylesheet" href="{{ local }}matrix.css">
+<script src="{{ local }}matrix.js" defer></script>
+{%- endif -%}
+{%- endmacro -%}
+
+{%- macro _mods(variant=None, size=None, state=None, shape=None, selected=False, cls=None) -%}
+{%- if variant and variant != "secondary" %} mx-{{ variant }}{% endif -%}
+{%- if size and size != "md" %} mx-{{ size }}{% endif -%}
+{%- if state %} mx-{{ state }}{% endif -%}
+{%- if shape %} mx-{{ shape }}{% endif -%}
+{%- if selected %} mx-selected{% endif -%}
+{%- if cls %} {{ cls }}{% endif -%}
+{%- endmacro -%}
+
+{%- macro _attrs(attrs) -%}{% if attrs %}{{ attrs | xmlattr }}{% endif %}{%- endmacro -%}
+
+{#- Built-in icons: 24px grid, stroked with currentColor. -#}
+{%- macro _svg(name, cls="") -%}
+{%- set paths = {
+  "back":     '<path d="M15 18l-6-6 6-6"/>',
+  "next":     '<path d="M9 18l6-6-6-6"/>',
+  "down":     '<path d="M12 4v12M6 11l6 6 6-6M5 20h14"/>',
+  "up":       '<path d="M12 20V8M6 13l6-6 6 6M5 4h14"/>',
+  "dots":     '<circle cx="12" cy="5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="12" cy="19" r="1.4"/>',
+  "trash":    '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+  "search":   '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/>',
+  "folder":   '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  "check":    '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  "close":    '<path d="M6 6l12 12M18 6L6 18"/>',
+  "plus":     '<path d="M12 5v14M5 12h14"/>',
+  "play":     '<path d="M8 5v14l11-7z"/>',
+  "pause":    '<path d="M8 5v14M16 5v14"/>',
+  "home":     '<path d="M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1z"/>',
+  "grid":     '<rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/>',
+  "list":     '<path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/>',
+  "music":    '<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
+  "settings": '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>',
+  "user":     '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+  "link":     '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
+  "refresh":  '<path d="M20 11a8 8 0 0 0-14.9-3M4 5v4h4M4 13a8 8 0 0 0 14.9 3M20 19v-4h-4"/>',
+  "tv":       '<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8"/>',
+  "printer":  '<path d="M7 9V3h10v6M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2M7 14h10v7H7z"/>',
+} -%}
+<svg class="{{ cls }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{{ (paths.get(name, "") ) | safe }}</svg>
+{%- endmacro -%}
+
+{%- macro icon(name, cls="") -%}{{ _svg(name, cls) }}{%- endmacro -%}
+
+{#- Button, or a link styled as one when href is given. -#}
+{%- macro button(label, variant=None, size=None, icon=None, href=None, type="button", shape=None, disabled=False, cls=None, attrs=None, title=None) -%}
+{%- set classes = "mx-btn" ~ _mods(variant, size, None, shape, False, cls) -%}
+{%- set inner -%}{% if icon %}{{ _svg(icon) }}{% endif %}{% if shape == "square" %}<span class="mx-sr-only">{{ label }}</span>{% else %}<span>{{ label }}</span>{% endif %}{%- endset -%}
+{%- if href -%}
+<a class="{{ classes }}" href="{{ href }}"{% if title %} title="{{ title }}"{% endif %}{% if disabled %} aria-disabled="true"{% endif %}{{ _attrs(attrs) }}>{{ inner }}</a>
+{%- else -%}
+<button class="{{ classes }}" type="{{ type }}"{% if title %} title="{{ title }}"{% endif %}{% if disabled %} disabled{% endif %}{{ _attrs(attrs) }}>{{ inner }}</button>
+{%- endif -%}
+{%- endmacro -%}
+
+{#- Lead slot: an image (in a shimmering well), an icon, or text. -#}
+{%- macro _lead(image=None, icon=None, lead=None, alt="") -%}
+{%- if image %}<span class="mx-slot-lead"><span class="mx-media"><img src="{{ image }}" alt="{{ alt }}" loading="lazy" decoding="async"></span></span>
+{%- elif icon %}<span class="mx-slot-lead">{{ _svg(icon) }}</span>
+{%- elif lead is not none %}<span class="mx-slot-lead">{{ lead }}</span>{% endif -%}
+{%- endmacro -%}
+
+{%- macro _main(title, meta=None) -%}
+<span class="mx-slot-main"><span class="mx-slot-title">{{ title }}</span>{% if meta %}<span class="mx-slot-meta">{{ meta }}</span>{% endif %}</span>
+{%- endmacro -%}
+
+{#- One row in a list. `trail` is raw HTML (a badge, a button). -#}
+{%- macro item(title, meta=None, href=None, image=None, icon=None, lead=None, trail=None, variant=None, size=None, selected=False, cls=None, attrs=None) -%}
+{%- set tag = "a" if href else "div" -%}
+<{{ tag }} class="mx-item{{ _mods(variant, size, None, None, selected, cls) }}"{% if href %} href="{{ href }}"{% endif %}{{ _attrs(attrs) }}>
+{{- _lead(image, icon, lead, title) }}{{ _main(title, meta) }}{% if trail %}<span class="mx-slot-trail">{{ trail }}</span>{% endif -%}
+</{{ tag }}>
+{%- endmacro -%}
+
+{#- The "little square": media on top, title and meta under it.
+    shape: None (stacked), "wide" (a row with a big lead), "square" (launcher). -#}
+{%- macro tile(title, meta=None, href=None, image=None, icon=None, lead=None, trail=None, variant=None, shape=None, selected=False, cls=None, attrs=None) -%}
+{%- set tag = "a" if href else "div" -%}
+<{{ tag }} class="mx-tile{{ _mods(variant, None, None, shape, selected, cls) }}"{% if href %} href="{{ href }}"{% endif %}{{ _attrs(attrs) }}>
+{{- _lead(image, icon, lead, title) }}{{ _main(title, meta) }}{% if trail %}<span class="mx-slot-trail">{{ trail }}</span>{% endif -%}
+</{{ tag }}>
+{%- endmacro -%}
+
+{%- macro badge(text, state=None, variant=None, cls=None) -%}
+<span class="mx-badge{{ _mods(variant, None, state, None, False, cls) }}">{{ text }}</span>
+{%- endmacro -%}
+
+{#- A labelled input. type "textarea" and "select" (pass options=[(value, label)]) too. -#}
+{%- macro field(name, label, type="text", value="", placeholder="", hint=None, error=None, icon=None, options=None, id=None, attrs=None) -%}
+{%- set fid = id or ("f-" ~ name) -%}
+<div class="mx-field{% if error %} mx-err{% endif %}">
+  <div class="mx-field-head"><label class="mx-label" for="{{ fid }}">{{ label }}</label></div>
+  {%- if type == "textarea" %}
+  <textarea class="mx-textarea" id="{{ fid }}" name="{{ name }}" placeholder="{{ placeholder }}"{{ _attrs(attrs) }}>{{ value }}</textarea>
+  {%- elif type == "select" %}
+  <select class="mx-select" id="{{ fid }}" name="{{ name }}"{{ _attrs(attrs) }}>
+    {%- for v, l in options or [] %}<option value="{{ v }}"{% if v == value %} selected{% endif %}>{{ l }}</option>{% endfor %}
+  </select>
+  {%- elif icon %}
+  <div class="mx-input-icon">{{ _svg(icon) }}<input class="mx-input" id="{{ fid }}" name="{{ name }}" type="{{ type }}" value="{{ value }}" placeholder="{{ placeholder }}"{{ _attrs(attrs) }}></div>
+  {%- else %}
+  <input class="mx-input" id="{{ fid }}" name="{{ name }}" type="{{ type }}" value="{{ value }}" placeholder="{{ placeholder }}"{{ _attrs(attrs) }}>
+  {%- endif %}
+  {%- if error %}<p class="mx-hint">{{ error }}</p>{% elif hint %}<p class="mx-hint">{{ hint }}</p>{% endif %}
+</div>
+{%- endmacro -%}
+
+{%- macro panel(title=None, variant=None, cls=None, attrs=None) -%}
+<section class="mx-panel{{ _mods(variant, None, None, None, False, cls) }}"{{ _attrs(attrs) }}>
+  {%- if title %}<h2 class="mx-panel-title">{{ title }}</h2>{% endif %}
+  {{ caller() }}
+</section>
+{%- endmacro -%}
+
+{%- macro card(title=None, meta=None, variant=None, cls=None, attrs=None) -%}
+<article class="mx-card{{ _mods(variant, None, None, None, False, cls) }}"{{ _attrs(attrs) }}>
+  {%- if title %}<div class="mx-card-head"><div class="mx-grow"><h3 class="mx-card-title">{{ title }}</h3>{% if meta %}<div class="mx-card-meta">{{ meta }}</div>{% endif %}</div></div>{% endif %}
+  {{ caller() }}
+</article>
+{%- endmacro -%}
+
+{#- A sheet (bottom sheet on phones, dialog elsewhere). Open with
+    data-mx-open="{{ id }}" on any button. -#}
+{%- macro sheet(id, title, variant=None, size=None) -%}
+<div class="mx-overlay" id="{{ id }}" aria-hidden="true">
+  <div class="mx-sheet{{ _mods(variant, size) }}" role="dialog" aria-modal="true" aria-labelledby="{{ id }}-title">
+    <div class="mx-sheet-head">
+      <h2 class="mx-panel-title" id="{{ id }}-title">{{ title }}</h2>
+      {{ button("close", variant="ghost", icon="close", shape="square", attrs={"data-mx-close": ""}) }}
+    </div>
+    {{ caller() }}
+  </div>
+</div>
+{%- endmacro -%}
+
+{#- A menu behind a dots button. items: [(label, attrs_dict, variant)] -#}
+{%- macro menu(items, label="more", start=False) -%}
+<div class="mx-menu">
+  {{ button(label, variant="ghost", icon="dots", shape="square", attrs={"data-mx-menu-toggle": "", "aria-haspopup": "menu", "aria-expanded": "false"}) }}
+  <div class="mx-menu-pop{% if start %} mx-start{% endif %}" role="menu">
+    {%- for it in items %}
+    {%- set parts = (it | list) + [none, none] %}
+    <button class="mx-menu-item{{ _mods(parts[2]) }}" type="button" role="menuitem"{{ _attrs(parts[1]) }}>{{ parts[0] }}</button>
+    {%- endfor %}
+  </div>
+</div>
+{%- endmacro -%}
+
+{%- macro progress(pct=0, state=None, label=None) -%}
+<div class="mx-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ pct }}"{% if label %} aria-label="{{ label }}"{% endif %}>
+  <div class="mx-progress-fill{{ _mods(None, None, state) }}" style="width: {{ pct }}%"></div>
+</div>
+{%- endmacro -%}
+
+{%- macro placeholder(text, icon=None, state=None) -%}
+<div class="mx-placeholder{{ _mods(None, None, state) }}">{% if icon %}{{ _svg(icon) }}{% endif %}<span>{{ text }}</span></div>
+{%- endmacro -%}
+
+{#- Adaptive navigation. items: [(href, label, icon)]; current = the href
+    of this page. Add mx-has-nav to <body> (block body_class). -#}
+{%- macro nav(items, current=None, brand=None, brand_href="./") -%}
+<nav class="mx-nav" aria-label="Main">
+  {%- if brand %}<a class="mx-nav-brand" href="{{ brand_href }}">{{ brand }}</a>{% endif %}
+  {%- for href, label, ic in items %}
+  <a class="mx-nav-item" href="{{ href }}"{% if href == current %} aria-current="page"{% endif %}>{{ _svg(ic, "mx-nav-icon") }}<span class="mx-nav-label">{{ label }}</span></a>
+  {%- endfor %}
+</nav>
+{%- endmacro -%}
+
+{%- macro topbar(mark, tagline=None, actions=True) -%}
+<header class="mx-topbar">
+  <div class="mx-brand"><span class="mx-mark">{{ mark }}</span>{% if tagline %}<p class="mx-tagline">{{ tagline }}</p>{% endif %}</div>
+  {%- if caller is defined %}{{ caller() }}{% endif %}
+  {%- if actions %}<div class="mx-topbar-actions" data-mx-slot="actions"></div>{% endif %}
+</header>
+{%- endmacro -%}

@@ -1,483 +1,68 @@
 /* =====================================================================
-   Music Manager — page composition on top of matrix.css.
+   Music Manager — the few pieces only this app has, on top of Matrix.
 
-   Everything here is built from the Matrix token set (var(--mx-*)); no
-   new colours are introduced. This file only adds layout matrix.css
-   doesn't ship a component for: the folder-picker sheet, the album
-   grid/cards, the album-detail hero and the track rows.
+   Everything shared (sheets, progress bars, menus, tiles, list rows,
+   breadcrumbs, the hero, danger and busy states) comes from Matrix
+   itself, loaded live from the app hub at /ds/1/ with static/matrix/ as
+   the fallback. This file only places and animates this app's own
+   pieces, with Matrix tokens and no colours of its own. Check it with
+       python ../matrix_design/tools/lint.py static
    ===================================================================== */
 
-/* An opaque panel for surfaces repeated many times (album cards), where
-   a per-card backdrop-filter would be expensive. See --mx-panel-sol in
-   matrix.css's token table. */
-.mx-panel-solid {
-  background: var(--mx-panel-sol);
-  border: 1px solid var(--mx-line-soft);
-}
+/* --- library ------------------------------------------------------------ */
+.yt-search { margin: var(--mx-space-1) 0 18px; }
+.yt-sort-chips { grid-template-columns: repeat(3, 1fr); margin-top: -6px; }
 
-/* --- readout / cmd-status "waiting" state --------------------------------
-   matrix.css only ships mx-ok (green) and mx-err (red) variants; amber is
-   this app's "waiting" state (mid-download/sync), per the one-accent rule. */
-.mx-readout.mx-busy {
-  color: var(--mx-amber);
-  background: rgba(255, 201, 74, 0.08);
-  border-color: rgba(255, 201, 74, 0.35);
-}
-.mx-cmd-status.mx-busy { color: var(--mx-amber); }
+/* Cover-forward tiles; the grid fits as many as the width allows. */
+.yt-album-grid { --mx-card-min: 140px; gap: 14px; }
+/* .album-item (the Jinja loop wrapper) is the actual grid item: without
+   min-width: 0 one long album title blows its column past its share. */
+.album-item { position: relative; min-width: 0; }
+.album-item > .mx-tile { height: 100%; }
 
-/* --- progress fill -------------------------------------------------------- */
-.mx-progress-track {
-  height: 8px;
-  margin-top: 12px;
-  border-radius: 999px;
-  background: var(--mx-sunken);
-  border: 1px solid var(--mx-line-soft);
-  overflow: hidden;
-}
-.mx-progress-fill {
-  position: relative;
-  height: 100%;
-  width: 0%;
-  overflow: hidden;
-  background: var(--mx-green);
-  box-shadow: 0 0 10px rgba(0, 255, 90, 0.5);
-  transition: width 0.3s ease, background-color 0.2s ease, box-shadow 0.2s ease;
-}
-.mx-progress-fill.mx-busy { background: var(--mx-amber); box-shadow: 0 0 10px rgba(255, 201, 74, 0.5); }
-.mx-progress-fill.mx-err  { background: var(--mx-red);   box-shadow: 0 0 10px rgba(255, 91, 82, 0.5); }
-/* Stripes marching along the fill while busy. Between progress events
-   the bar only ever sits still, which reads as stalled; the stripes are
-   the page black laid over the amber, so no second hue appears. One
-   period is 12px along the stripe normal = 16.97px across, and the
-   overlay starts one period to the left so the slide never shows a gap. */
-.mx-progress-fill.mx-busy::after {
-  content: "";
-  position: absolute;
-  top: 0; bottom: 0;
-  left: -17px;
-  width: calc(100% + 17px);
-  background: repeating-linear-gradient(-45deg, rgba(0, 4, 0, 0.22) 0 6px, transparent 6px 12px);
-  animation: mx-stripe 0.5s linear infinite;
-  pointer-events: none;
-}
-@keyframes mx-stripe { to { transform: translateX(16.97px); } }
+/* The album menu floats on the cover art -- a tile this small has no
+   room for a separate header row. */
+.yt-album-menu { position: absolute; top: var(--mx-space-2); right: var(--mx-space-2); z-index: 3; }
 
-/* --- folder-picker overlay -------------------------------------------------
-   A bottom sheet on phones (thumb reach, one-handed), a centred sheet
-   from 640px. mx-drawer's 320px cap is too small for a scrollable
-   breadcrumb + folder list, so this is the "mx-panel overlay" option
-   the brief calls out.
+/* Staggered entrance: each tile fades up in turn, 40ms apart, on first
+   paint and again whenever a search or sort re-flows the grid. --yt-i is
+   the tile's place among the visible ones, capped so a long library
+   lands in well under a second. `backwards` holds it invisible through
+   its delay and then lets go, so the delete fade still wins. */
+.album-item.yt-enter {
+  animation: yt-rise-in 0.36s var(--mx-ease) backwards;
+  animation-delay: calc(var(--yt-i, 0) * 40ms);
+}
+@keyframes yt-rise-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+/* A deleted tile leaves the way a toast does -- same keyframe. */
+.album-item.yt-leave { animation: mx-toast-out 0.25s ease forwards; pointer-events: none; }
 
-   Closed, it stays laid out but faded and unreachable (visibility, not
-   display, so both directions can transition): the backdrop fades and
-   the sheet slides up on mx-drawer's curve; on close the same in
-   reverse, with visibility flipping only once the fade has finished. */
-.mx-overlay {
-  display: flex;
-  position: fixed;
-  inset: 0;
-  z-index: 40;
-  align-items: flex-end;
-  justify-content: center;
-  background: rgba(0, 4, 0, 0.72);
-  -webkit-backdrop-filter: blur(2px);
-          backdrop-filter: blur(2px);
-  padding: 0;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.28s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s linear 0.28s;
+/* --- album page ------------------------------------------------------------
+   The tracklist lands top to bottom, 30ms apart, capped like the grid. */
+.mx-item.yt-enter {
+  animation: mx-slide-in var(--mx-dur) ease backwards;
+  animation-delay: calc(var(--yt-i, 0) * 30ms);
 }
-.mx-overlay.mx-open { opacity: 1; visibility: visible; transition-delay: 0s; }
-.mx-overlay .mx-sheet {
-  width: 100%;
-  max-width: 560px;
-  max-height: min(78vh, 620px);
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  border-radius: var(--mx-r-lg) var(--mx-r-lg) 0 0;
-  padding-bottom: calc(16px + env(safe-area-inset-bottom));
-  transform: translateY(100%);
-  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.mx-overlay.mx-open .mx-sheet { transform: none; }
-@media (min-width: 640px) {
-  .mx-overlay { align-items: center; padding: 24px; }
-  .mx-overlay .mx-sheet {
-    border-radius: var(--mx-r-lg);
-    max-height: min(80vh, 640px);
-    padding-bottom: 16px;
-    /* Centred, a full-height slide would be a long way; a short rise
-       plus a touch of scale reads as the same gesture. */
-    transform: translateY(28px) scale(0.98);
-  }
-  .mx-overlay.mx-open .mx-sheet { transform: none; }
-}
+.yt-track-link { text-decoration: none; }
+.yt-track-link:hover, .yt-track-link:focus-visible { color: var(--mx-accent); }
 
-.mx-breadcrumb {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 2px;
-  margin-bottom: 10px;
-  font-size: 11px;
-  letter-spacing: 0.04em;
-}
-.mx-breadcrumb-item {
-  min-height: 30px;
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 5px;
-  color: var(--mx-ink-dim);
-  cursor: pointer;
-  white-space: nowrap;
-  border-radius: var(--mx-r-sm);
-}
-.mx-breadcrumb-item:last-child { color: var(--mx-ink-hot); }
-.mx-breadcrumb-item:active { background: var(--mx-green-low); color: var(--mx-green); }
-.mx-breadcrumb-sep { color: var(--mx-ink-faint); padding: 0 1px; }
-
-.mx-folder-list {
+/* --- dashboard: folder picker and reset sheet ------------------------------- */
+.yt-folder-list {
   flex: 1 1 auto;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin: 4px 0 14px;
   min-height: 120px;
-}
-.mx-folder-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: var(--mx-tap);
-  padding: 0 12px;
-  border: 1px solid rgba(150, 255, 200, 0.14);
-  border-radius: var(--mx-r-sm);
-  background: linear-gradient(160deg, rgba(12, 54, 32, 0.22), rgba(0, 12, 6, 0.08));
-  color: var(--mx-ink);
-  font-size: 13px;
-  cursor: pointer;
-  touch-action: manipulation;
-}
-.mx-folder-row:active { background: var(--mx-green-low); border-color: var(--mx-line); }
-.mx-folder-row svg { flex: 0 0 auto; width: 18px; height: 18px; color: var(--mx-ink-dim); }
-.mx-folder-row span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mx-sheet-actions { display: flex; gap: 10px; flex: 0 0 auto; }
-.mx-sheet-actions .mx-btn-go { flex: 1 1 auto; }
-
-/* --- danger zone ---------------------------------------------------------------
-   Red is the "something is wrong" accent, so it's reserved for the one
-   destructive action on the dashboard: the library reset and its sheet. */
-.mx-panel.mx-danger { border-color: rgba(255, 91, 82, 0.4); }
-.mx-danger .mx-panel-title { color: var(--mx-red); }
-.mx-btn-danger { color: var(--mx-red); border-color: rgba(255, 91, 82, 0.45); background: var(--mx-red-low); }
-.mx-btn-danger:not([disabled]):active { background: rgba(255, 91, 82, 0.22); }
-.mx-sheet-actions .mx-btn-danger { flex: 1 1 auto; }
-.mx-reset-body { overflow-y: auto; margin-bottom: 14px; display: flex; flex-direction: column; gap: 14px; }
-.mx-reset-warning {
-  margin: 0;
-  padding: 10px 12px;
-  border: 1px solid rgba(255, 91, 82, 0.35);
-  border-radius: var(--mx-r-sm);
-  background: var(--mx-red-low);
-  color: var(--mx-red);
-  font-size: 13px;
-}
-.mx-reset-list { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.55; color: var(--mx-ink-dim); }
-.mx-reset-list strong { color: var(--mx-ink); font-weight: 700; }
-.mx-reset-list code { overflow-wrap: anywhere; }
-
-/* --- search field ----------------------------------------------------------- */
-.mx-search { position: relative; margin: 4px 0 18px; }
-.mx-search svg {
-  position: absolute;
-  left: 13px; top: 50%;
-  transform: translateY(-50%);
-  width: 16px; height: 16px;
-  color: var(--mx-ink-dim);
-  pointer-events: none;
-}
-.mx-search input.mx-input { padding-left: 38px; }
-.mx-chips.mx-sort-chips { grid-template-columns: repeat(3, 1fr); margin-top: -6px; }
-
-/* --- album grid ----------------------------------------------------------------
-   Square cover-forward cards. auto-fill instead of a fixed 1/2-column
-   breakpoint so the column count actually scales with available width --
-   a couple of small cards per row on a phone, many more on a wide
-   desktop window, instead of wasting the extra space on two big ones. */
-.mx-album-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 14px;
-}
-/* .album-item (the Jinja loop wrapper) is the actual grid item here --
-   without min-width: 0 its default "auto" minimum falls back to its
-   content's min-content size, and one long album title is enough to
-   blow a column way past its 1fr share. */
-.mx-album-grid > .album-item {
-  position: relative;
-  min-width: 0;
-}
-/* Staggered entrance: each card fades up in turn, 40ms apart, on first
-   paint and again whenever a search narrows the grid. --mx-i is the
-   card's place among the visible ones (Jinja sets it on first paint,
-   filterLibrary() after a search), capped at 18 so a long library lands
-   in well under a second instead of trickling in for ten. `backwards`
-   holds the card invisible through its delay and then lets go, so an
-   inline opacity (the delete fade) still wins once it has landed. */
-.album-item.mx-enter {
-  animation: mx-rise-in 0.36s cubic-bezier(0.4, 0, 0.2, 1) backwards;
-  animation-delay: calc(var(--mx-i, 0) * 40ms);
-}
-@keyframes mx-rise-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-/* A deleted card leaves the way a toast does -- same keyframe. */
-.album-item.mx-leave { animation: mx-toast-out 0.25s ease forwards; pointer-events: none; }
-
-.mx-album-card {
-  padding: 0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease;
-}
-/* Lift on hover (pointer devices only, so a tap on a phone doesn't leave
-   a card stuck raised), press with the same 0.97 scale as .mx-btn. The
-   hover reads off .album-item so the dots button over the corner of the
-   art doesn't flicker the card in and out. */
-@media (hover: hover) {
-  .album-item:hover .mx-album-card {
-    transform: translateY(-3px);
-    border-color: rgba(0, 255, 90, 0.45);
-    box-shadow: var(--mx-glass-lift), var(--mx-glow);
-  }
-}
-.mx-album-card:active { transform: translateY(0) scale(0.97); transition-duration: 0.08s; }
-
-.mx-album-cover-wrap {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  background: var(--mx-sunken);
-  overflow: hidden;
-}
-/* Skeleton while the cover lazy-loads: a band of the line tint sweeping
-   across the sunken fill. Transform-only, so it costs the compositor and
-   not the main thread, and it's removed the moment the image lands. */
-.mx-album-cover-wrap::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(100deg, transparent 30%, var(--mx-line) 50%, transparent 70%);
-  transform: translateX(-100%);
-  animation: mx-shimmer 1.4s ease-in-out infinite;
-  pointer-events: none;
-}
-.mx-album-cover-wrap.mx-loaded::before { content: none; animation: none; }
-@keyframes mx-shimmer { to { transform: translateX(100%); } }
-.mx-album-cover-wrap img {
-  display: block;
-  width: 100%; height: 100%;
-  object-fit: cover;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-.mx-album-cover-wrap.mx-loaded img { opacity: 1; }
-.mx-album-link { display: block; color: inherit; text-decoration: none; }
-.mx-album-text { padding: 10px 10px 12px; min-width: 0; }
-.mx-album-text .mx-album-name {
-  display: block;
-  font-size: 12.5px; color: var(--mx-ink-hot);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.mx-album-text .mx-album-artist {
-  display: block;
-  font-size: 11px; color: var(--mx-ink-dim); margin-top: 3px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.mx-album-text .mx-album-year {
-  display: block;
-  font-size: 9.5px; color: var(--mx-ink-faint); margin-top: 3px; letter-spacing: 0.06em;
-}
-
-/* Dots menu floats on the cover art itself -- a card this small has no
-   room for a separate header row. The 46px hit area is centred on a
-   smaller visible disc so it doesn't hide too much of the artwork. */
-.mx-album-menu-wrap { position: absolute; top: 2px; right: 2px; z-index: 2; }
-.mx-dots-btn {
-  width: var(--mx-tap); height: var(--mx-tap);
-  display: flex; align-items: center; justify-content: center;
-  background: none; border: 0; padding: 0;
-  color: var(--mx-ink-hot);
-  cursor: pointer;
-  touch-action: manipulation;
-}
-.mx-dots-visual {
-  width: 28px; height: 28px;
-  display: flex; align-items: center; justify-content: center;
-  border-radius: 50%;
-  background: rgba(0, 4, 0, 0.55);
-  border: 1px solid rgba(150, 255, 200, 0.28);
-}
-.mx-dots-btn:active .mx-dots-visual { background: rgba(0, 60, 30, 0.7); border-color: var(--mx-green); }
-.mx-dots-btn svg { width: 16px; height: 16px; }
-.mx-menu-popover {
-  position: absolute;
-  top: calc(100% + 2px); right: 0;
-  z-index: 10;
-  min-width: 172px;
-  background: var(--mx-panel-sol);
-  border: 1px solid var(--mx-line);
-  border-radius: var(--mx-r-sm);
-  box-shadow: 0 16px 34px -12px rgba(0, 0, 0, 0.85);
-  padding: 6px;
-  /* Pops out of the button's corner: a fast scale+fade, hidden by
-     visibility (not display) so the close plays too. */
-  opacity: 0;
-  visibility: hidden;
-  transform: scale(0.92) translateY(-4px);
-  transform-origin: top right;
-  transition: opacity 0.15s ease, transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s linear 0.15s;
-}
-.mx-menu-popover.mx-open { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
-.mx-menu-item {
-  display: flex; align-items: center; gap: 9px;
-  width: 100%;
-  min-height: var(--mx-tap);
-  padding: 0 12px;
-  background: none; border: 0; border-radius: var(--mx-r-sm);
-  color: var(--mx-red);
-  font: inherit;
-  font-size: 11.5px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  cursor: pointer;
-  touch-action: manipulation;
-}
-.mx-menu-item svg { flex: 0 0 auto; width: 15px; height: 15px; }
-.mx-menu-item:active { background: var(--mx-red-low); }
-
-/* --- back link ---------------------------------------------------------------- */
-.mx-back-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: var(--mx-tap);
-  padding: 0 4px;
-  margin-bottom: 4px;
-  color: var(--mx-ink-dim);
-  text-decoration: none;
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-.mx-back-link:active { color: var(--mx-green); }
-.mx-back-link svg { width: 16px; height: 16px; flex: 0 0 auto; }
-
-/* --- album hero ----------------------------------------------------------------- */
-.mx-album-hero { position: relative; overflow: hidden; padding: 0; }
-.mx-album-hero-bg {
-  position: absolute;
-  inset: 0;
-  background-size: cover;
-  background-position: center;
-  filter: blur(26px) saturate(1.3) brightness(0.5);
-  transform: scale(1.15);
-}
-.mx-album-hero-content {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 14px;
-  padding: 30px 18px 26px;
-  background: linear-gradient(180deg, rgba(0, 4, 0, 0.10), rgba(0, 4, 0, 0.55) 65%, rgba(0, 4, 0, 0.80));
-}
-.mx-album-hero-cover {
-  width: 148px; height: 148px;
-  object-fit: cover;
-  border-radius: var(--mx-r-md);
-  border: 1px solid var(--mx-glass-edge);
-  box-shadow: var(--mx-glow), 0 20px 46px -18px rgba(0, 0, 0, 0.85);
-}
-.mx-album-hero-text h1 { margin: 0; word-break: break-word; }
-.mx-album-hero-text p { margin: 6px 0 0; }
-@media (min-width: 640px) {
-  .mx-album-hero-content { flex-direction: row; text-align: left; align-items: center; }
-  .mx-album-hero-cover { width: 172px; height: 172px; }
-}
-
-/* --- track rows ------------------------------------------------------------------- */
-/* The tracklist lands top to bottom on mx-slide-in (matrix.css's log-item
-   keyframe), 30ms apart, capped at 20 rows the same way the album grid is. */
-.mx-rows > .mx-row.mx-enter {
-  animation: mx-slide-in 0.22s ease backwards;
-  animation-delay: calc(var(--mx-i, 0) * 30ms);
-}
-.mx-track {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: var(--mx-tap);
-  padding: 8px 10px 8px 12px;
-}
-.mx-track-num {
-  flex: 0 0 auto;
-  width: 18px;
-  text-align: center;
-  font-size: 11px;
-  color: var(--mx-ink-faint);
-  font-variant-numeric: tabular-nums;
-}
-.mx-track-title {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  align-items: center;
+  margin: var(--mx-space-1) 0 14px;
   gap: 6px;
-  font-size: 12.5px;
-  color: var(--mx-ink);
-  overflow: hidden;
 }
-.mx-track-title a { color: inherit; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mx-track-title a:active { color: var(--mx-green); }
-.mx-track-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mx-track-title svg { flex: 0 0 auto; width: 12px; height: 12px; color: var(--mx-ink-faint); }
-.mx-track-duration {
-  flex: 0 0 auto;
-  min-width: 30px;
-  text-align: right;
-  font-size: 10.5px;
-  color: var(--mx-ink-faint);
-  font-variant-numeric: tabular-nums;
-}
-.mx-track-delete {
-  flex: 0 0 auto;
-  width: var(--mx-tap); height: var(--mx-tap);
-  margin-right: -8px;
-  display: flex; align-items: center; justify-content: center;
-  background: none; border: 0;
-  color: var(--mx-ink-faint);
-  cursor: pointer;
-  touch-action: manipulation;
-}
-.mx-track-delete:active { color: var(--mx-red); }
-.mx-track-delete svg { width: 15px; height: 15px; }
-@media (max-width: 360px) { .mx-track-duration { display: none; } }
+.yt-reset-body { overflow-y: auto; margin-bottom: 14px; display: flex; flex-direction: column; gap: 14px; }
+.yt-reset-list { margin: 0; padding-left: 18px; font-size: var(--mx-text-md); line-height: 1.55; color: var(--mx-ink-dim); }
+.yt-reset-list strong { color: var(--mx-ink); font-weight: 700; }
+.yt-reset-list code { overflow-wrap: anywhere; }
 
-/* --- reduced motion ---------------------------------------------------------------
-   matrix.css already zeroes every animation- and transition-duration; what
-   is left to cover here is the stagger delays (a card would otherwise sit
-   invisible for its whole delay), the infinite loops, and the visibility
-   hand-offs that ride on a transition-delay. */
+/* --- reduced motion -------------------------------------------------------------
+   Matrix already zeroes every duration; the stagger delays would still
+   hold items invisible, so drop the entrances outright. */
 @media (prefers-reduced-motion: reduce) {
-  .album-item.mx-enter, .mx-rows > .mx-row.mx-enter { animation: none; }
-  .mx-album-cover-wrap::before { content: none; animation: none; }
-  .mx-album-cover-wrap img { opacity: 1; }
-  .mx-progress-fill.mx-busy::after { animation: none; }
-  .mx-overlay, .mx-overlay .mx-sheet, .mx-menu-popover { transition: none; }
-  .album-item:hover .mx-album-card, .mx-album-card:active { transform: none; }
+  .album-item.yt-enter, .mx-item.yt-enter { animation: none; }
 }

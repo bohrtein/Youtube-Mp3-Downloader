@@ -19,13 +19,13 @@
             <span class="mx-mark">music manager</span>
             <p class="mx-tagline" data-decode>suggestions</p>
         </div>
-        <div class="sg-nav">
+        <div class="mx-topbar-nav">
             <a class="mx-btn" href="{{ url_for('suggest_admin.friends_page') }}">Friends</a>
             <a class="mx-btn" href="{{ url_for('main_dashboard') }}">Dashboard</a>
         </div>
     </div>
 
-    <section class="mx-panel mx-glass">
+    <section class="mx-panel">
         <h2 class="mx-panel-title" data-decode>waiting</h2>
         {% if not open_submissions %}<p class="sg-empty">Nothing to review.</p>{% endif %}
         <div class="sg-list">
@@ -33,7 +33,7 @@
         </div>
     </section>
 
-    <section class="mx-panel mx-glass">
+    <section class="mx-panel">
         <h2 class="mx-panel-title" data-decode>recent</h2>
         {% if not closed_submissions %}<p class="sg-empty">Nothing reviewed yet.</p>{% endif %}
         <div class="sg-list">

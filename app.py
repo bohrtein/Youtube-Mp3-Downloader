@@ -3,7 +3,7 @@ import os
 import string
 import threading
 from pathlib import Path
-from flask import Flask, render_template, request, jsonify, abort
+from flask import Flask, render_template, request, jsonify, abort, url_for
 from flask_socketio import SocketIO
 import database.databaseConnector as databaseConnector
 import database.suggestionsRepo as suggestionsRepo
@@ -53,6 +53,18 @@ PUBLIC_ENDPOINTS = {"static", "healthz"}
 
 if not HUB_PROXY_SECRET:
     interfaceComponents.Print_Tag("APPHUB_PROXY_SECRET is not set: admin routes are unprotected (standalone dev mode).", tag="Warning")
+
+# --- DESIGN SYSTEM ---
+# Behind the app hub, pages load Matrix live from the hub (/ds/1/, one copy
+# shared by every app), with the copy synced into static/matrix/ as the
+# fallback. Standalone, the synced copy is the only one. MX_LIVE overrides.
+MATRIX_LIVE = os.environ.get("MX_LIVE", "/ds/1/" if HUB_PROXY_SECRET else "")
+
+
+@app.context_processor
+def matrix_design():
+    return {"mx_live": MATRIX_LIVE, "mx_local": url_for("static", filename="matrix/")}
+
 
 def is_hub_authenticated():
     if not HUB_PROXY_SECRET:

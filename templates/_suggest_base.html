@@ -7,19 +7,14 @@
     <meta name="color-scheme" content="dark">
     <meta name="referrer" content="no-referrer">
     <title>{% block title %}Music Manager{% endblock %}</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='matrix.css') }}">
+    {% import "matrix/macros.html" as mx %}
+    {{ mx.head(mx_live, mx_local) }}
     <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='suggest.css') }}">
-    <script src="{{ url_for('static', filename='matrix.js') }}" defer></script>
     <script src="{{ url_for('static', filename='app.js') }}" defer></script>
     {% block head %}{% endblock %}
 </head>
 <body class="mx" {% block body_attrs %}{% endblock %}>
-
-<canvas id="mx-rain-bloom" aria-hidden="true"></canvas>
-<canvas id="mx-rain" aria-hidden="true"></canvas>
-<div class="mx-vignette" aria-hidden="true"></div>
-<div class="mx-scanlines" aria-hidden="true"></div>
 
 <div class="mx-shell">
 {% block content %}{% endblock %}

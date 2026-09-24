@@ -1,0 +1,1825 @@
+/* =====================================================================
+   MATRIX 1.1.0 — a small design system
+   Phosphor-on-black terminal. Pitch-black surfaces, digital rain in the
+   gaps, phone-first but laid out for every screen up to a TV.
+
+       <link rel="stylesheet" href="matrix.css">
+       <script src="matrix.js" defer></script>
+
+       <body class="mx">
+         <div class="mx-shell"> ...your page... </div>
+       </body>
+
+   matrix.js adds the background layers (rain canvas, vignette,
+   scanlines) itself. Put data-mx-bg="off" on <body> to skip them.
+
+   Fonts resolve relative to THIS FILE, not to the page, so the system
+   keeps working when a page is served under a reverse-proxy prefix.
+
+   How the file is organised
+   -------------------------
+   Everything lives in cascade layers:
+
+       mx.tokens      raw values (themes), tokens named by job, derived colours
+       mx.base        page, background layers, focus, type
+       mx.components  the component library
+       mx.layout      shell, page layouts, navigation, command bar -- after
+                      components, so "in a dashboard, a panel has no
+                      margin" beats the panel's own margin
+       mx.utilities   small single-purpose helpers
+
+   CSS an app writes OUTSIDE a layer always beats everything here,
+   whatever its specificity -- so an app never needs !important or a
+   longer selector to adjust Matrix.
+
+   Rules of the road
+   -----------------
+   1. One accent. It carries all the signal; a second hue means
+      something is wrong (--mx-danger) or waiting (--mx-warn).
+   2. Panels are opaque; the rain lives in the gaps. Text never sits
+      on top of the animation.
+   3. Touch targets never go under --mx-tap. Inputs never go under
+      16px, or iOS zooms the page on focus.
+   4. Motion pauses when hidden and disappears entirely under
+      prefers-reduced-motion. Nothing here should cost a phone its
+      battery.
+   5. Apps never write colours, pixel breakpoints or mx- classes of
+      their own. tools/lint.py checks for all three.
+   ===================================================================== */
+
+@layer mx.tokens, mx.base, mx.components, mx.layout, mx.utilities;
+
+@font-face {
+  font-family: "Space Mono";
+  src: url("fonts/SpaceMono-Regular.ttf") format("truetype");
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Space Mono";
+  src: url("fonts/SpaceMono-Bold.ttf") format("truetype");
+  font-weight: 700; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Unifraktur Maguntia";
+  src: url("fonts/UnifrakturMaguntia-Book.ttf") format("truetype");
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+
+/* The shared vocabulary (variants, sizes, states) is carried by these
+   properties. They do NOT inherit, so `.mx-primary` on a panel paints
+   the panel and never leaks into the buttons inside it. Components read
+   them with a fallback: var(--mx-v-bg, <the component's default>). */
+@property --mx-v-bg     { syntax: "*"; inherits: false; }
+@property --mx-v-fg     { syntax: "*"; inherits: false; }
+@property --mx-v-bd     { syntax: "*"; inherits: false; }
+@property --mx-v-glow   { syntax: "*"; inherits: false; }
+@property --mx-tone     { syntax: "*"; inherits: false; }
+@property --mx-tone-low { syntax: "*"; inherits: false; }
+@property --mx-tone-line { syntax: "*"; inherits: false; }
+@property --mx-z-h      { syntax: "*"; inherits: false; }
+@property --mx-z-fs     { syntax: "*"; inherits: false; }
+@property --mx-z-px     { syntax: "*"; inherits: false; }
+
+
+/* =====================================================================
+   TOKENS
+   ===================================================================== */
+@layer mx.tokens {
+
+  :root {
+    color-scheme: dark;
+
+    /* --- layer 1: raw values ----------------------------------------
+       The theme. Only theme blocks (below) change these. */
+    --mx-c-black:     #000000;
+    --mx-c-raised:    #07110b;
+    --mx-c-accent:    #00ff5a;
+    --mx-c-on-accent: #001a08;
+    --mx-c-warn:      #ffc94a;
+    --mx-c-danger:    #ff5b52;
+    --mx-c-ink-hot:   #e8fff0;
+    --mx-c-ink:       #b9ffcf;
+    --mx-c-ink-dim:   #4e9c6b;
+    --mx-c-ink-faint: #2c6042;
+
+    /* --- layer 2: named by job --------------------------------------
+       What components read. An app may override these on <html>. */
+    --mx-bg:             var(--mx-c-black);
+    --mx-surface:        var(--mx-c-black);     /* panels, cards, sheets */
+    --mx-surface-raised: var(--mx-c-raised);    /* buttons, rows, chips on a panel */
+    --mx-surface-sunken: var(--mx-c-black);     /* inputs, tracks, media wells */
+    --mx-accent:         var(--mx-c-accent);
+    --mx-on-accent:      var(--mx-c-on-accent); /* text on an accent fill */
+    --mx-warn:           var(--mx-c-warn);
+    --mx-danger:         var(--mx-c-danger);
+    --mx-ink-hot:        var(--mx-c-ink-hot);   /* headings, input text */
+    --mx-ink:            var(--mx-c-ink);       /* body text */
+    --mx-ink-dim:        var(--mx-c-ink-dim);   /* labels, meta */
+    --mx-ink-faint:      var(--mx-c-ink-faint); /* placeholders, empty states */
+
+    /* --- layer 3: derived -------------------------------------------
+       Computed from layer 2, never set by hand. Change the accent and
+       every border, tint and glow follows. */
+    --mx-accent-low:    color-mix(in srgb, var(--mx-accent) 8%, transparent);
+    --mx-accent-mid:    color-mix(in srgb, var(--mx-accent) 18%, transparent);
+    --mx-accent-glow:   color-mix(in srgb, var(--mx-accent) 35%, transparent);
+    --mx-border-soft:   color-mix(in srgb, var(--mx-accent) 11%, transparent);
+    --mx-border:        color-mix(in srgb, var(--mx-accent) 22%, transparent);
+    --mx-border-strong: color-mix(in srgb, var(--mx-accent) 45%, transparent);
+    --mx-warn-low:      color-mix(in srgb, var(--mx-warn) 10%, transparent);
+    --mx-warn-line:     color-mix(in srgb, var(--mx-warn) 40%, transparent);
+    --mx-danger-low:    color-mix(in srgb, var(--mx-danger) 12%, transparent);
+    --mx-danger-line:   color-mix(in srgb, var(--mx-danger) 42%, transparent);
+    --mx-ring:          0 0 0 1px var(--mx-border-strong), 0 0 18px var(--mx-accent-mid);
+    --mx-shadow:        0 16px 34px -12px rgba(0, 0, 0, 0.9);
+    --mx-scrim:         rgba(0, 0, 0, 0.78);
+
+    /* --- type -------------------------------------------------------- */
+    --mx-mono:   "Space Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --mx-gothic: "Unifraktur Maguntia", var(--mx-mono);
+    --mx-text-2xs:  9.5px;
+    --mx-text-xs:   10.5px;
+    --mx-text-sm:   12px;
+    --mx-text-md:   13px;
+    --mx-text-base: 15px;
+    --mx-text-lg:   clamp(17px, 0.6vw + 14px, 20px);
+    --mx-text-xl:   clamp(22px, 1.2vw + 16px, 30px);
+    --mx-text-2xl:  clamp(26px, 2vw + 16px, 40px);
+
+    /* --- spacing ----------------------------------------------------- */
+    --mx-space-1: 4px;
+    --mx-space-2: 8px;
+    --mx-space-3: 12px;
+    --mx-space-4: 16px;
+    --mx-space-5: 20px;
+    --mx-space-6: 24px;
+    --mx-space-7: 32px;
+    --mx-space-8: 48px;
+
+    /* --- sizes ------------------------------------------------------- */
+    --mx-tap:  46px;                  /* minimum comfortable touch target */
+    --mx-h-sm: 36px;
+    --mx-h-md: var(--mx-tap);
+    --mx-h-lg: 56px;
+    --mx-r-lg: 14px;
+    --mx-r-md: 10px;
+    --mx-r-sm: 7px;
+    --mx-focus: 2px solid var(--mx-accent);
+
+    /* --- layout ------------------------------------------------------ */
+    --mx-gutter:     16px;
+    --mx-shell-max:  1180px;
+    --mx-read-max:   720px;           /* mx-layout-single */
+    --mx-ld-list-w:  360px;           /* mx-layout-list-detail list column */
+    --mx-card-min:   150px;           /* narrowest tile in an auto grid */
+    --mx-bar-h:      72px;            /* command bar */
+    --mx-nav-h:      64px;            /* bottom nav bar, compact */
+    --mx-rail-w:     84px;            /* nav rail, medium */
+    --mx-sidebar-w:  232px;           /* nav sidebar, expanded and up */
+    --mx-kb:         0px;             /* set by matrix.js when the iOS keyboard is up */
+
+    /* --- motion ------------------------------------------------------ */
+    --mx-ease:     cubic-bezier(0.4, 0, 0.2, 1);
+    --mx-dur-fast: 0.14s;
+    --mx-dur:      0.22s;
+    --mx-dur-slow: 0.28s;
+    --mx-rain-opacity: 0.45;
+
+    /* --- 1.0 names, kept working through /ds/1/ ---------------------
+       Removed in 2.0. New code uses the names above. */
+    --mx-green:      var(--mx-accent);
+    --mx-green-low:  var(--mx-accent-low);
+    --mx-amber:      var(--mx-warn);
+    --mx-red:        var(--mx-danger);
+    --mx-red-low:    var(--mx-danger-low);
+    --mx-line:       var(--mx-border);
+    --mx-line-soft:  var(--mx-border-soft);
+    --mx-panel-sol:  var(--mx-surface);
+    --mx-raised:     var(--mx-surface-raised);
+    --mx-sunken:     var(--mx-surface-sunken);
+    --mx-glow:       var(--mx-ring);
+    --mx-glow-soft:  0 0 24px var(--mx-accent-low);
+    --mx-glass-tint: var(--mx-surface);
+    --mx-glass-blur: none;
+    --mx-glass-edge: var(--mx-border);
+    --mx-glass-lift: 0 0 0 0 transparent;
+    --mx-inner-lip:  0 0 0 0 transparent;
+    --mx-break:      1024px;          /* documentation only */
+  }
+
+  /* Screen sizes. The widths live here and nowhere else; apps pick
+     layouts by class instead of writing their own media queries.
+       compact   < 600      phone
+       medium    600-1023   tablet, narrow window
+       expanded  1024-1439  laptop
+       wide      >= 1440    large monitor
+       tv        <html data-mx-device="tv">                              */
+  @media (min-width: 600px)  { :root { --mx-gutter: 24px; } }
+  @media (min-width: 1440px) { :root { --mx-gutter: 32px; } }
+  @media (max-width: 360px)  { :root { --mx-gutter: 12px; } }
+
+  /* Coarse pointers never get a control under the tap size. */
+  @media (pointer: coarse) { :root { --mx-h-sm: var(--mx-tap); } }
+
+  /* TV: read from across the room, driven by arrow keys. */
+  :root[data-mx-device="tv"] {
+    --mx-tap: 64px;
+    --mx-h-sm: 52px;
+    --mx-h-lg: 76px;
+    --mx-text-2xs: 15px;
+    --mx-text-xs: 16px;
+    --mx-text-sm: 18px;
+    --mx-text-md: 20px;
+    --mx-text-base: 22px;
+    --mx-text-lg: 28px;
+    --mx-text-xl: 40px;
+    --mx-text-2xl: 56px;
+    --mx-gutter: 48px;
+    --mx-shell-max: 1680px;
+    --mx-card-min: 220px;
+    --mx-focus: 4px solid var(--mx-accent);
+  }
+
+  /* --- themes ---------------------------------------------------------
+     A theme sets layer 1 and nothing else. Pick one with
+     <html data-mx-theme="amber">, or MX.theme.set("amber"). */
+  :root[data-mx-theme="amber"] {
+    --mx-c-raised:    #120c03;
+    --mx-c-accent:    #ffb000;
+    --mx-c-on-accent: #1a0f00;
+    --mx-c-warn:      #fff27a;
+    --mx-c-ink-hot:   #fff4e0;
+    --mx-c-ink:       #ffd9a0;
+    --mx-c-ink-dim:   #a0763a;
+    --mx-c-ink-faint: #5e4420;
+  }
+  :root[data-mx-theme="ice"] {
+    --mx-c-raised:    #040d12;
+    --mx-c-accent:    #3ce7ff;
+    --mx-c-on-accent: #00161c;
+    --mx-c-ink-hot:   #e6fbff;
+    --mx-c-ink:       #aeeefa;
+    --mx-c-ink-dim:   #4a8fa0;
+    --mx-c-ink-faint: #27525d;
+  }
+}
+
+
+/* =====================================================================
+   BASE
+   ===================================================================== */
+@layer mx.base {
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    background: var(--mx-bg);
+  }
+
+  body.mx {
+    margin: 0;
+    min-height: 100dvh;
+    background: var(--mx-bg);
+    color: var(--mx-ink);
+    font-family: var(--mx-mono);
+    font-size: var(--mx-text-base);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    overflow-x: hidden;
+  }
+
+  .mx :focus-visible { outline: var(--mx-focus); outline-offset: 2px; }
+  :root[data-mx-device="tv"] .mx :focus { outline: var(--mx-focus); outline-offset: 3px; }
+
+  .mx a { color: var(--mx-accent); }
+  .mx code { color: var(--mx-accent); font-size: 0.9em; overflow-wrap: anywhere; }
+
+  /* --- background layers ---------------------------------------------
+     #mx-rain is drawn by matrix.js. The vignette and scanlines are pure
+     CSS; they are what make the page read as a CRT rather than a dark
+     website. */
+  #mx-rain {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    /* The large viewport, not the current one: on iOS the address bar
+       collapsing mid-scroll would otherwise resize the canvas, and a
+       resized canvas is a restarted animation. */
+    height: 100vh;
+    height: 100lvh;
+    z-index: 0;
+    pointer-events: none;
+    opacity: var(--mx-rain-opacity);
+  }
+  /* 1.0 drew a blurred copy for the glass to refract. Glass is gone. */
+  #mx-rain-bloom { display: none; }
+
+  .mx-vignette, .mx-scanlines {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+  }
+  .mx-vignette {
+    background:
+      radial-gradient(120% 90% at 50% 0%, var(--mx-accent-low), transparent 60%),
+      radial-gradient(130% 100% at 50% 100%, rgba(0, 0, 0, 0.85), transparent 55%);
+  }
+  .mx-scanlines {
+    background: repeating-linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0) 0px, rgba(0, 0, 0, 0) 2px,
+      rgba(0, 0, 0, 0.22) 3px, rgba(0, 0, 0, 0.22) 4px);
+    opacity: 0.55;
+    mix-blend-mode: multiply;
+  }
+
+  /* --- headings -------------------------------------------------------- */
+  .mx-title {
+    display: block;
+    margin: 0;
+    font-size: var(--mx-text-xl);
+    font-weight: 700;
+    line-height: 1.15;
+    color: var(--mx-ink-hot);
+    overflow-wrap: anywhere;
+  }
+  .mx-title.mx-lg { font-size: var(--mx-text-2xl); }
+  .mx-subtitle {
+    display: block;
+    margin: var(--mx-space-1) 0 0;
+    font-size: var(--mx-text-sm);
+    color: var(--mx-ink-dim);
+  }
+  /* 1.0 app name */
+  .mx-album-title {
+    display: block;
+    font-size: var(--mx-text-xl);
+    font-weight: 700;
+    line-height: 1.15;
+    color: var(--mx-ink-hot);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+}
+
+
+/* =====================================================================
+   LAYOUT
+   ===================================================================== */
+@layer mx.layout {
+
+  /* --- shell ----------------------------------------------------------- */
+  .mx-shell {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    max-width: var(--mx-shell-max);
+    margin: 0 auto;
+    padding: 0 var(--mx-gutter);
+  }
+
+  /* --- page layouts ------------------------------------------------------
+     One per page, as a class next to (or inside) mx-shell. */
+
+  /* Single: one centred reading column. */
+  .mx-layout-single { max-width: calc(var(--mx-read-max) + 2 * var(--mx-gutter)); margin-inline: auto; }
+
+  /* Split: stacked (with tabs) up to expanded, two columns from there.
+     Wrap each column in .mx-col. .mx-stack is the 1.0 name. */
+  .mx-layout-split, .mx-stack { display: block; }
+  .mx-col { min-width: 0; container-type: inline-size; }
+  @media (min-width: 1024px) {
+    .mx-layout-split, .mx-stack {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: var(--mx-space-4);
+      align-items: start;
+      padding-top: var(--mx-space-1);
+    }
+  }
+
+  /* Dashboard: a grid of panels, 1 / 2 / 3 / 4 columns. */
+  .mx-layout-dashboard {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--mx-space-4);
+    align-items: start;
+  }
+  .mx-layout-dashboard > * { min-width: 0; margin-bottom: 0; }
+  @media (min-width: 600px)  { .mx-layout-dashboard { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (min-width: 1024px) { .mx-layout-dashboard { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  @media (min-width: 1440px) { .mx-layout-dashboard { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  .mx-span-2   { grid-column: span 2; }
+  .mx-span-all { grid-column: 1 / -1; }
+  @media (max-width: 599px) { .mx-span-2 { grid-column: auto; } }
+
+  /* List + detail: the list, and the detail replaces it on tap, until
+     expanded, where they sit side by side. Open the detail with
+     data-mx-detail="open" on the layout (MX.detail.open()). */
+  .mx-layout-list-detail { display: block; }
+  .mx-ld-list, .mx-ld-detail { min-width: 0; container-type: inline-size; }
+  .mx-layout-list-detail > .mx-ld-detail { display: none; }
+  .mx-layout-list-detail[data-mx-detail="open"] > .mx-ld-list { display: none; }
+  .mx-layout-list-detail[data-mx-detail="open"] > .mx-ld-detail { display: block; }
+  .mx-ld-back { display: inline-flex; }
+  @media (min-width: 1024px) {
+    .mx-layout-list-detail {
+      display: grid;
+      grid-template-columns: var(--mx-ld-list-w) minmax(0, 1fr);
+      gap: var(--mx-space-4);
+      align-items: start;
+    }
+    .mx-layout-list-detail > .mx-ld-list,
+    .mx-layout-list-detail > .mx-ld-detail { display: block; }
+    .mx-layout-list-detail > .mx-ld-list {
+      position: sticky;
+      top: var(--mx-space-4);
+      max-height: calc(100dvh - 2 * var(--mx-space-4));
+      overflow-y: auto;
+    }
+    .mx-ld-back { display: none; }
+  }
+
+  /* Small building blocks for arranging things inside a panel. */
+  .mx-flow    { display: flex; flex-direction: column; gap: var(--mx-space-3); }
+  .mx-cluster { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mx-space-2); }
+  .mx-spread  { display: flex; align-items: center; justify-content: space-between; gap: var(--mx-space-3); }
+  .mx-grid, .mx-view-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--mx-card-min)), 1fr));
+    gap: var(--mx-space-3);
+  }
+
+  /* --- top bar ---------------------------------------------------------- */
+  .mx-topbar {
+    position: relative;
+    z-index: 2;
+    padding-top: calc(var(--mx-space-3) + env(safe-area-inset-top));
+    padding-bottom: var(--mx-space-3);
+    display: flex;
+    align-items: center;
+    gap: var(--mx-space-3);
+  }
+  .mx-brand { min-width: 0; flex: 1 1 auto; }
+  .mx-mark {
+    display: block;
+    font-family: var(--mx-gothic);
+    font-size: var(--mx-text-2xl);
+    line-height: 1.15;
+    color: var(--mx-ink-hot);
+    text-shadow: 0 0 12px var(--mx-accent-glow);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .mx-tagline {
+    margin: var(--mx-space-1) 0 0;
+    font-size: var(--mx-text-xs);
+    font-weight: 400;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--mx-ink-dim);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .mx-caret {
+    display: inline-block;
+    width: 7px; height: 12px;
+    margin-left: 2px;
+    background: var(--mx-accent);
+    vertical-align: -1px;
+    animation: mx-blink 1.1s steps(1) infinite;
+  }
+  @keyframes mx-blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+  /* A row of page links beside the brand. On a phone it gets its own
+     full-width row under the title instead of squeezing it. */
+  .mx-topbar-nav { display: flex; flex-wrap: wrap; gap: var(--mx-space-2); }
+  @media (max-width: 599px) {
+    .mx-topbar { flex-wrap: wrap; }
+    .mx-topbar-nav { flex: 1 1 100%; }
+    .mx-topbar-nav > .mx-btn { flex: 1 1 0; min-width: 0; padding: 0 10px; }
+  }
+  /* Where the command bar moves on big screens (see command bar). */
+  .mx-topbar-actions { flex: 0 1 auto; min-width: 0; display: flex; align-items: center; gap: var(--mx-space-2); }
+
+  /* --- adaptive navigation -------------------------------------------------
+     One <nav class="mx-nav"> of .mx-nav-item links; add mx-has-nav to
+     <body>. Bottom bar on compact, icon rail on medium, sidebar from
+     expanded, a top menu on a TV. */
+  .mx-nav {
+    position: fixed;
+    z-index: 25;
+    display: flex;
+    background: var(--mx-surface);
+    border-color: var(--mx-border);
+    border-style: solid;
+    border-width: 0;
+  }
+  .mx-nav-brand { display: none; }
+  .mx-nav-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--mx-space-1);
+    min-height: var(--mx-tap);
+    padding: var(--mx-space-1);
+    color: var(--mx-ink-dim);
+    text-decoration: none;
+    font: inherit;
+    font-size: var(--mx-text-2xs);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    background: none;
+    border: 0;
+    border-radius: var(--mx-r-sm);
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: color var(--mx-dur-fast), background-color var(--mx-dur-fast);
+  }
+  .mx-nav-item svg, .mx-nav-icon { width: 20px; height: 20px; flex: 0 0 auto; }
+  .mx-nav-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+  .mx-nav-item[aria-current="page"], .mx-nav-item.mx-selected { color: var(--mx-accent); }
+  .mx-nav-item[aria-current="page"]::before, .mx-nav-item.mx-selected::before {
+    content: "";
+    position: absolute;
+    background: var(--mx-accent);
+    box-shadow: 0 0 8px var(--mx-accent-glow);
+  }
+  @media (hover: hover) { .mx-nav-item:hover { color: var(--mx-ink-hot); } }
+  .mx-nav-item:active { background: var(--mx-accent-low); }
+
+  @media (max-width: 599px) {
+    .mx-nav {
+      left: 0; right: 0; bottom: 0;
+      height: calc(var(--mx-nav-h) + env(safe-area-inset-bottom));
+      padding: 0 var(--mx-space-1) env(safe-area-inset-bottom);
+      border-top-width: 1px;
+    }
+    .mx-nav-item { flex: 1 1 0; min-width: 0; flex-direction: column; }
+    .mx-nav-item[aria-current="page"]::before, .mx-nav-item.mx-selected::before { top: 0; left: 30%; right: 30%; height: 2px; }
+    body.mx-has-nav { padding-bottom: calc(var(--mx-nav-h) + env(safe-area-inset-bottom) + var(--mx-space-4)); }
+    body.mx-has-nav.mx-has-cmdbar { padding-bottom: calc(var(--mx-nav-h) + var(--mx-bar-h) + env(safe-area-inset-bottom) + var(--mx-space-4)); }
+  }
+  @media (min-width: 600px) {
+    .mx-nav {
+      top: 0; bottom: 0; left: 0;
+      width: calc(var(--mx-rail-w) + env(safe-area-inset-left));
+      flex-direction: column;
+      gap: var(--mx-space-1);
+      padding: calc(var(--mx-space-4) + env(safe-area-inset-top)) var(--mx-space-2) var(--mx-space-4) calc(var(--mx-space-2) + env(safe-area-inset-left));
+      border-right-width: 1px;
+      overflow-y: auto;
+    }
+    .mx-nav-item { flex-direction: column; min-height: 64px; }
+    .mx-nav-item[aria-current="page"]::before, .mx-nav-item.mx-selected::before { left: calc(-1 * var(--mx-space-2)); top: 25%; bottom: 25%; width: 2px; }
+    body.mx-has-nav { padding-left: calc(var(--mx-rail-w) + env(safe-area-inset-left)); }
+  }
+  @media (min-width: 1024px) {
+    .mx-nav { width: calc(var(--mx-sidebar-w) + env(safe-area-inset-left)); padding-inline: var(--mx-space-3); }
+    .mx-nav-brand {
+      display: block;
+      padding: 0 var(--mx-space-2) var(--mx-space-4);
+      font-family: var(--mx-gothic);
+      font-size: var(--mx-text-xl);
+      color: var(--mx-ink-hot);
+      text-decoration: none;
+      text-shadow: 0 0 12px var(--mx-accent-glow);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .mx-nav-item {
+      flex-direction: row;
+      justify-content: flex-start;
+      gap: var(--mx-space-3);
+      min-height: var(--mx-tap);
+      padding: 0 var(--mx-space-3);
+      font-size: var(--mx-text-sm);
+    }
+    .mx-nav-item[aria-current="page"], .mx-nav-item.mx-selected { background: var(--mx-accent-low); }
+    .mx-nav-item[aria-current="page"]::before, .mx-nav-item.mx-selected::before { left: calc(-1 * var(--mx-space-3)); }
+    body.mx-has-nav { padding-left: calc(var(--mx-sidebar-w) + env(safe-area-inset-left)); }
+  }
+  /* TV beats every width: a top menu, in the page flow. */
+  :root[data-mx-device="tv"] .mx-nav {
+    position: sticky;
+    top: 0;
+    width: auto;
+    height: auto;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--mx-space-3);
+    padding: var(--mx-space-4) var(--mx-gutter);
+    border-width: 0 0 1px;
+  }
+  :root[data-mx-device="tv"] .mx-nav-brand { display: block; margin-right: var(--mx-space-6); padding: 0; }
+  :root[data-mx-device="tv"] .mx-nav-item { flex: 0 0 auto; flex-direction: row; padding: 0 var(--mx-space-5); }
+  :root[data-mx-device="tv"] .mx-nav-item[aria-current="page"]::before { left: 20%; right: 20%; top: auto; bottom: 0; width: auto; height: 3px; }
+  :root[data-mx-device="tv"] body.mx-has-nav { padding-left: 0; padding-bottom: var(--mx-space-7); }
+
+  /* --- tabs -----------------------------------------------------------------
+     Switch between panels of ONE page on small screens. Buttons carry
+     data-mx-tab, panels carry data-mx-panel; matrix.js wires them.
+     From expanded up every panel shows and the tabs hide. */
+  .mx-tabs {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    gap: 6px;
+    /* Full-bleed past the shell gutter, so the strip's cut edges don't
+       show against the moving background. */
+    margin: 0 calc(-1 * var(--mx-gutter));
+    padding: var(--mx-space-2) var(--mx-gutter) var(--mx-space-3);
+    background: linear-gradient(180deg, var(--mx-bg) 60%, transparent);
+  }
+  .mx-tab {
+    appearance: none;
+    position: relative;
+    min-height: var(--mx-tap);
+    padding: 0 6px;
+    background: var(--mx-surface-raised);
+    border: 1px solid var(--mx-border);
+    border-radius: var(--mx-r-sm);
+    color: var(--mx-ink-dim);
+    font: inherit;
+    font-size: var(--mx-text-xs);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: color var(--mx-dur-fast), border-color var(--mx-dur-fast), background-color var(--mx-dur-fast);
+  }
+  .mx-tab[aria-selected="true"] {
+    color: var(--mx-on-accent);
+    background: var(--mx-accent);
+    border-color: var(--mx-accent);
+    font-weight: 700;
+    box-shadow: 0 0 24px var(--mx-accent-low);
+  }
+  @media (max-width: 360px) { .mx-tab { letter-spacing: 0.1em; } }
+  /* Unread marker: add .mx-has-update when a hidden tab's content changes. */
+  .mx-tab .mx-dot {
+    position: absolute;
+    top: 8px; right: 10px;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--mx-accent);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .mx-tab.mx-has-update .mx-dot { opacity: 1; }
+  .mx-tab[aria-selected="true"] .mx-dot { opacity: 0; }
+  @media (min-width: 1024px) { .mx-tabs { display: none; } }
+  /* Below expanded only the selected view's panels show. matrix.js marks
+     the body, so a page whose script never loads shows everything. */
+  @media (max-width: 1023px) {
+    body.mx-tabbed [data-mx-panel] { display: none; }
+    body.mx-tabbed [data-mx-panel].mx-shown { display: block; }
+  }
+
+  /* --- command bar -------------------------------------------------------
+     The page's primary action. A full-width bottom bar in thumb reach on
+     compact and medium; from expanded a floating dock, or -- if the top
+     bar has a [data-mx-slot="actions"] -- matrix.js moves it inline
+     there. Add mx-has-cmdbar to <body> so content clears it. */
+  .mx-cmdbar {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    z-index: 20;
+    transform: translateY(calc(-1 * var(--mx-kb)));
+    transition: transform 0.18s ease;
+    background: var(--mx-surface);
+    border-top: 1px solid var(--mx-border);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .mx-cmdbar-inner {
+    max-width: var(--mx-shell-max);
+    margin: 0 auto;
+    padding: 11px var(--mx-gutter);
+    display: flex;
+    align-items: center;
+    gap: var(--mx-space-3);
+    min-height: var(--mx-bar-h);
+  }
+  .mx-cmd-status {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: var(--mx-text-xs);
+    line-height: 1.4;
+    color: var(--mx-tone, var(--mx-ink-dim));
+    letter-spacing: 0.04em;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+  .mx-prompt { color: var(--mx-accent); margin-right: 6px; }
+  .mx-cmdbar .mx-btn-go, .mx-cmdbar .mx-primary { flex: 0 0 auto; min-width: 140px; }
+  @media (max-width: 430px) { .mx-cmdbar .mx-btn-go, .mx-cmdbar .mx-primary { min-width: 118px; padding: 0 12px; } }
+  body.mx-has-cmdbar { padding-bottom: calc(var(--mx-bar-h) + 28px + env(safe-area-inset-bottom)); }
+
+  @media (max-width: 599px) {
+    body.mx-has-nav .mx-cmdbar { bottom: calc(var(--mx-nav-h) + env(safe-area-inset-bottom)); padding-bottom: 0; }
+  }
+  @media (min-width: 600px) {
+    body.mx-has-nav .mx-cmdbar { left: calc(var(--mx-rail-w) + env(safe-area-inset-left)); }
+  }
+  @media (min-width: 1024px) {
+    .mx-cmdbar, body.mx-has-nav .mx-cmdbar {
+      left: auto;
+      right: var(--mx-space-6);
+      bottom: var(--mx-space-6);
+      width: min(600px, calc(100% - 2 * var(--mx-space-6)));
+      border: 1px solid var(--mx-border);
+      border-radius: var(--mx-r-lg);
+      box-shadow: var(--mx-shadow);
+      padding-bottom: 0;
+    }
+    .mx-cmdbar-inner { min-height: 0; padding: var(--mx-space-3) var(--mx-space-4); }
+    /* Moved into the top bar by matrix.js. */
+    body.mx-cmd-inline { padding-bottom: var(--mx-space-7); }
+    body.mx-cmd-inline .mx-cmdbar { display: none; }
+    .mx-topbar-actions .mx-cmdbar-inner { padding: 0; margin: 0; max-width: none; }
+    .mx-topbar-actions .mx-cmd-status { max-width: 360px; text-align: right; }
+  }
+}
+
+
+/* =====================================================================
+   COMPONENTS
+   ===================================================================== */
+@layer mx.components {
+
+  /* --- the shared vocabulary -------------------------------------------
+     Every component understands the same modifiers:
+       variant  mx-primary  mx-secondary (default)  mx-ghost  mx-danger
+       size     mx-sm  mx-md (default)  mx-lg
+       state    mx-ok  mx-busy  mx-err  mx-selected  mx-open  [disabled]
+       shape    mx-square  mx-round  mx-block
+     Variants and sizes only set the non-inheriting --mx-v-* / --mx-z-*
+     properties; each component decides which of them it paints. */
+  .mx-primary, .mx-btn-go {
+    --mx-v-bg: var(--mx-accent);
+    --mx-v-fg: var(--mx-on-accent);
+    --mx-v-bd: var(--mx-accent);
+    --mx-v-glow: 0 0 22px var(--mx-accent-glow);
+  }
+  .mx-ghost {
+    --mx-v-bg: transparent;
+    --mx-v-bd: transparent;
+    --mx-v-fg: var(--mx-ink-dim);
+  }
+  .mx-danger, .mx-btn-danger {
+    --mx-v-bg: var(--mx-danger-low);
+    --mx-v-fg: var(--mx-danger);
+    --mx-v-bd: var(--mx-danger-line);
+  }
+  .mx-ok   { --mx-tone: var(--mx-accent); --mx-tone-low: var(--mx-accent-low); --mx-tone-line: var(--mx-border-strong); }
+  .mx-busy { --mx-tone: var(--mx-warn);   --mx-tone-low: var(--mx-warn-low);   --mx-tone-line: var(--mx-warn-line); }
+  .mx-err  { --mx-tone: var(--mx-danger); --mx-tone-low: var(--mx-danger-low); --mx-tone-line: var(--mx-danger-line); }
+  .mx-sm { --mx-z-h: var(--mx-h-sm); --mx-z-fs: var(--mx-text-2xs); --mx-z-px: 12px; }
+  .mx-md { --mx-z-h: var(--mx-h-md); --mx-z-fs: var(--mx-text-sm); --mx-z-px: 18px; }
+  .mx-lg { --mx-z-h: var(--mx-h-lg); --mx-z-fs: var(--mx-text-md); --mx-z-px: 26px; }
+
+  /* --- surface ---------------------------------------------------------
+     The solid, bordered box everything large is made of. .mx-glass is
+     the 1.0 name and now means the same thing. */
+  .mx-surface, .mx-glass {
+    position: relative;
+    background: var(--mx-surface);
+    border: 1px solid var(--mx-border);
+  }
+
+  /* --- panel ------------------------------------------------------------ */
+  .mx-panel {
+    position: relative;
+    background: var(--mx-surface);
+    border: 1px solid var(--mx-v-bd, var(--mx-border));
+    border-radius: var(--mx-r-lg);
+    padding: var(--mx-space-4);
+    margin-bottom: 14px;
+    container-type: inline-size;
+  }
+  @media (min-width: 600px) { .mx-panel { padding: var(--mx-space-5); } }
+  @media (max-width: 360px) { .mx-panel { padding: 14px var(--mx-space-3); } }
+  .mx-panel-title {
+    margin: 0 0 14px;
+    font-size: var(--mx-text-xs);
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--mx-ink-dim);
+    display: flex;
+    align-items: center;
+    gap: var(--mx-space-2);
+  }
+  .mx-panel-title::before {
+    content: "";
+    width: 6px; height: 6px;
+    background: var(--mx-accent);
+    box-shadow: 0 0 8px var(--mx-accent);
+    flex: 0 0 auto;
+  }
+  .mx-panel-title::after {
+    content: "";
+    flex: 1 1 auto;
+    height: 1px;
+    background: linear-gradient(90deg, var(--mx-border), transparent);
+  }
+  .mx-danger > .mx-panel-title, .mx-sheet.mx-danger .mx-sheet-head .mx-panel-title { color: var(--mx-danger); }
+  .mx-danger > .mx-panel-title::before, .mx-sheet.mx-danger .mx-sheet-head .mx-panel-title::before { background: var(--mx-danger); box-shadow: 0 0 8px var(--mx-danger); }
+  /* 1.0 app names */
+  .mx-panel-solid { background: var(--mx-surface); border: 1px solid var(--mx-border-soft); }
+
+  /* --- card --------------------------------------------------------------
+     A box of content inside a grid or panel: head, body, actions. */
+  .mx-card {
+    position: relative;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--mx-space-3);
+    padding: var(--mx-space-4);
+    background: var(--mx-surface);
+    border: 1px solid var(--mx-v-bd, var(--mx-border));
+    border-radius: var(--mx-r-md);
+    color: var(--mx-ink);
+  }
+  .mx-card-head { display: flex; align-items: center; gap: var(--mx-space-3); min-width: 0; }
+  .mx-card-title {
+    margin: 0;
+    font-size: var(--mx-text-md);
+    font-weight: 700;
+    color: var(--mx-ink-hot);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .mx-card.mx-danger .mx-card-title { color: var(--mx-danger); }
+  .mx-card-meta { font-size: var(--mx-text-xs); color: var(--mx-ink-dim); }
+  .mx-card-body { font-size: var(--mx-text-md); line-height: 1.55; min-width: 0; }
+  .mx-card-actions { display: flex; flex-wrap: wrap; gap: var(--mx-space-2); margin-top: auto; }
+
+  /* --- button -------------------------------------------------------------
+     One element for every action: <button> or <a>. Variants, sizes and
+     shapes from the vocabulary above. */
+  .mx-btn {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--mx-space-2);
+    min-height: var(--mx-z-h, var(--mx-h-md));
+    padding: 0 var(--mx-z-px, 18px);
+    border-radius: var(--mx-r-sm);
+    border: 1px solid var(--mx-v-bd, var(--mx-border));
+    background: var(--mx-v-bg, var(--mx-surface-raised));
+    box-shadow: var(--mx-v-glow, none);
+    color: var(--mx-v-fg, var(--mx-ink));
+    font: inherit;
+    font-size: var(--mx-z-fs, var(--mx-text-sm));
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-user-select: none;
+            user-select: none;
+    transition: background-color var(--mx-dur-fast) ease, border-color var(--mx-dur-fast) ease,
+                color var(--mx-dur-fast) ease, filter var(--mx-dur-fast) ease, transform var(--mx-dur-fast) ease;
+  }
+  .mx-btn svg { width: 1.3em; height: 1.3em; flex: 0 0 auto; }
+  .mx-btn.mx-primary, .mx-btn.mx-btn-go { font-weight: 700; }
+  @media (hover: hover) {
+    .mx-btn:not([disabled]):hover { border-color: var(--mx-v-bd, var(--mx-border-strong)); filter: brightness(1.18); }
+    .mx-btn.mx-ghost:not([disabled]):hover { color: var(--mx-ink-hot); background: var(--mx-accent-low); }
+  }
+  .mx-btn:not([disabled]):active { transform: scale(0.97); }
+  .mx-btn[disabled], .mx-btn[aria-disabled="true"] { opacity: 0.45; cursor: default; box-shadow: none; }
+  .mx-btn.mx-square { width: var(--mx-z-h, var(--mx-h-md)); padding: 0; }
+  .mx-btn.mx-block, .mx-btn-wide { display: flex; width: 100%; }
+
+  /* --- fields --------------------------------------------------------------
+     16px on inputs is not a style choice: anything smaller makes iOS
+     zoom the page when the field takes focus. */
+  .mx-field { margin-bottom: 14px; }
+  .mx-field-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+  .mx-label {
+    font-size: var(--mx-text-xs);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--mx-ink-dim);
+  }
+  .mx-count { font-size: var(--mx-text-2xs); color: var(--mx-ink-faint); font-variant-numeric: tabular-nums; }
+  .mx-hint { margin: var(--mx-space-2) 0 0; font-size: var(--mx-text-xs); color: var(--mx-tone, var(--mx-ink-faint)); line-height: 1.4; }
+  .mx-field.mx-err .mx-hint { color: var(--mx-danger); }
+
+  .mx-input, .mx-textarea, .mx-select {
+    display: block;
+    width: 100%;
+    min-height: var(--mx-z-h, var(--mx-h-md));
+    padding: 12px 13px;
+    background: var(--mx-surface-sunken);
+    border: 1px solid var(--mx-border);
+    border-radius: var(--mx-r-sm);
+    color: var(--mx-ink-hot);
+    font: inherit;
+    font-size: max(16px, var(--mx-text-md));
+    line-height: 1.45;
+    caret-color: var(--mx-accent);
+    transition: border-color var(--mx-dur-fast), box-shadow var(--mx-dur-fast);
+  }
+  .mx-textarea { resize: vertical; min-height: 96px; }
+  .mx-select {
+    appearance: none;
+    padding-right: 38px;
+    background-image:
+      linear-gradient(45deg, transparent 50%, var(--mx-ink-dim) 50%),
+      linear-gradient(135deg, var(--mx-ink-dim) 50%, transparent 50%);
+    background-position: calc(100% - 20px) 50%, calc(100% - 15px) 50%;
+    background-size: 5px 5px;
+    background-repeat: no-repeat;
+    cursor: pointer;
+  }
+  .mx-input::placeholder, .mx-textarea::placeholder { color: var(--mx-ink-faint); }
+  .mx-input:focus, .mx-textarea:focus, .mx-select:focus {
+    outline: none;
+    border-color: var(--mx-accent);
+    box-shadow: var(--mx-ring);
+  }
+  .mx-field.mx-err .mx-input, .mx-field.mx-err .mx-textarea, .mx-field.mx-err .mx-select,
+  .mx-input.mx-err, .mx-textarea.mx-err { border-color: var(--mx-danger); }
+  .mx-input[disabled], .mx-textarea[disabled], .mx-select[disabled] { opacity: 0.5; }
+
+  /* An input with a leading icon. .mx-search is the 1.0 name. */
+  .mx-input-icon, .mx-search { position: relative; }
+  .mx-search { margin: var(--mx-space-1) 0 18px; }
+  .mx-input-icon > svg, .mx-search > svg {
+    position: absolute;
+    left: 13px; top: 50%;
+    transform: translateY(-50%);
+    width: 16px; height: 16px;
+    color: var(--mx-ink-dim);
+    pointer-events: none;
+  }
+  .mx-input-icon > .mx-input, .mx-search input.mx-input { padding-left: 40px; }
+
+  /* The one field that matters most on the page. */
+  .mx-field-boxed {
+    border: 1px dashed var(--mx-border);
+    border-radius: var(--mx-r-md);
+    padding: var(--mx-space-3);
+    margin-bottom: var(--mx-space-4);
+  }
+
+  /* --- choices: chips, toggle, check ------------------------------------ */
+  .mx-chips {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 7px;
+    border: 0;
+    margin: 0 0 18px;
+    padding: 0;
+    min-width: 0;
+  }
+  @container (min-width: 420px) { .mx-chips { grid-template-columns: repeat(4, 1fr); } }
+  .mx-chips > legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .mx-chips label { position: relative; display: block; cursor: pointer; }
+  .mx-chips input {
+    position: absolute;
+    opacity: 0;
+    width: 1px; height: 1px;
+    margin: 0;
+    pointer-events: none;
+  }
+  .mx-chips span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: var(--mx-tap);
+    padding: 0 6px;
+    border: 1px solid var(--mx-border-soft);
+    border-radius: var(--mx-r-sm);
+    background: var(--mx-surface-raised);
+    color: var(--mx-ink-dim);
+    font-size: var(--mx-text-xs);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-align: center;
+    transition: background-color var(--mx-dur-fast), border-color var(--mx-dur-fast), color var(--mx-dur-fast), transform var(--mx-dur-fast);
+  }
+  .mx-chips input:checked + span {
+    background: var(--mx-accent);
+    border-color: var(--mx-accent);
+    color: var(--mx-on-accent);
+    font-weight: 700;
+    box-shadow: 0 0 24px var(--mx-accent-low);
+  }
+  .mx-chips input:focus-visible + span { outline: 2px solid var(--mx-ink-hot); outline-offset: 2px; }
+  .mx-chips input:active + span { transform: scale(0.97); }
+  .mx-chips.mx-sort-chips { grid-template-columns: repeat(3, 1fr); margin-top: -6px; }
+
+  .mx-toggle, .mx-check {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--mx-space-2);
+    min-height: 36px;
+    color: var(--mx-ink-dim);
+    cursor: pointer;
+    font-size: var(--mx-text-xs);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    -webkit-user-select: none;
+            user-select: none;
+  }
+  .mx-toggle input { position: absolute; opacity: 0; pointer-events: none; }
+  .mx-toggle .mx-sw {
+    width: 34px; height: 18px;
+    border: 1px solid var(--mx-border);
+    border-radius: 999px;
+    background: var(--mx-surface-sunken);
+    position: relative;
+    flex: 0 0 auto;
+    transition: border-color 0.16s, background-color 0.16s;
+  }
+  .mx-toggle .mx-sw::after {
+    content: "";
+    position: absolute;
+    top: 2px; left: 2px;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: var(--mx-ink-faint);
+    transition: left 0.16s, background-color 0.16s;
+  }
+  .mx-toggle input:checked + .mx-sw { border-color: var(--mx-accent); background: var(--mx-accent-mid); }
+  .mx-toggle input:checked + .mx-sw::after { left: 18px; background: var(--mx-accent); box-shadow: 0 0 8px var(--mx-accent); }
+  .mx-toggle input:focus-visible + .mx-sw { outline: var(--mx-focus); outline-offset: 2px; }
+  .mx-check input { width: 18px; height: 18px; margin: 0; accent-color: var(--mx-accent); cursor: pointer; }
+
+  /* --- badge ------------------------------------------------------------------
+     A small label or count. Colour from a state (mx-ok / busy / err) or
+     a variant; accent by default. .mx-pill is the 1.0 name. */
+  .mx-badges, .mx-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: var(--mx-space-1); }
+  .mx-badge, .mx-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--mx-space-1);
+    font-size: var(--mx-text-2xs);
+    line-height: 1.5;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: var(--mx-tone, var(--mx-v-fg, var(--mx-accent)));
+    border: 1px solid var(--mx-tone-line, var(--mx-v-bd, var(--mx-border-strong)));
+    background: var(--mx-tone-low, var(--mx-v-bg, var(--mx-accent-low)));
+    border-radius: 999px;
+    padding: 2px 9px;
+  }
+  .mx-badge.mx-primary { font-weight: 700; }
+
+  /* --- status chip + LED -------------------------------------------------------
+     One connection at a glance. data-mx-state = ok / err / busy. */
+  .mx-status-chip {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--mx-space-2);
+    min-height: var(--mx-tap);
+    padding: 0 14px;
+    border-radius: 999px;
+    background: var(--mx-surface);
+    border: 1px solid var(--mx-border);
+    color: var(--mx-ink-dim);
+    font: inherit;
+    font-size: var(--mx-text-xs);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+  .mx-led {
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    background: var(--mx-ink-faint);
+    box-shadow: 0 0 0 3px var(--mx-accent-low);
+    flex: 0 0 auto;
+  }
+  [data-mx-state="ok"]  { color: var(--mx-accent); border-color: var(--mx-border-strong); }
+  [data-mx-state="ok"]  .mx-led { background: var(--mx-accent); box-shadow: 0 0 10px var(--mx-accent); animation: mx-pulse 2.4s ease-in-out infinite; }
+  [data-mx-state="err"] { color: var(--mx-danger); border-color: var(--mx-danger-line); }
+  [data-mx-state="err"] .mx-led { background: var(--mx-danger); box-shadow: 0 0 10px var(--mx-danger); }
+  [data-mx-state="busy"] .mx-led { background: var(--mx-warn); box-shadow: 0 0 10px var(--mx-warn); animation: mx-pulse 0.9s ease-in-out infinite; }
+  @keyframes mx-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+  /* --- readout: one line of status text ------------------------------------ */
+  .mx-readout {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    min-height: 40px;
+    padding: var(--mx-space-2) var(--mx-space-3);
+    font-size: var(--mx-text-sm);
+    line-height: 1.35;
+    color: var(--mx-tone, var(--mx-ink-dim));
+    background: var(--mx-tone-low, var(--mx-accent-low));
+    border: 1px solid var(--mx-tone-line, var(--mx-border-soft));
+    border-radius: var(--mx-r-sm);
+    word-break: break-word;
+  }
+
+  /* --- progress ---------------------------------------------------------------
+     <div class="mx-progress"><div class="mx-progress-fill" style="width:40%"></div></div>
+     State goes on the fill. .mx-progress-track is the 1.0 name. */
+  .mx-progress, .mx-progress-track {
+    height: 8px;
+    margin-top: var(--mx-space-3);
+    border-radius: 999px;
+    background: var(--mx-surface-sunken);
+    border: 1px solid var(--mx-border-soft);
+    overflow: hidden;
+  }
+  .mx-progress-fill {
+    position: relative;
+    height: 100%;
+    width: 0%;
+    overflow: hidden;
+    background: var(--mx-tone, var(--mx-accent));
+    box-shadow: 0 0 10px var(--mx-tone-line, var(--mx-accent-glow));
+    transition: width 0.3s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  /* Stripes marching along the fill while busy, so a bar between two
+     progress events doesn't read as stalled. One period is 12px along
+     the stripe normal = 16.97px across. */
+  .mx-progress-fill.mx-busy::after {
+    content: "";
+    position: absolute;
+    top: 0; bottom: 0;
+    left: -17px;
+    width: calc(100% + 17px);
+    background: repeating-linear-gradient(-45deg, rgba(0, 0, 0, 0.24) 0 6px, transparent 6px 12px);
+    animation: mx-stripe 0.5s linear infinite;
+    pointer-events: none;
+  }
+  @keyframes mx-stripe { to { transform: translateX(16.97px); } }
+
+  .mx-spinner {
+    display: inline-block;
+    width: 1.2em; height: 1.2em;
+    border: 2px solid var(--mx-border);
+    border-top-color: var(--mx-tone, var(--mx-accent));
+    border-radius: 50%;
+    animation: mx-spin 0.8s linear infinite;
+    vertical-align: -0.2em;
+  }
+  @keyframes mx-spin { to { transform: rotate(360deg); } }
+
+  /* --- list items and tiles ---------------------------------------------------
+     The same slots in every list and grid:
+       .mx-slot-lead    icon, image or number at the start
+       .mx-slot-main    wraps .mx-slot-title + .mx-slot-meta
+       .mx-slot-trail   action, badge or chevron at the end
+     .mx-item lays them out as a row, .mx-tile stacks them. Put items in
+     .mx-list (rows) or .mx-view-grid (tiles) -- switching between the
+     two is a one-class change. */
+  .mx-list, .mx-rows {
+    display: flex;
+    flex-direction: column;
+    gap: var(--mx-space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .mx-list.mx-view-grid { display: grid; }
+
+  .mx-item, .mx-tile {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--mx-space-3);
+    width: 100%;
+    min-width: 0;
+    min-height: var(--mx-z-h, var(--mx-h-md));
+    margin: 0;
+    padding: var(--mx-space-2) var(--mx-space-3);
+    background: var(--mx-v-bg, var(--mx-surface-raised));
+    border: 1px solid var(--mx-v-bd, var(--mx-border-soft));
+    border-radius: var(--mx-r-sm);
+    color: var(--mx-v-fg, var(--mx-ink));
+    font: inherit;
+    text-align: left;
+    text-decoration: none;
+    transition: border-color var(--mx-dur-fast), background-color var(--mx-dur-fast), transform var(--mx-dur-fast) ease, box-shadow var(--mx-dur-fast);
+  }
+  a.mx-item, button.mx-item, a.mx-tile, button.mx-tile, .mx-interactive { cursor: pointer; touch-action: manipulation; }
+  @media (hover: hover) {
+    a.mx-item:hover, button.mx-item:hover, .mx-item.mx-interactive:hover { border-color: var(--mx-v-bd, var(--mx-border-strong)); }
+  }
+  a.mx-item:active, button.mx-item:active, .mx-item.mx-interactive:active { background: var(--mx-accent-low); }
+  .mx-item.mx-selected, .mx-item[aria-current="page"], .mx-tile.mx-selected, .mx-tile[aria-current="page"] {
+    border-color: var(--mx-accent);
+    box-shadow: 0 0 0 1px var(--mx-accent), 0 0 18px var(--mx-accent-low);
+  }
+  .mx-item[disabled], .mx-tile[disabled] { opacity: 0.45; cursor: default; }
+
+  .mx-slot-lead {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    color: var(--mx-ink-dim);
+    font-size: var(--mx-text-xs);
+    font-variant-numeric: tabular-nums;
+  }
+  .mx-slot-lead > svg { width: 18px; height: 18px; }
+  .mx-slot-lead > img { display: block; width: 40px; height: 40px; object-fit: cover; border-radius: 4px; }
+  .mx-slot-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .mx-slot-title {
+    display: block;
+    min-width: 0;
+    font-size: var(--mx-text-md);
+    color: var(--mx-ink-hot);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .mx-item > .mx-slot-title { flex: 1 1 auto; }
+  .mx-slot-meta {
+    display: block;
+    min-width: 0;
+    font-size: var(--mx-text-xs);
+    color: var(--mx-ink-dim);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .mx-slot-trail {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: var(--mx-space-2);
+    color: var(--mx-ink-faint);
+    font-size: var(--mx-text-xs);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Tile: the same slots, stacked. The lead becomes a square media well. */
+  .mx-tile, .mx-view-grid > .mx-item {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    padding: 0;
+    min-height: 0;
+    overflow: hidden;
+    border-radius: var(--mx-r-md);
+    background: var(--mx-v-bg, var(--mx-surface));
+    border-color: var(--mx-v-bd, var(--mx-border));
+  }
+  .mx-tile > .mx-slot-lead, .mx-view-grid > .mx-item > .mx-slot-lead {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    background: var(--mx-surface-raised);
+    color: var(--mx-accent);
+    font-size: var(--mx-text-2xl);
+    overflow: hidden;
+  }
+  .mx-tile > .mx-slot-lead > img, .mx-view-grid > .mx-item > .mx-slot-lead > img,
+  .mx-tile > .mx-slot-lead > .mx-media, .mx-view-grid > .mx-item > .mx-slot-lead > .mx-media {
+    width: 100%; height: 100%; border-radius: 0;
+  }
+  .mx-tile > .mx-slot-lead > svg, .mx-view-grid > .mx-item > .mx-slot-lead > svg { width: 36%; height: 36%; }
+  .mx-tile > .mx-slot-main, .mx-tile > .mx-slot-title,
+  .mx-view-grid > .mx-item > .mx-slot-main, .mx-view-grid > .mx-item > .mx-slot-title {
+    padding: var(--mx-space-3) var(--mx-space-3) 14px;
+  }
+  .mx-tile > .mx-slot-trail, .mx-view-grid > .mx-item > .mx-slot-trail {
+    position: absolute;
+    top: var(--mx-space-2);
+    right: var(--mx-space-2);
+    z-index: 2;
+  }
+  @media (hover: hover) {
+    a.mx-tile:hover, button.mx-tile:hover, .mx-view-grid > a.mx-item:hover, .mx-tile.mx-interactive:hover {
+      transform: translateY(-3px);
+      border-color: var(--mx-v-bd, var(--mx-border-strong));
+      box-shadow: var(--mx-ring);
+    }
+  }
+  a.mx-tile:active, button.mx-tile:active, .mx-view-grid > a.mx-item:active { transform: scale(0.97); transition-duration: 0.08s; }
+  :root[data-mx-device="tv"] .mx-tile:focus, :root[data-mx-device="tv"] .mx-item:focus { transform: scale(1.04); box-shadow: var(--mx-ring); }
+
+  /* Wide tile: a row with a bigger square lead. */
+  .mx-tile.mx-wide {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--mx-space-3);
+    padding: var(--mx-space-2);
+  }
+  .mx-tile.mx-wide > .mx-slot-lead { width: 64px; flex: 0 0 64px; border-radius: var(--mx-r-sm); font-size: var(--mx-text-lg); }
+  .mx-tile.mx-wide > .mx-slot-main { padding: 0; }
+  .mx-tile.mx-wide > .mx-slot-trail { position: static; }
+  /* Square tile: a launcher square, icon over label. */
+  .mx-tile.mx-square {
+    aspect-ratio: 1 / 1;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    gap: var(--mx-space-2);
+    padding: var(--mx-space-3);
+  }
+  .mx-tile.mx-square > .mx-slot-lead { width: auto; aspect-ratio: auto; background: none; font-size: var(--mx-text-2xl); }
+  .mx-tile.mx-square > .mx-slot-lead > svg { width: 32px; height: 32px; }
+  .mx-tile.mx-square > .mx-slot-main, .mx-tile.mx-square > .mx-slot-title { padding: 0; align-items: center; max-width: 100%; }
+
+  /* --- media well: an image that shimmers until it has loaded ---------------
+     matrix.js adds .mx-loaded when the <img> inside finishes. */
+  .mx-media {
+    position: relative;
+    display: block;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    background: var(--mx-surface-raised);
+    overflow: hidden;
+  }
+  .mx-media::before, .mx-skeleton::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(100deg, transparent 30%, var(--mx-border) 50%, transparent 70%);
+    transform: translateX(-100%);
+    animation: mx-shimmer 1.4s ease-in-out infinite;
+    pointer-events: none;
+  }
+  .mx-media.mx-loaded::before { content: none; animation: none; }
+  .mx-media > img {
+    display: block;
+    width: 100%; height: 100%;
+    object-fit: cover;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  .mx-media.mx-loaded > img { opacity: 1; }
+  .mx-skeleton {
+    position: relative;
+    display: block;
+    height: 0.9em;
+    margin: 0.35em 0;
+    background: var(--mx-surface-raised);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  @keyframes mx-shimmer { to { transform: translateX(100%); } }
+
+  /* --- expandable rows -----------------------------------------------------------
+     A list where each row opens in place. Toggle .mx-open on the row. */
+  .mx-row {
+    background: var(--mx-surface-raised);
+    border: 1px solid var(--mx-border-soft);
+    border-radius: var(--mx-r-sm);
+    overflow: hidden;
+    transition: border-color var(--mx-dur-fast);
+  }
+  .mx-row.mx-open { border-color: var(--mx-border); }
+  .mx-row-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: var(--mx-tap);
+    padding: 10px 12px;
+    background: none;
+    border: 0;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .mx-chevron { flex: 0 0 auto; color: var(--mx-accent); font-size: var(--mx-text-xs); transition: transform 0.18s ease; }
+  .mx-row.mx-open .mx-chevron { transform: rotate(90deg); }
+  .mx-row-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: var(--mx-text-md);
+    color: var(--mx-ink);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .mx-row-meta {
+    flex: 0 0 auto;
+    font-size: var(--mx-text-2xs);
+    color: var(--mx-ink-faint);
+    letter-spacing: 0.06em;
+    text-align: right;
+  }
+  .mx-row-body { display: none; padding: var(--mx-space-1) 12px 14px; border-top: 1px solid var(--mx-border-soft); }
+  .mx-row.mx-open .mx-row-body { display: block; }
+  .mx-row-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+  /* --- drawer ---------------------------------------------------------------- */
+  .mx-drawer { overflow: hidden; max-height: 0; transition: max-height var(--mx-dur-slow) var(--mx-ease); }
+  .mx-drawer.mx-open { max-height: 320px; }
+  .mx-drawer-inner { border-radius: var(--mx-r-md); padding: 14px; margin-bottom: 14px; }
+
+  /* --- log --------------------------------------------------------------------
+     Append-only feed of what just happened. Newest first. */
+  .mx-log { display: flex; flex-direction: column; gap: 7px; }
+  .mx-log-item {
+    display: flex;
+    gap: 9px;
+    padding: 9px 11px;
+    font-size: var(--mx-text-sm);
+    line-height: 1.45;
+    color: var(--mx-ink);
+    background: var(--mx-surface-raised);
+    border: 1px solid var(--mx-border-soft);
+    border-left: 3px solid var(--mx-tone, var(--mx-border-soft));
+    border-radius: var(--mx-r-sm);
+    word-break: break-word;
+    animation: mx-slide-in var(--mx-dur) ease;
+  }
+  .mx-log-item.mx-err { color: var(--mx-danger); }
+  .mx-log-item time { color: var(--mx-ink-faint); flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+  @keyframes mx-slide-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+  /* --- empty, loading and error placeholders --------------------------------- */
+  .mx-empty { font-size: var(--mx-text-xs); color: var(--mx-tone, var(--mx-ink-faint)); line-height: 1.6; padding: 6px 2px; }
+  .mx-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--mx-space-2);
+    min-height: 140px;
+    padding: var(--mx-space-6) var(--mx-space-4);
+    border: 1px dashed var(--mx-tone-line, var(--mx-border));
+    border-radius: var(--mx-r-md);
+    color: var(--mx-tone, var(--mx-ink-dim));
+    font-size: var(--mx-text-sm);
+    text-align: center;
+  }
+  .mx-placeholder > svg { width: 28px; height: 28px; color: var(--mx-tone, var(--mx-ink-faint)); }
+
+  /* --- menu -------------------------------------------------------------------
+     <div class="mx-menu">
+       <button class="mx-btn mx-square mx-ghost" data-mx-menu-toggle>...</button>
+       <div class="mx-menu-pop"> <button class="mx-menu-item">...</button> </div>
+     </div>
+     matrix.js opens, closes on outside tap and Escape. */
+  .mx-menu { position: relative; display: inline-block; }
+  .mx-menu-pop, .mx-menu-popover {
+    position: absolute;
+    top: calc(100% + 4px); right: 0;
+    z-index: 30;
+    min-width: 180px;
+    padding: 6px;
+    background: var(--mx-surface);
+    border: 1px solid var(--mx-border);
+    border-radius: var(--mx-r-sm);
+    box-shadow: var(--mx-shadow);
+    opacity: 0;
+    visibility: hidden;
+    transform: scale(0.92) translateY(-4px);
+    transform-origin: top right;
+    transition: opacity 0.15s ease, transform 0.15s var(--mx-ease), visibility 0s linear 0.15s;
+  }
+  .mx-menu-pop.mx-start { right: auto; left: 0; transform-origin: top left; }
+  .mx-menu-pop.mx-open, .mx-menu-popover.mx-open { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
+  .mx-menu-item {
+    display: flex; align-items: center; gap: 9px;
+    width: 100%;
+    min-height: var(--mx-tap);
+    padding: 0 12px;
+    background: none; border: 0; border-radius: var(--mx-r-sm);
+    color: var(--mx-v-fg, var(--mx-ink));
+    font: inherit;
+    font-size: var(--mx-text-xs);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .mx-menu-item svg { flex: 0 0 auto; width: 15px; height: 15px; }
+  @media (hover: hover) { .mx-menu-item:hover { background: var(--mx-accent-low); } .mx-menu-item.mx-danger:hover { background: var(--mx-danger-low); } }
+  .mx-menu-item:active { background: var(--mx-v-bg, var(--mx-accent-low)); }
+  .mx-menu-sep { height: 1px; margin: 4px 6px; background: var(--mx-border-soft); }
+
+  /* --- sheet ----------------------------------------------------------------------
+     A bottom sheet on compact (thumb reach), a centred dialog from medium.
+     <div class="mx-overlay" id="x"><div class="mx-sheet" role="dialog">...</div></div>
+     Open with [data-mx-open="x"] or MX.sheet.open("x"). Keep overlays at
+     body level, never inside a panel. */
+  .mx-overlay {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    align-items: flex-end;
+    justify-content: center;
+    background: var(--mx-scrim);
+    padding: 0;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity var(--mx-dur-slow) var(--mx-ease), visibility 0s linear var(--mx-dur-slow);
+  }
+  .mx-overlay.mx-open { opacity: 1; visibility: visible; transition-delay: 0s; }
+  .mx-sheet {
+    position: relative;
+    width: 100%;
+    max-width: 560px;
+    max-height: min(78vh, 620px);
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--mx-space-3);
+    padding: var(--mx-space-4) var(--mx-space-4) calc(var(--mx-space-4) + env(safe-area-inset-bottom));
+    background: var(--mx-surface);
+    border: 1px solid var(--mx-v-bd, var(--mx-border));
+    border-bottom: 0;
+    border-radius: var(--mx-r-lg) var(--mx-r-lg) 0 0;
+    box-shadow: var(--mx-shadow);
+    container-type: inline-size;
+    transform: translateY(100%);
+    transition: transform var(--mx-dur-slow) var(--mx-ease);
+  }
+  .mx-sheet.mx-lg { max-width: 760px; }
+  .mx-overlay.mx-open .mx-sheet { transform: none; }
+  .mx-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: var(--mx-space-3); }
+  .mx-sheet-head .mx-panel-title { flex: 1 1 auto; margin: 0; }
+  .mx-sheet-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .mx-sheet-actions { display: flex; gap: 10px; flex: 0 0 auto; }
+  .mx-sheet-actions > .mx-btn { flex: 1 1 auto; }
+  @media (min-width: 600px) {
+    .mx-overlay { align-items: center; padding: var(--mx-space-6); }
+    .mx-sheet {
+      border-bottom: 1px solid var(--mx-v-bd, var(--mx-border));
+      border-radius: var(--mx-r-lg);
+      max-height: min(80vh, 640px);
+      padding-bottom: var(--mx-space-4);
+      /* Centred, a full-height slide would be a long way; a short rise
+         plus a touch of scale reads as the same gesture. */
+      transform: translateY(28px) scale(0.98);
+    }
+  }
+
+  /* --- breadcrumb -------------------------------------------------------------- */
+  .mx-breadcrumb {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px;
+    margin-bottom: 10px;
+    font-size: var(--mx-text-xs);
+    letter-spacing: 0.04em;
+  }
+  .mx-breadcrumb-item {
+    min-height: 30px;
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 5px;
+    color: var(--mx-ink-dim);
+    background: none;
+    border: 0;
+    font: inherit;
+    text-decoration: none;
+    cursor: pointer;
+    white-space: nowrap;
+    border-radius: var(--mx-r-sm);
+  }
+  .mx-breadcrumb-item:last-child { color: var(--mx-ink-hot); }
+  .mx-breadcrumb-item:active { background: var(--mx-accent-low); color: var(--mx-accent); }
+  .mx-breadcrumb-sep { color: var(--mx-ink-faint); padding: 0 1px; }
+
+  /* --- back link ------------------------------------------------------------------ */
+  .mx-back, .mx-back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--mx-space-2);
+    min-height: var(--mx-tap);
+    padding: 0 var(--mx-space-1);
+    margin-bottom: var(--mx-space-1);
+    background: none;
+    border: 0;
+    color: var(--mx-ink-dim);
+    font: inherit;
+    font-size: var(--mx-text-xs);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .mx-back:active, .mx-back-link:active { color: var(--mx-accent); }
+  @media (hover: hover) { .mx-back:hover, .mx-back-link:hover { color: var(--mx-ink-hot); } }
+  .mx-back svg, .mx-back-link svg { width: 16px; height: 16px; flex: 0 0 auto; }
+
+  /* --- hero: the header of a detail page ------------------------------------------
+     <section class="mx-hero">
+       <div class="mx-hero-bg" style="background-image:url(...)"></div>
+       <div class="mx-hero-body">
+         <img class="mx-hero-media" src="...">
+         <div class="mx-hero-text"><h1 class="mx-title">...</h1>...</div>
+       </div>
+     </section> */
+  .mx-hero {
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 14px;
+    background: var(--mx-surface);
+    border: 1px solid var(--mx-border);
+    border-radius: var(--mx-r-lg);
+    container-type: inline-size;
+  }
+  .mx-hero-bg {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    filter: blur(26px) saturate(1.2) brightness(0.35);
+    transform: scale(1.15);
+  }
+  .mx-hero-body {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 14px;
+    padding: 30px 18px 26px;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.6) 65%, rgba(0, 0, 0, 0.85));
+  }
+  .mx-hero-media {
+    width: 148px; height: 148px;
+    flex: 0 0 auto;
+    object-fit: cover;
+    border-radius: var(--mx-r-md);
+    border: 1px solid var(--mx-border);
+    box-shadow: var(--mx-ring), 0 20px 46px -18px rgba(0, 0, 0, 0.85);
+  }
+  .mx-hero-text { min-width: 0; }
+  .mx-hero-text p { margin: 6px 0 0; color: var(--mx-ink-dim); }
+  @container (min-width: 560px) {
+    .mx-hero-body { flex-direction: row; text-align: left; align-items: center; padding: 30px 26px; gap: var(--mx-space-6); }
+    .mx-hero-media { width: 172px; height: 172px; }
+  }
+
+  /* --- table --------------------------------------------------------------------- */
+  .mx-table { width: 100%; border-collapse: collapse; font-size: var(--mx-text-sm); }
+  .mx-table th {
+    text-align: left;
+    font-weight: 400;
+    font-size: var(--mx-text-2xs);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--mx-ink-dim);
+    padding: var(--mx-space-2) var(--mx-space-3);
+    border-bottom: 1px solid var(--mx-border);
+  }
+  .mx-table td { padding: var(--mx-space-2) var(--mx-space-3); border-bottom: 1px solid var(--mx-border-soft); color: var(--mx-ink); }
+  .mx-table .mx-num { text-align: right; }
+  .mx-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  .mx-divider { height: 1px; margin: var(--mx-space-4) 0; border: 0; background: var(--mx-border-soft); }
+
+  /* --- toasts ------------------------------------------------------------------------ */
+  .mx-toasts {
+    position: fixed;
+    left: 0; right: 0;
+    bottom: calc(var(--mx-bar-h) + env(safe-area-inset-bottom) + var(--mx-kb) + 10px);
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--mx-space-2);
+    padding: 0 var(--mx-gutter);
+    pointer-events: none;
+  }
+  @media (max-width: 599px) { body.mx-has-nav .mx-toasts { bottom: calc(var(--mx-nav-h) + var(--mx-bar-h) + env(safe-area-inset-bottom) + 10px); } }
+  .mx-toast {
+    max-width: 520px;
+    width: 100%;
+    padding: 12px 14px;
+    font-size: var(--mx-text-sm);
+    line-height: 1.45;
+    border-radius: var(--mx-r-sm);
+    background: var(--mx-surface);
+    border: 1px solid var(--mx-tone, var(--mx-accent));
+    color: var(--mx-tone, var(--mx-accent));
+    box-shadow: 0 0 30px var(--mx-tone-low, var(--mx-accent-mid)), var(--mx-shadow);
+    word-break: break-word;
+    animation: mx-toast-in 0.2s ease;
+  }
+  .mx-toast.mx-out { animation: mx-toast-out 0.25s ease forwards; }
+  @keyframes mx-toast-in  { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @keyframes mx-toast-out { to { opacity: 0; transform: translateY(8px); } }
+
+  /* --- paper ----------------------------------------------------------------------------
+     A physical sheet inside the interface: a printed receipt, a scan.
+     The padding is a quiet zone (a raster that fills its own edges reads
+     as cropped) and the image composites with multiply over a grained
+     sheet, so white drops out to paper. Paper is an object, not a theme
+     colour, so its stock colours are fixed on purpose. */
+  .mx-paper {
+    position: relative;
+    isolation: isolate;
+    width: 100%;
+    max-width: 330px;
+    min-height: 120px;
+    padding: 15px 5.2%;
+    background-color: #f2eee1;
+    background-image:
+      linear-gradient(180deg, rgba(120, 104, 70, 0.10), rgba(120, 104, 70, 0) 14%, rgba(120, 104, 70, 0) 86%, rgba(120, 104, 70, 0.10)),
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/><feColorMatrix type='saturate' values='0'/></filter><rect width='140' height='140' filter='url(%23n)' opacity='0.5'/></svg>");
+    background-blend-mode: normal, multiply;
+    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 0 1px var(--mx-border), 0 0 44px var(--mx-accent-mid), 0 18px 34px -20px #000;
+    /* Torn edges cut out by mask, so whatever is behind shows through the
+       teeth instead of a painted strip sitting on top. */
+    --mx-tear: repeating-linear-gradient(90deg, #000 0 5px, transparent 5px 10px);
+    --mx-tear-off: repeating-linear-gradient(90deg, transparent 0 5px, #000 5px 10px);
+    -webkit-mask-image: var(--mx-tear), linear-gradient(#000 0 0), var(--mx-tear-off);
+            mask-image: var(--mx-tear), linear-gradient(#000 0 0), var(--mx-tear-off);
+    -webkit-mask-size: 100% 6px, 100% calc(100% - 12px), 100% 6px;
+            mask-size: 100% 6px, 100% calc(100% - 12px), 100% 6px;
+    -webkit-mask-position: top left, left 6px, bottom left;
+            mask-position: top left, left 6px, bottom left;
+    -webkit-mask-repeat: repeat-x, no-repeat, repeat-x;
+            mask-repeat: repeat-x, no-repeat, repeat-x;
+  }
+  .mx-paper img {
+    display: block;
+    width: 100%;
+    height: auto;
+    mix-blend-mode: multiply;
+    filter: contrast(0.92) brightness(1.03);
+  }
+  .mx-paper .mx-empty { padding: 20px 4px; color: #7c7a6d; text-align: center; }
+  .mx-paper.mx-loading { opacity: 0.6; }
+  .mx-stage { display: flex; justify-content: center; padding: 14px 0 4px; }
+  .mx-stage-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 12px;
+    font-size: var(--mx-text-xs);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--mx-ink-faint);
+  }
+  /* The same sheet read off a screen. Put .mx-phosphor on an ancestor. */
+  .mx-phosphor .mx-paper {
+    background-color: var(--mx-surface-raised);
+    background-image:
+      linear-gradient(180deg, var(--mx-accent-low), transparent 20%, transparent 80%, var(--mx-accent-low)),
+      repeating-linear-gradient(180deg, rgba(0, 0, 0, 0.35) 0 1px, transparent 1px 3px);
+    background-blend-mode: normal, normal;
+    box-shadow: 0 0 0 1px var(--mx-border-strong), 0 0 52px var(--mx-accent-glow), 0 18px 34px -20px #000;
+  }
+  .mx-phosphor .mx-paper img {
+    mix-blend-mode: screen;
+    filter: invert(1) sepia(1) saturate(7) hue-rotate(72deg) brightness(1.08);
+  }
+  .mx-phosphor .mx-paper .mx-empty { color: var(--mx-ink-faint); }
+}
+
+
+/* =====================================================================
+   UTILITIES
+   ===================================================================== */
+@layer mx.utilities {
+  .mx [hidden] { display: none !important; }
+  .mx-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .mx-gothic { font-family: var(--mx-gothic); }
+  .mx-hot    { color: var(--mx-ink-hot); }
+  .mx-dim    { color: var(--mx-ink-dim); }
+  .mx-faint  { color: var(--mx-ink-faint); }
+  .mx-accent { color: var(--mx-accent); }
+  .mx-num    { font-variant-numeric: tabular-nums; }
+  .mx-truncate { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mx-round  { border-radius: 999px; }
+  .mx-block  { width: 100%; }
+  .mx-grow   { flex: 1 1 auto; min-width: 0; }
+
+  /* Show or hide by screen size. */
+  @media (max-width: 599px)  { .mx-hide-compact { display: none !important; } }
+  @media (min-width: 600px)  { .mx-only-compact { display: none !important; } }
+  @media (max-width: 1023px) { .mx-only-expanded { display: none !important; } }
+  @media (min-width: 1024px) { .mx-hide-expanded { display: none !important; } }
+  /* Hide when the nearest panel/column is narrow. */
+  @container (max-width: 320px) { .mx-hide-narrow { display: none !important; } }
+
+  /* Everything animated here is decoration, so all of it goes. */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.001s !important; transition-duration: 0.001s !important; }
+    #mx-rain { display: none; }
+    .mx-caret, .mx-media::before, .mx-skeleton::before, .mx-progress-fill.mx-busy::after { animation: none !important; }
+    .mx-media > img { opacity: 1; }
+  }
+}

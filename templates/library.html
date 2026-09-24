@@ -6,17 +6,12 @@
     <meta name="theme-color" content="#000400">
     <meta name="color-scheme" content="dark">
     <title>Music Library</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='matrix.css') }}">
+    {% import "matrix/macros.html" as mx %}
+    {{ mx.head(mx_live, mx_local) }}
     <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
-    <script src="{{ url_for('static', filename='matrix.js') }}" defer></script>
     <script src="{{ url_for('static', filename='app.js') }}" defer></script>
 </head>
 <body class="mx">
-
-<canvas id="mx-rain-bloom" aria-hidden="true"></canvas>
-<canvas id="mx-rain" aria-hidden="true"></canvas>
-<div class="mx-vignette" aria-hidden="true"></div>
-<div class="mx-scanlines" aria-hidden="true"></div>
 
 <div class="mx-shell">
 
@@ -28,12 +23,12 @@
         <a class="mx-btn" href="{{ url_for('main_dashboard') }}">Dashboard</a>
     </div>
 
-    <div class="mx-search">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        <input class="mx-input" type="text" id="librarySearch" placeholder="Search albums or artists..." onkeyup="filterLibrary()">
+    <div class="mx-input-icon yt-search">
+        {{ mx.icon("search") }}
+        <input class="mx-input" type="search" id="librarySearch" placeholder="Search albums or artists..." oninput="filterLibrary()">
     </div>
 
-    <fieldset class="mx-chips mx-sort-chips" id="librarySort">
+    <fieldset class="mx-chips yt-sort-chips" id="librarySort">
         <legend>Sort albums by</legend>
         <label><input type="radio" name="sort" value="release" checked><span>Release date</span></label>
         <label><input type="radio" name="sort" value="added"><span>Recently added</span></label>
@@ -41,44 +36,32 @@
     </fieldset>
 
     {% if albums|length == 0 %}
-    <div class="mx-empty" style="text-align:center; padding:60px 20px; font-size:13px;">
-        No albums yet. Run a Sync from the Dashboard once you've downloaded some music.
-    </div>
+    {{ mx.placeholder("No albums yet. Run a Sync from the Dashboard once you've downloaded some music.", icon="music") }}
     {% endif %}
 
-    <div class="mx-album-grid" id="albumGrid">
+    <div class="mx-view-grid yt-album-grid" id="albumGrid">
         {% for album in albums %}
-        {# --mx-i drives the entrance stagger (see .album-item.mx-enter in app.css);
+        {# --yt-i drives the entrance stagger (see .album-item.yt-enter in app.css);
            the cap must match STAGGER_CAP in the script below. #}
-        <div class="album-item mx-enter" id="album-container-{{ album.album_id }}" style="--mx-i:{{ [loop.index0, 18]|min }}"
+        <div class="album-item yt-enter" id="album-container-{{ album.album_id }}" style="--yt-i:{{ [loop.index0, 18]|min }}"
              data-order="{{ loop.index0 }}" data-added="{{ album.last_song_id or 0 }}">
-            <div class="mx-panel mx-glass mx-album-card">
-                <div class="mx-album-cover-wrap">
-                    <a class="mx-album-link" href="{{ url_for('album_detail', album_id=album.album_id) }}">
-                        <img src="{{ url_for('static', filename='covers/' ~ album.album_id ~ '.jpg') }}"
-                             alt="{{ album.album_name }}"
-                             loading="lazy" decoding="async"
-                             onload="this.parentNode.parentNode.classList.add('mx-loaded')"
-                             onerror="this.onerror=null;this.src='data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 fill=%22%2303150c%22/><path d=%22M35 65V32l30-5v33%22 stroke=%22%232c6042%22 stroke-width=%223%22 fill=%22none%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22/><circle cx=%2230%22 cy=%2265%22 r=%226%22 stroke=%22%232c6042%22 stroke-width=%223%22 fill=%22none%22/><circle cx=%2260%22 cy=%2260%22 r=%226%22 stroke=%22%232c6042%22 stroke-width=%223%22 fill=%22none%22/></svg>'">
-                    </a>
-                </div>
-                <a class="mx-album-link" href="{{ url_for('album_detail', album_id=album.album_id) }}">
-                    <div class="mx-album-text">
-                        <span class="mx-album-name">{{ album.album_name }}</span>
-                        <span class="mx-album-artist">{{ album.artist_name }}</span>
-                        <span class="mx-album-year">{{ album.release_date }}</span>
-                    </div>
-                </a>
-            </div>
-            <div class="mx-album-menu-wrap">
-                <button class="mx-dots-btn" type="button" aria-label="Album actions" onclick="toggleMenu(event, '{{ album.album_id }}')">
-                    <span class="mx-dots-visual">
-                        <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
-                    </span>
-                </button>
-                <div id="menu-{{ album.album_id }}" class="mx-menu-popover">
-                    <button class="mx-menu-item" type="button" onclick="removeAlbum('{{ album.album_id }}', '{{ album.album_name|escape }}')">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+            <a class="mx-tile" href="{{ url_for('album_detail', album_id=album.album_id) }}">
+                <span class="mx-slot-lead"><span class="mx-media">
+                    <img src="{{ url_for('static', filename='covers/' ~ album.album_id ~ '.jpg') }}"
+                         alt="{{ album.album_name }}" loading="lazy" decoding="async"
+                         onerror="this.onerror=null;this.src='data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 fill=%22%23000%22/><path d=%22M35 65V32l30-5v33%22 stroke=%22%232c6042%22 stroke-width=%223%22 fill=%22none%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22/><circle cx=%2230%22 cy=%2265%22 r=%226%22 stroke=%22%232c6042%22 stroke-width=%223%22 fill=%22none%22/><circle cx=%2260%22 cy=%2260%22 r=%226%22 stroke=%22%232c6042%22 stroke-width=%223%22 fill=%22none%22/></svg>'">
+                </span></span>
+                <span class="mx-slot-main">
+                    <span class="mx-slot-title yt-album-name">{{ album.album_name }}</span>
+                    <span class="mx-slot-meta yt-album-artist">{{ album.artist_name }}</span>
+                    <span class="mx-slot-meta">{{ album.release_date }}</span>
+                </span>
+            </a>
+            <div class="mx-menu yt-album-menu">
+                {{ mx.button("Album actions", size="sm", icon="dots", shape="square", attrs={"data-mx-menu-toggle": "", "aria-haspopup": "menu", "aria-expanded": "false"}) }}
+                <div class="mx-menu-pop" role="menu">
+                    <button class="mx-menu-item mx-danger" type="button" role="menuitem" onclick="removeAlbum('{{ album.album_id }}', '{{ album.album_name|escape }}')">
+                        {{ mx.icon("trash") }}
                         Delete Album
                     </button>
                 </div>
@@ -86,7 +69,6 @@
         </div>
         {% endfor %}
     </div>
-
 </div>
 
 <div class="mx-toasts" id="toastHost"></div>
@@ -99,34 +81,6 @@
     // Longest entrance delay, in cards. Mirrors the cap in the Jinja loop above.
     const STAGGER_CAP = 18;
 
-    // Covers that were already in cache can finish before their inline
-    // onload is even wired (bfcache restores, for one); sweep those up.
-    document.addEventListener('DOMContentLoaded', () => {
-        document.querySelectorAll('.mx-album-cover-wrap img').forEach(img => {
-            if (img.complete && img.naturalWidth > 0) img.parentNode.parentNode.classList.add('mx-loaded');
-        });
-    });
-
-    function toggleMenu(event, albumId) {
-        event.preventDefault();
-        event.stopPropagation();
-
-        document.querySelectorAll('.mx-menu-popover').forEach(menu => {
-            if (menu.id !== `menu-${albumId}`) menu.classList.remove('mx-open');
-        });
-
-        const menu = document.getElementById(`menu-${albumId}`);
-        menu.classList.toggle('mx-open');
-    }
-
-    window.onclick = function(event) {
-        if (!event.target.closest('.mx-dots-btn')) {
-            document.querySelectorAll('.mx-menu-popover').forEach(menu => {
-                menu.classList.remove('mx-open');
-            });
-        }
-    }
-
     function removeAlbum(albumId, albumName) {
         if (confirm(`Delete entire album "${albumName}"? Its files in the library folder are deleted too.`)) {
             fetch(`${APP_ROOT}/delete_album/${albumId}`, { method: 'DELETE' })
@@ -134,7 +88,7 @@
             .then(data => {
                 if (data.success) {
                     const element = document.getElementById(`album-container-${albumId}`);
-                    element.classList.add('mx-leave');
+                    element.classList.add('yt-leave');
                     setTimeout(() => element.remove(), 400);
                 } else {
                     MX.toast(false, data.message || 'Could not delete that album.', document.getElementById('toastHost'));
@@ -149,17 +103,17 @@
     // the class (with one forced layout in between) is what restarts a
     // finished CSS animation.
     function replayEntrance(shown) {
-        shown.forEach(el => el.classList.remove('mx-enter'));
+        shown.forEach(el => el.classList.remove('yt-enter'));
         void document.getElementById('albumGrid').offsetWidth;
         shown.forEach((el, i) => {
-            el.style.setProperty('--mx-i', Math.min(i, STAGGER_CAP));
-            el.classList.add('mx-enter');
+            el.style.setProperty('--yt-i', Math.min(i, STAGGER_CAP));
+            el.classList.add('yt-enter');
         });
     }
 
     const SORT_KEY = 'librarySort';
-    const byName = (a, b) => a.querySelector('.mx-album-name').innerText
-        .localeCompare(b.querySelector('.mx-album-name').innerText, undefined, { sensitivity: 'base', numeric: true });
+    const byName = (a, b) => a.querySelector('.yt-album-name').innerText
+        .localeCompare(b.querySelector('.yt-album-name').innerText, undefined, { sensitivity: 'base', numeric: true });
     const SORTS = {
         // The server's own order (newest release first).
         release: (a, b) => a.dataset.order - b.dataset.order,
@@ -195,8 +149,8 @@
         const shown = [];
         let changed = false;
         for (let i = 0; i < albums.length; i++) {
-            const title = albums[i].querySelector('.mx-album-name').innerText.toLowerCase();
-            const artist = albums[i].querySelector('.mx-album-artist').innerText.toLowerCase();
+            const title = albums[i].querySelector('.yt-album-name').innerText.toLowerCase();
+            const artist = albums[i].querySelector('.yt-album-artist').innerText.toLowerCase();
             const match = title.includes(input) || artist.includes(input);
             const display = match ? "" : "none";
             if (albums[i].style.display !== display) {

@@ -7,8 +7,8 @@
 .sg-row-form .mx-btn { flex: 0 0 auto; }
 
 .sg-status { margin: 10px 0 0; font-size: 11px; color: var(--mx-ink-dim); min-height: 1.4em; }
-.sg-status.mx-err { color: var(--mx-red); }
-.sg-note { margin: 0 0 10px; font-size: 10.5px; color: var(--mx-amber); line-height: 1.4; }
+.sg-status.mx-err { color: var(--mx-danger); }
+.sg-note { margin: 0 0 10px; font-size: 10.5px; color: var(--mx-warn); line-height: 1.4; }
 
 .sg-list { display: flex; flex-direction: column; gap: 6px; }
 
@@ -33,9 +33,9 @@
   gap: 10px;
   min-height: var(--mx-tap);
   padding: 7px 8px 7px 12px;
-  border: 1px solid rgba(150, 255, 200, 0.15);
+  border: 1px solid var(--mx-border-soft);
   border-radius: var(--mx-r-sm);
-  background: linear-gradient(160deg, rgba(12, 54, 32, 0.24), rgba(0, 12, 6, 0.10));
+  background: var(--mx-surface-raised);
 }
 .sg-song.sg-off { opacity: 0.5; }
 .sg-song-main { flex: 1 1 auto; min-width: 0; }
@@ -48,7 +48,7 @@
   white-space: nowrap;
 }
 a.sg-song-title { text-decoration: none; }
-a.sg-song-title:hover { color: var(--mx-green); }
+a.sg-song-title:hover { color: var(--mx-accent); }
 .sg-song-meta {
   display: block;
   margin-top: 2px;
@@ -68,26 +68,26 @@ a.sg-song-title:hover { color: var(--mx-green); }
   text-transform: uppercase;
   padding: 2px 6px;
   border-radius: 999px;
-  color: var(--mx-amber);
-  border: 1px solid rgba(255, 201, 74, 0.35);
-  background: rgba(255, 201, 74, 0.08);
+  color: var(--mx-warn);
+  border: 1px solid var(--mx-warn-line);
+  background: var(--mx-warn-low);
 }
-.sg-flag.sg-bad { color: var(--mx-red); border-color: rgba(255, 91, 82, 0.4); background: var(--mx-red-low); }
-.sg-flag.sg-good { color: var(--mx-green); border-color: rgba(0, 255, 90, 0.3); background: var(--mx-green-low); }
+.sg-flag.sg-bad { color: var(--mx-danger); border-color: var(--mx-danger-line); background: var(--mx-danger-low); }
+.sg-flag.sg-good { color: var(--mx-accent); border-color: var(--mx-border-strong); background: var(--mx-accent-low); }
 
 .sg-btn-sm { min-height: 36px; padding: 0 12px; font-size: 11px; flex: 0 0 auto; }
-.sg-btn-sm.sg-added { color: var(--mx-green); border-color: rgba(0, 255, 90, 0.4); }
+.sg-btn-sm.sg-added { color: var(--mx-accent); border-color: var(--mx-border-strong); }
 
 .sg-pager { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
 .sg-pager[hidden] { display: none; }
 .sg-pager .sg-btn-sm { min-width: 0; padding: 0 10px; font-variant-numeric: tabular-nums; }
-.sg-btn-sm.sg-page-on { color: var(--mx-green); border-color: rgba(0, 255, 90, 0.55); background: var(--mx-green-low); }
+.sg-btn-sm.sg-page-on { color: var(--mx-accent); border-color: var(--mx-accent); background: var(--mx-accent-low); }
 
 .sg-check {
   flex: 0 0 auto;
   width: 22px; height: 22px;
   margin: 0;
-  accent-color: var(--mx-green);
+  accent-color: var(--mx-accent);
   cursor: pointer;
 }
 
@@ -96,21 +96,13 @@ a.sg-song-title:hover { color: var(--mx-green); }
 
 .sg-empty { font-size: 11.5px; color: var(--mx-ink-faint); padding: 8px 2px; }
 
-.sg-nav { display: flex; gap: 8px; flex-wrap: wrap; }
-/* On a phone, several nav buttons beside the title would squeeze it to
-   "music man…": give them their own row under the title instead. */
-@media (max-width: 600px) {
-  .mx-topbar { flex-wrap: wrap; }
-  .mx-topbar .sg-nav { flex: 1 1 100%; }
-  .mx-topbar .sg-nav .mx-btn { flex: 1 1 0; padding: 0 10px; }
-}
 .sg-badge {
   display: inline-block;
   min-width: 18px;
   padding: 1px 6px;
   border-radius: 999px;
-  background: var(--mx-green);
-  color: #001a08;
+  background: var(--mx-accent);
+  color: var(--mx-on-accent);
   font-size: 10px;
   font-weight: 700;
   text-align: center;
@@ -128,9 +120,9 @@ a.sg-song-title:hover { color: var(--mx-green); }
 .sg-link-box {
   margin-top: 8px;
   padding: 9px 11px;
-  border: 1px solid var(--mx-line);
+  border: 1px solid var(--mx-border);
   border-radius: var(--mx-r-sm);
-  background: rgba(0, 12, 6, 0.6);
+  background: var(--mx-surface-sunken);
   color: var(--mx-ink-hot);
   font-size: 12px;
   line-height: 1.5;
@@ -139,7 +131,7 @@ a.sg-song-title:hover { color: var(--mx-green); }
   -webkit-user-select: all;
   cursor: text;
 }
-.sg-link-box:focus { outline: 2px solid var(--mx-green); outline-offset: 2px; }
+.sg-link-box:focus { outline: 2px solid var(--mx-accent); outline-offset: 2px; }
 .sg-friend-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 
 /* Friend library: albums as expandable rows. */
@@ -148,12 +140,11 @@ a.sg-song-title:hover { color: var(--mx-green); }
   width: 38px; height: 38px;
   border-radius: 5px;
   object-fit: cover;
-  background: var(--mx-panel-sol);
+  background: var(--mx-surface-raised);
 }
-.sg-album-cover-blank { display: inline-block; border: 1px solid var(--mx-line-soft); }
+.sg-album-cover-blank { display: inline-block; border: 1px solid var(--mx-border-soft); }
 .sg-round { border-radius: 50%; }
 .sg-album-head { text-align: left; }
-.mx-row[hidden] { display: none; }
 .sg-album-songs { list-style: none; margin: 8px 0 0; padding: 0; }
 .sg-album-songs li {
   display: flex;
@@ -161,7 +152,7 @@ a.sg-song-title:hover { color: var(--mx-green); }
   padding: 5px 0;
   font-size: 12px;
   color: var(--mx-ink);
-  border-bottom: 1px solid var(--mx-line-soft);
+  border-bottom: 1px solid var(--mx-border-soft);
 }
 .sg-album-songs li:last-child { border-bottom: 0; }
 .sg-album-songs .sg-num { width: 20px; text-align: right; color: var(--mx-ink-faint); font-variant-numeric: tabular-nums; }
@@ -169,7 +160,7 @@ a.sg-song-title:hover { color: var(--mx-green); }
 .sg-album-songs .sg-dur { color: var(--mx-ink-faint); font-variant-numeric: tabular-nums; }
 
 .sg-candidates { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
-.sg-fix { padding: 8px 12px 12px; border-top: 1px solid var(--mx-line-soft); margin-top: 6px; }
+.sg-fix { padding: 8px 12px 12px; border-top: 1px solid var(--mx-border-soft); margin-top: 6px; }
 .sg-fix[hidden] { display: none; }
 .sg-item { display: flex; flex-direction: column; }
 .sg-item > .sg-song { border-radius: var(--mx-r-sm); }

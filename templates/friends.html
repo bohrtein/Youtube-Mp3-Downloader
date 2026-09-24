@@ -6,24 +6,24 @@
             <span class="mx-mark">music manager</span>
             <p class="mx-tagline" data-decode>friends</p>
         </div>
-        <div class="sg-nav">
+        <div class="mx-topbar-nav">
             <a class="mx-btn" href="{{ url_for('suggest_admin.review_list') }}">Review</a>
             <a class="mx-btn" href="{{ url_for('main_dashboard') }}">Dashboard</a>
         </div>
     </div>
 
-    <div class="mx-stack">
+    <div class="mx-layout-split">
         <div class="mx-col">
-            <section class="mx-panel mx-glass">
+            <section class="mx-panel">
                 <h2 class="mx-panel-title" data-decode>add a friend</h2>
                 <form id="addFriendForm" class="sg-row-form" autocomplete="off">
                     <input class="mx-input" id="friendName" maxlength="60" placeholder="Name" aria-label="Friend's name">
-                    <button class="mx-btn mx-btn-go" type="submit">Create link</button>
+                    <button class="mx-btn mx-primary" type="submit">Create link</button>
                 </form>
                 <p class="mx-hint">Each friend gets their own link. The link is their identity: anyone holding it can suggest songs as them.</p>
             </section>
 
-            <section class="mx-panel mx-glass">
+            <section class="mx-panel">
                 <h2 class="mx-panel-title" data-decode>settings</h2>
                 <div class="mx-field">
                     <label class="mx-label" for="publicBaseUrl">public address</label>
@@ -43,7 +43,7 @@
         </div>
 
         <div class="mx-col">
-            <section class="mx-panel mx-glass">
+            <section class="mx-panel">
                 <h2 class="mx-panel-title" data-decode>links</h2>
                 {% if not friends %}<p class="sg-empty">No friends yet.</p>{% endif %}
                 <div class="sg-list">
