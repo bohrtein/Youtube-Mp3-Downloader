@@ -9,9 +9,14 @@ import database.databaseConnector as databaseConnector
 import database.suggestionsRepo as suggestionsRepo
 import core.approvedDownloads as approvedDownloads
 import core.checkDependencies as checkDependencies
+import core.interfaceComponents as interfaceComponents
 import routes.friendsPublic as friendsPublic
 import routes.suggestAdmin as suggestAdmin
 import main
+
+# Before Flask/Socket.IO set up their loggers, so everything they log goes
+# to the same stdout the app hub's log viewer reads.
+interfaceComponents.setup_logging()
 
 
 class PrefixMiddleware:
@@ -46,7 +51,7 @@ PUBLIC_BLUEPRINTS = {"friends_public"}
 PUBLIC_ENDPOINTS = {"static", "healthz"}
 
 if not HUB_PROXY_SECRET:
-    print("[ WARNING ] APPHUB_PROXY_SECRET is not set: admin routes are unprotected (standalone dev mode).")
+    interfaceComponents.Print_Tag("APPHUB_PROXY_SECRET is not set: admin routes are unprotected (standalone dev mode).", tag="Warning")
 
 def is_hub_authenticated():
     if not HUB_PROXY_SECRET:
@@ -206,6 +211,7 @@ def delete_album(album_id):
 
         return {"success": True, "message": "Album deleted successfully"}
     except Exception as e:
+        interfaceComponents.Print_Tag(f"Deleting album {album_id} failed: {e}", tag="Error")
         return {"success": False, "message": str(e)}, 500
     finally:
         cursor.close()
@@ -226,6 +232,7 @@ def delete_song(song_id):
         conn.commit()
         return {"success": True, "message": "Song removed from database"}
     except Exception as e:
+        interfaceComponents.Print_Tag(f"Deleting song {song_id} failed: {e}", tag="Error")
         return {"success": False, "message": str(e)}, 500
     finally:
         cursor.close()
@@ -272,7 +279,7 @@ def handle_download_batch(data):
             try:
                 main.start_downloading(url, audio_format=audio_format)
             except Exception as e:
-                print(f"Error downloading {url}: {e}")
+                interfaceComponents.Print_Tag(f"Error downloading {url}: {e}", tag="Error")
                 socketio.emit('progress', {
                     'percent': (current_item/total_urls)*100,
                     'status': f'Error on item {current_item}'
@@ -323,6 +330,7 @@ def run_library_reset(data=None):
                 suggestionsRepo.invalidate_library_index()
             socketio.emit('progress', {'percent': 100, 'status': 'complete'})
         except Exception as e:
+            interfaceComponents.Print_Tag(f"Library reset failed: {e}", tag="Error")
             socketio.emit('progress', {'percent': 100, 'status': f'Error resetting library: {e}'})
         finally:
             approvedDownloads.download_lock.release()

@@ -184,6 +184,7 @@ def _worker_loop():
             _remember_served(job["friend_id"], results)
             job.update(results=with_library_status(results), note=note, status="done")
         except (LookupFailed, spotifyClient.SpotifyError) as e:
+            interfaceComponents.Print_Tag(f"Friend lookup ({job['kind']}) refused: {e}", tag="Warning")
             job.update(error=str(e), status="error")
         except Exception as e:
             interfaceComponents.Print_Tag(f"Friend lookup failed: {e!r}", tag="Error")
