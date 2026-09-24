@@ -73,8 +73,14 @@ def target_path(library_folder, meta, extension):
     return Path(library_folder) / artist_dir / album_dir / filename
 
 
-def _download_one(item, audio_format, library_folder, work_dir):
-    """Returns the album folder the song landed in."""
+def _download_one(item, audio_format, library_folder, work_dir, overwrite=False):
+    """
+    Returns the album folder the song landed in.
+
+    Args:
+        overwrite (bool): replace an existing file at the target path (a
+            re-download); otherwise an existing file is left alone and it fails.
+    """
     download_fn = playlistDownloader.download_file_mp3 if audio_format == "mp3" else playlistDownloader.download_file_flac
     files = download_fn(linkResolver.video_url(item["youtube_id"]), work_dir, file_template="%(id)s.%(ext)s")
     if not files or not Path(files[0]).exists():
@@ -86,19 +92,23 @@ def _download_one(item, audio_format, library_folder, work_dir):
     _write_tags(downloaded, meta)
     destination = target_path(library_folder, meta, downloaded.suffix.lower())
     if destination.exists():
-        raise RuntimeError(f"{destination.name} is already in the library")
+        if not overwrite:
+            raise RuntimeError(f"{destination.name} is already in the library")
+        destination.unlink()
     destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.move(str(downloaded), str(destination))
     return destination.parent
 
 
-def run_approval(submission_id, item_ids, audio_format, progress):
+def run_approval(submission_id, item_ids, audio_format, progress, redownload_ids=()):
     """
     Background job: download each approved item, record per-item results,
     sync the album folders that changed.
 
     Args:
         progress (callable): progress(percent, status) for the admin UI.
+        redownload_ids (set): items downloaded before, whose library file
+            this download may replace.
     """
     items = [suggestionsRepo.get_item(item_id) for item_id in item_ids]
     items = [i for i in items if i and i["submission_id"] == submission_id]
@@ -112,7 +122,8 @@ def run_approval(submission_id, item_ids, audio_format, progress):
         for index, item in enumerate(items):
             progress(index / total * 100, f"Downloading {index + 1} of {total}: {item['title'][:40]}")
             try:
-                touched_folders.add(_download_one(item, audio_format, library_folder, work_dir))
+                touched_folders.add(_download_one(item, audio_format, library_folder, work_dir,
+                                                  overwrite=item["item_id"] in redownload_ids))
                 suggestionsRepo.set_item_decision(item["item_id"], "downloaded")
             except Exception as e:
                 failures += 1

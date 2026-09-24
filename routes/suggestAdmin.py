@@ -148,8 +148,8 @@ def match_candidates(item_id):
 @bp.route("/review/items/<int:item_id>/match", methods=["POST"])
 def fix_match(item_id):
     item = _item_or_404(item_id)
-    if item["decision"] in ("downloading", "downloaded"):
-        return jsonify({"error": "That song is already downloaded."}), 409
+    if item["decision"] == "downloading":
+        return jsonify({"error": "That song is downloading right now."}), 409
     value = str(_json_body().get("video", "")).strip()
     video_id = value if linkResolver.is_video_id(value) else linkResolver.extract_video_id(value)
     if not video_id:
@@ -180,9 +180,11 @@ def approve(submission_id):
     audio_format = "mp3" if data.get("format") == "mp3" else "flac"
     wanted = {int(i) for i in data.get("item_ids", []) if str(i).isdigit()}
     items = {i["item_id"]: i for i in submission["items"]}
-    selected = [i for i in wanted if i in items and items[i]["decision"] in ("pending", "skipped", "failed")]
+    selected = [i for i in wanted if i in items and items[i]["decision"] in ("pending", "skipped", "failed", "downloaded")]
     if not selected:
-        return jsonify({"error": "Select at least one song that isn't downloaded yet."}), 400
+        return jsonify({"error": "Select at least one song."}), 400
+    # Songs I already downloaded once may replace their own library file.
+    redownload_ids = {i for i in selected if items[i]["decision"] == "downloaded"}
     if approvedDownloads.download_lock.locked():
         return jsonify({"error": "A download is already running. Wait for it to finish."}), 409
 
@@ -201,7 +203,7 @@ def approve(submission_id):
 
     threading.Thread(
         target=approvedDownloads.run_approval,
-        args=(submission_id, selected, audio_format, progress),
+        args=(submission_id, selected, audio_format, progress, redownload_ids),
         daemon=True,
     ).start()
     return jsonify({"ok": True, "count": len(selected)}), 202

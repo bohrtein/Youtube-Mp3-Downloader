@@ -2,7 +2,7 @@
 {% block title %}Suggestions from {{ submission.friend_name }}{% endblock %}
 {% macro fmt(seconds) %}{% if seconds %}{{ seconds // 60 }}:{{ "%02d" % (seconds % 60) }}{% endif %}{% endmacro %}
 {% macro item_row(item) %}
-    {% set done = item.decision in ('downloaded', 'downloading') %}
+    {% set done = item.decision == 'downloading' %}
     <div class="sg-item" id="item-{{ item.item_id }}">
         <div class="sg-song{% if item.decision == 'skipped' %} sg-off{% endif %}">
             <input class="sg-check" type="checkbox" value="{{ item.item_id }}" aria-label="Download {{ item.title }}"
@@ -85,7 +85,7 @@
             <button class="mx-btn" type="button" id="rejectBtn">Reject all</button>
             {% endif %}
         </div>
-        <p class="mx-hint">Downloading is the decision for this submission: anything left unticked is marked skipped. Songs go to Artist/Album/NN - Title in your library folder.</p>
+        <p class="mx-hint">Downloading is the decision for this submission: anything left unticked is marked skipped. Songs go to Artist/Album/NN - Title in your library folder. Ticking a song that's already downloaded re-downloads it and replaces its file.</p>
         <div id="progressBox" hidden style="margin-top:12px;">
             <div class="mx-readout mx-busy" id="progressText">Starting...</div>
             <div class="mx-progress-track"><div class="mx-progress-fill mx-busy" id="progressBar"></div></div>
@@ -163,7 +163,11 @@
         const ids = [...document.querySelectorAll('.sg-check:checked:not(:disabled)')].map(c => Number(c.value));
         if (!ids.length) return MX.toast(false, 'Tick at least one song.', toastHost);
         const format = document.getElementById('mp3Toggle').checked ? 'mp3' : 'flac';
-        if (!confirm(`Download ${ids.length} song${ids.length === 1 ? '' : 's'} as ${format.toUpperCase()}?`)) return;
+        const redownloads = ids.filter(id => document.querySelector(`#item-${id} .sg-good`)).length;
+        const note = redownloads ? `
+
+${redownloads} of them ${redownloads === 1 ? 'is' : 'are'} already downloaded and will be replaced.` : '';
+        if (!confirm(`Download ${ids.length} song${ids.length === 1 ? '' : 's'} as ${format.toUpperCase()}?${note}`)) return;
         postJson(`/review/${SUBMISSION_ID}/approve`, { item_ids: ids, format }).then(res => {
             if (!res.ok) return MX.toast(false, res.data.error || 'Could not start the download.', toastHost);
             document.getElementById('progressBox').hidden = false;

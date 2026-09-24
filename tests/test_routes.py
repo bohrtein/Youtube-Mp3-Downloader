@@ -1,3 +1,4 @@
+import re
 import pytest
 
 import core.lookupJobs as lookupJobs
@@ -228,6 +229,29 @@ def test_approve_marks_selected_downloading_and_rest_skipped(client, friend, mon
             break
         time.sleep(0.02)
     assert calls and calls[0][1] == [first] and calls[0][2] == "mp3"
+
+
+def test_approve_allows_redownloading_a_downloaded_song(client, friend, monkeypatch):
+    import core.approvedDownloads as approvedDownloads
+    calls = []
+    monkeypatch.setattr(approvedDownloads, "run_approval", lambda *args: calls.append(args))
+    submission_id = make_submission(client, friend)
+    items = suggestionsRepo.get_submission(submission_id)["items"]
+    first, second = items[0]["item_id"], items[1]["item_id"]
+    suggestionsRepo.set_item_decision(first, "downloaded")
+    suggestionsRepo.set_submission_status(submission_id, "done")
+
+    page = client.get(f"/review/{submission_id}", headers=ADMIN_HEADERS).data.decode()
+    checkbox = re.search(rf'<input class="sg-check"[^>]*value="{first}"[^>]*>', page).group(0)
+    assert "disabled" not in checkbox and "checked" not in checkbox
+    response = client.post(f"/review/{submission_id}/approve", json={"item_ids": [first, second]}, headers=ADMIN_HEADERS)
+    assert response.status_code == 202
+    import time
+    for _ in range(50):
+        if calls:
+            break
+        time.sleep(0.02)
+    assert calls and sorted(calls[0][1]) == sorted([first, second]) and calls[0][4] == {first}
 
 
 def test_admin_posts_require_json(client, friend):
