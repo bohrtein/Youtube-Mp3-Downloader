@@ -23,7 +23,8 @@ COVERS_DIR = Path(__file__).resolve().parent.parent / "static" / "covers"
 
 CONTENT_SECURITY_POLICY = (
     "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
-    "img-src 'self' data: https://i.ytimg.com; connect-src 'self'; font-src 'self'; "
+    "img-src 'self' data: https://i.ytimg.com https://lh3.googleusercontent.com https://yt3.googleusercontent.com "
+    "https://yt3.ggpht.com; connect-src 'self'; font-src 'self'; "
     "frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
 )
 
@@ -99,7 +100,8 @@ def library():
 def _lookup_response(started):
     state, payload = started
     if state == "done":
-        return jsonify({"status": "done", "results": payload["results"], "note": payload.get("note")})
+        return jsonify({"status": "done", "results": payload["results"],
+                        **{k: payload.get(k) for k in lookupJobs.EXTRA_RESULT_KEYS}})
     return jsonify({"status": "queued", "job_id": payload}), 202
 
 
@@ -107,7 +109,7 @@ def _lookup_response(started):
 def api_search():
     data = _json_body()
     try:
-        return _lookup_response(lookupJobs.start_search(g.friend["friend_id"], data.get("mode"), str(data.get("q", ""))))
+        return _lookup_response(lookupJobs.start_search(g.friend["friend_id"], data.get("mode", "all"), str(data.get("q", ""))))
     except lookupJobs.LookupRefused as e:
         return _error(str(e), e.status, e.retry_after)
 

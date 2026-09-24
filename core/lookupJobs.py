@@ -35,7 +35,10 @@ LINK_CACHE_TTL = 7 * DAY
 SPOTIFY_MATCH_CACHE_TTL = 30 * DAY
 SERVED_TTL = 7 * DAY
 
-SEARCH_MODES = ("song", "artist", "album")
+# "all" is the search box; "artist" and "album" open one of its results.
+SEARCH_MODES = ("all", "artist", "album")
+# What a finished job (or cached lookup) hands the page besides its songs.
+EXTRA_RESULT_KEYS = ("note", "albums", "artists", "top")
 
 
 class LookupRefused(Exception):
@@ -79,12 +82,14 @@ def get_job(job_id, friend_id):
         job = _jobs.get(job_id)
         if job is None or job["friend_id"] != friend_id:
             return None
-        return {k: job[k] for k in ("status", "results", "note", "error", "progress")}
+        return {k: job.get(k) for k in ("status", "results", "error", "progress", *EXTRA_RESULT_KEYS)}
 
 
 # --- cache keys ------------------------------------------------------------------
 
 def search_cache_key(mode, query):
+    if mode == "album":
+        return f"album:{query}"  # a playlist ID: case matters
     return f"search:{mode}:{' '.join(query.lower().split())}"
 
 
@@ -118,11 +123,13 @@ def start_search(friend_id, mode, query):
     """
     query = " ".join((query or "").split())
     if mode not in SEARCH_MODES:
-        raise LookupRefused("Pick Song, Artist or Album.", status=400)
+        raise LookupRefused("That search doesn't exist.", status=400)
     if not query:
         raise LookupRefused("Type something to search for.", status=400)
     if len(query) > MAX_QUERY_LENGTH:
         raise LookupRefused(f"Keep searches under {MAX_QUERY_LENGTH} characters.", status=400)
+    if mode == "album" and not musicSearch.is_album_playlist_id(query):
+        raise LookupRefused("That album can't be opened. Search for it again.", status=400)
     return _start(friend_id, "search", search_cache_key(mode, query), SEARCH_CACHE_TTL,
                   {"mode": mode, "query": query})
 
@@ -139,7 +146,7 @@ def _start(friend_id, kind, cache_key, cache_ttl, params):
     cached = suggestionsRepo.cache_get(cache_key, cache_ttl)
     if cached is not None:
         _remember_served(friend_id, cached["results"])
-        return "done", {"results": with_library_status(cached["results"]), "note": cached.get("note")}
+        return "done", dict(cached, results=with_library_status(cached["results"]))
 
     with _jobs_lock:
         _prune_jobs()
@@ -179,10 +186,10 @@ def _worker_loop():
             continue
         job["status"] = "running"
         try:
-            results, note = _run(job)
-            suggestionsRepo.cache_set(job["cache_key"], {"results": results, "note": note})
-            _remember_served(job["friend_id"], results)
-            job.update(results=with_library_status(results), note=note, status="done")
+            found = _run(job)
+            suggestionsRepo.cache_set(job["cache_key"], found)
+            _remember_served(job["friend_id"], found["results"])
+            job.update(found, results=with_library_status(found["results"]), status="done")
         except (LookupFailed, spotifyClient.SpotifyError) as e:
             interfaceComponents.Print_Tag(f"Friend lookup ({job['kind']}) refused: {e}", tag="Warning")
             job.update(error=str(e), status="error")
@@ -210,18 +217,29 @@ def _tag(songs, source, **extra):
 
 
 def _run(job):
+    """
+    Returns:
+        dict: {"results": songs, "note": str | None}, plus "albums",
+        "artists" and "top" for a search-box search.
+    """
     params = job["params"]
     if job["kind"] == "search":
         mode, query = params["mode"], params["query"]
-        if mode == "song":
-            songs = _ytdlp(musicSearch.search_songs, query, 20)
-        elif mode == "artist":
+        if mode == "all":
+            found = _ytdlp(musicSearch.search_everything, query, cost=2)
+            if not (found["songs"] or found["albums"] or found["artists"]):
+                raise LookupFailed("Nothing found. Try different words.")
+            return {"results": _tag(found["songs"], "search"), "note": None,
+                    "albums": found["albums"], "artists": found["artists"], "top": found["top"]}
+        if mode == "artist":
             songs = _ytdlp(musicSearch.search_artist_songs, query)
-        else:
-            songs = _ytdlp(musicSearch.search_album_tracks, query, cost=2)
+            if not songs:
+                raise LookupFailed("No songs found for that artist.")
+            return {"results": _tag(songs, "search"), "note": None}
+        songs = _ytdlp(musicSearch.list_playlist_tracks, f"https://music.youtube.com/playlist?list={query}")
         if not songs:
-            raise LookupFailed("Nothing found. Try different words.")
-        return _tag(songs, "search"), None
+            raise LookupFailed("Couldn't open that album. Try again later.")
+        return {"results": _tag(songs, "ytm_album"), "note": None}
 
     link = params["link"]
     kind = link["kind"]
@@ -229,7 +247,7 @@ def _run(job):
         song = _ytdlp(musicSearch.get_video, link["id"])
         if not song:
             raise LookupFailed("Couldn't open that video (private, removed or region-locked?).")
-        return _tag([song], "youtube"), None
+        return {"results": _tag([song], "youtube"), "note": None}
     if kind in ("playlist", "album"):
         songs = _ytdlp(musicSearch.list_playlist_tracks, link["url"])
         if not songs:
@@ -237,7 +255,7 @@ def _run(job):
         note = None
         if len(songs) >= musicSearch.MAX_PLAYLIST_TRACKS:
             note = f"Only the first {musicSearch.MAX_PLAYLIST_TRACKS:,} songs are shown."
-        return _tag(songs, "ytm_album" if songs[0].get("album") else "yt_playlist"), note
+        return {"results": _tag(songs, "ytm_album" if songs[0].get("album") else "yt_playlist"), "note": note}
     return _run_spotify(job, link)
 
 
@@ -275,7 +293,7 @@ def _run_spotify(job, link):
         notes.append(f"No YouTube match for: {', '.join(unmatched[:10])}{'...' if len(unmatched) > 10 else ''}")
     if not songs:
         raise LookupFailed("None of those songs could be found on YouTube.")
-    return songs, " ".join(notes) or None
+    return {"results": songs, "note": " ".join(notes) or None}
 
 
 def best_youtube_match(track, candidates):

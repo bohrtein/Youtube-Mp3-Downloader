@@ -22,37 +22,42 @@
             <section class="mx-panel mx-glass">
                 <h2 class="mx-panel-title" data-decode>find songs</h2>
                 <form id="searchForm" autocomplete="off">
-                    <fieldset class="mx-chips sg-chips">
-                        <legend>Search for</legend>
-                        <label><input type="radio" name="mode" value="song" checked><span>Song</span></label>
-                        <label><input type="radio" name="mode" value="artist"><span>Artist</span></label>
-                        <label><input type="radio" name="mode" value="album"><span>Album</span></label>
-                    </fieldset>
                     <div class="sg-row-form">
-                        <input class="mx-input" type="search" id="searchInput" maxlength="100"
-                               placeholder="Song title and artist..." aria-label="Search">
+                        <input class="mx-input" type="search" id="searchInput" maxlength="300"
+                               placeholder="Song, artist, album - or paste a link" aria-label="Search or paste a link">
                         <button class="mx-btn mx-btn-go" type="submit">Search</button>
                     </div>
-                </form>
-                <form id="linkForm" autocomplete="off" style="margin-top:12px;">
-                    <div class="sg-row-form">
-                        <input class="mx-input" type="url" id="linkInput" maxlength="300"
-                               placeholder="...or paste a YouTube / Spotify link" aria-label="Link">
-                        <button class="mx-btn" type="submit">Open</button>
-                    </div>
+                    <p class="mx-hint">YouTube, YouTube Music and Spotify links open straight away.</p>
                 </form>
                 <p class="sg-status" id="lookupStatus" aria-live="polite"></p>
             </section>
 
             <section class="mx-panel mx-glass" id="resultsPanel" hidden>
                 <h2 class="mx-panel-title" data-decode>results</h2>
-                <p class="sg-note" id="resultsNote" hidden></p>
-                <div class="sg-head-actions">
-                    <span class="mx-count" id="resultsCount"></span>
-                    <button class="mx-btn sg-btn-sm" type="button" id="addAllBtn">Add all</button>
+                <div class="sg-drill" id="drillHead" hidden>
+                    <button class="mx-btn sg-btn-sm" type="button" id="backBtn">&larr; Back</button>
+                    <span class="sg-drill-title" id="drillTitle"></span>
                 </div>
-                <div class="sg-pager" id="resultsPager" hidden></div>
-                <div class="sg-list" id="resultsList"></div>
+                <p class="sg-note" id="resultsNote" hidden></p>
+                <div class="sg-groups">
+                    <div class="sg-group" id="artistsGroup" hidden>
+                        <h3 class="sg-group-title">Artists</h3>
+                        <div class="sg-list" id="artistsList"></div>
+                    </div>
+                    <div class="sg-group" id="albumsGroup" hidden>
+                        <h3 class="sg-group-title">Albums</h3>
+                        <div class="sg-list" id="albumsList"></div>
+                    </div>
+                    <div class="sg-group" id="songsGroup">
+                        <h3 class="sg-group-title" id="songsTitle" hidden>Songs</h3>
+                        <div class="sg-head-actions">
+                            <span class="mx-count" id="resultsCount"></span>
+                            <button class="mx-btn sg-btn-sm" type="button" id="addAllBtn">Add all</button>
+                        </div>
+                        <div class="sg-pager" id="resultsPager" hidden></div>
+                        <div class="sg-list" id="resultsList"></div>
+                    </div>
+                </div>
             </section>
         </div>
 

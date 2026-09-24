@@ -74,16 +74,16 @@ def test_friend_library_hides_paths_and_ids(client, friend):
 def test_paused_suggestions(client, friend):
     suggestionsRepo.set_suggestions_enabled(False)
     assert client.get(f"/suggest/{friend['token']}/").status_code == 503
-    response = client.post(f"/suggest/{friend['token']}/api/search", json={"mode": "song", "q": "x"})
+    response = client.post(f"/suggest/{friend['token']}/api/search", json={"q": "x"})
     assert response.status_code == 503 and "paused" in response.get_json()["error"]
 
 
 # --- lookups -----------------------------------------------------------------------
 
 def test_search_serves_cache_without_charging(client, friend):
-    suggestionsRepo.cache_set(lookupJobs.search_cache_key("song", "judith"), {"results": [song("Cp31A_iqoDw")], "note": None})
+    suggestionsRepo.cache_set(lookupJobs.search_cache_key("all", "judith"), {"results": [song("Cp31A_iqoDw")], "note": None})
     for _ in range(40):  # well past the 30/hour limit: cache hits are free
-        response = client.post(f"/suggest/{friend['token']}/api/search", json={"mode": "song", "q": "  Judith "})
+        response = client.post(f"/suggest/{friend['token']}/api/search", json={"q": "  Judith "})
         assert response.status_code == 200
     data = response.get_json()
     assert data["status"] == "done" and data["results"][0]["in_library"] == "no"
@@ -91,7 +91,7 @@ def test_search_serves_cache_without_charging(client, friend):
 
 
 @pytest.mark.parametrize("payload", [
-    {"mode": "video", "q": "x"}, {"mode": "song", "q": ""}, {"mode": "song", "q": "x" * 101},
+    {"mode": "video", "q": "x"}, {"q": ""}, {"q": "x" * 101}, {"mode": "album", "q": "not an album id"},
 ])
 def test_search_input_validation(client, friend, payload):
     assert client.post(f"/suggest/{friend['token']}/api/search", json=payload).status_code == 400
@@ -103,7 +103,7 @@ def test_resolve_rejects_foreign_links(client, friend):
 
 
 def test_api_requires_json(client, friend):
-    assert client.post(f"/suggest/{friend['token']}/api/search", data="mode=song&q=x").status_code == 415
+    assert client.post(f"/suggest/{friend['token']}/api/search", data="q=x").status_code == 415
 
 
 def test_jobs_are_private_to_their_friend(client, friend):

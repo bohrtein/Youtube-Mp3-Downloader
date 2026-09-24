@@ -1,5 +1,6 @@
-/* Friend suggestion page: search / paste a link -> flat song list ->
-   basket (kept in localStorage until sent) -> submit.
+/* Friend suggestion page: one box for searches and links -> songs, albums
+   and artists (an album or artist opens into its songs) -> basket (kept in
+   localStorage until sent) -> submit.
    Every string from the server is set with textContent, never innerHTML. */
 (function () {
   "use strict";
@@ -18,14 +19,27 @@
   var resultsNote = document.getElementById("resultsNote");
   var resultsCount = document.getElementById("resultsCount");
   var resultsPager = document.getElementById("resultsPager");
+  var songsTitle = document.getElementById("songsTitle");
+  var drillHead = document.getElementById("drillHead");
+  var drillTitle = document.getElementById("drillTitle");
+  var groups = {
+    song: document.getElementById("songsGroup"),
+    album: document.getElementById("albumsGroup"),
+    artist: document.getElementById("artistsGroup")
+  };
+  var albumsList = document.getElementById("albumsList");
+  var artistsList = document.getElementById("artistsList");
   var addAllBtn = document.getElementById("addAllBtn");
   var basketList = document.getElementById("basketList");
   var basketCount = document.getElementById("basketCount");
   var submitBtn = document.getElementById("submitBtn");
   var messageInput = document.getElementById("messageInput");
   var busy = false;
-  var results = [];
+  var view = null;    // what the results panel shows: {songs, albums, artists, top, note, title}
+  var parent = null;  // the search an opened album or artist came from
+  var results = [];   // view.songs
   var page = 0;
+  var LINK_RE = /^(https?:\/\/|(www\.|m\.|music\.)?(youtube\.com|youtu\.be)\/|open\.spotify\.com\/)/i;
 
   /* --- basket storage ---------------------------------------------------- */
   function loadBasket() {
@@ -121,7 +135,7 @@
       btn.addEventListener("click", (function (target) {
         return function () {
           page = target;
-          renderResults(resultsNote.textContent);
+          renderResults();
           resultsPanel.scrollIntoView({ behavior: "smooth", block: "start" });
         };
       })(i));
@@ -129,12 +143,76 @@
     }
   }
 
-  function renderResults(note) {
+  /* A search's albums and artists: each opens into its own song list. */
+  function openerRow(pic, round, title, meta, label, open) {
+    var row = el("div", "sg-song");
+    if (pic) {
+      var img = el("img", "sg-album-cover" + (round ? " sg-round" : ""));
+      img.alt = "";
+      img.loading = "lazy";
+      img.decoding = "async";
+      img.referrerPolicy = "no-referrer";
+      img.src = pic;
+      img.addEventListener("error", function () { img.style.visibility = "hidden"; });
+      row.appendChild(img);
+    } else {
+      row.appendChild(el("span", "sg-album-cover sg-album-cover-blank" + (round ? " sg-round" : "")));
+    }
+    var main = el("div", "sg-song-main");
+    main.appendChild(el("span", "sg-song-title", title));
+    if (meta) main.appendChild(el("span", "sg-song-meta", meta));
+    row.appendChild(main);
+    var btn = el("button", "mx-btn sg-btn-sm sg-open", label);
+    btn.type = "button";
+    btn.disabled = busy;
+    btn.addEventListener("click", open);
+    row.appendChild(btn);
+    return row;
+  }
+
+  function renderGroups() {
+    albumsList.textContent = "";
+    artistsList.textContent = "";
+    view.albums.forEach(function (album) {
+      var meta = [album.type, album.year, album.artist].filter(Boolean).join(" · ");
+      albumsList.appendChild(openerRow(album.thumbnail, false, album.title, meta, "Open", function () {
+        lookup(cfg.searchUrl, { mode: "album", q: album.playlist_id }, "Opening " + album.title,
+               album.title + (album.artist ? " - " + album.artist : ""));
+      }));
+    });
+    view.artists.forEach(function (artist) {
+      artistsList.appendChild(openerRow(artist.thumbnail, true, artist.name, "", "Songs", function () {
+        lookup(cfg.searchUrl, { mode: "artist", q: artist.name }, "Finding songs by " + artist.name,
+               "Songs by " + artist.name);
+      }));
+    });
+    groups.album.hidden = !view.albums.length;
+    groups.artist.hidden = !view.artists.length;
+    var categorized = !groups.album.hidden || !groups.artist.hidden;
+    groups.song.hidden = categorized && !view.songs.length;
+    songsTitle.hidden = !categorized;
+    /* Whatever YouTube Music thought the best match was goes first. */
+    ["song", "album", "artist"].forEach(function (kind, i) {
+      groups[kind].style.order = kind === view.top ? -1 : i;
+    });
+  }
+
+  function showView(next) {
+    view = next;
+    results = view.songs;
+    page = 0;
+    drillHead.hidden = !parent;
+    drillTitle.textContent = view.title || "";
+    resultsNote.hidden = !view.note;
+    resultsNote.textContent = view.note || "";
+    renderGroups();
+    renderResults();
+  }
+
+  function renderResults() {
     resultsPanel.hidden = false;
     APP.decodeAll(resultsPanel);
     resultsList.textContent = "";
-    resultsNote.hidden = !note;
-    resultsNote.textContent = note || "";
     page = Math.min(page, pageCount() - 1);
     resultsCount.textContent = pageCount() > 1
       ? "showing " + (page * PAGE_SIZE + 1) + "–" + Math.min((page + 1) * PAGE_SIZE, results.length) + " of " + results.length + " songs"
@@ -173,14 +251,14 @@
     if (basket.length >= MAX_TOTAL && added < songs.length) toast(false, "The basket is full (" + MAX_TOTAL + " songs).");
     saveBasket();
     renderBasket();
-    if (results.length) renderResults(resultsNote.textContent);
+    if (view) renderResults();
   }
 
   function removeFromBasket(id) {
     basket = basket.filter(function (s) { return s.youtube_id !== id; });
     saveBasket();
     renderBasket();
-    if (results.length) renderResults(resultsNote.textContent);
+    if (view) renderResults();
   }
 
   /* --- basket ------------------------------------------------------------------- */
@@ -218,13 +296,15 @@
     });
   }
 
-  /* --- lookups (search / link) ----------------------------------------------- */
+  /* --- lookups (search / link / open an album or artist) ------------------- */
   function setBusy(on) {
     busy = on;
-    document.querySelectorAll("#searchForm button, #linkForm button").forEach(function (b) { b.disabled = on; });
+    document.querySelectorAll("#searchForm button, #resultsPanel .sg-open").forEach(function (b) { b.disabled = on; });
   }
 
-  function lookup(url, payload, label) {
+  /* With a title, this opens an album or artist from the current search,
+     which Back returns to. */
+  function lookup(url, payload, label, title) {
     if (busy) return;
     setBusy(true);
     setStatus(label + "...");
@@ -233,10 +313,14 @@
       if (res.data.status === "done") return res.data;
       return poll(res.data.job_id, label, Date.now());
     }).then(function (data) {
-      results = data.results || [];
-      page = 0;
-      setStatus(results.length ? "" : "Nothing found.");
-      renderResults(data.note);
+      var next = {
+        songs: data.results || [], albums: data.albums || [], artists: data.artists || [],
+        top: data.top || null, note: data.note || null, title: title || null
+      };
+      parent = title ? (parent || view) : null;
+      setStatus(next.songs.length + next.albums.length + next.artists.length ? "" : "Nothing found.");
+      showView(next);
+      if (title) resultsPanel.scrollIntoView({ behavior: "smooth", block: "start" });
     }).catch(function (err) {
       setStatus(err.message, true);
     }).then(function () { setBusy(false); });
@@ -259,25 +343,19 @@
     });
   }
 
+  /* One box: a link opens that link, anything else is a search. */
   document.getElementById("searchForm").addEventListener("submit", function (e) {
     e.preventDefault();
     var q = document.getElementById("searchInput").value.trim();
-    if (!q) return setStatus("Type something to search for.", true);
-    var mode = document.querySelector('input[name="mode"]:checked').value;
-    lookup(cfg.searchUrl, { mode: mode, q: q }, "Searching");
+    if (!q) return setStatus("Type something to search for, or paste a link.", true);
+    if (LINK_RE.test(q)) lookup(cfg.resolveUrl, { url: q }, "Opening link");
+    else lookup(cfg.searchUrl, { mode: "all", q: q }, "Searching");
   });
 
-  document.getElementById("linkForm").addEventListener("submit", function (e) {
-    e.preventDefault();
-    var link = document.getElementById("linkInput").value.trim();
-    if (!link) return setStatus("Paste a link first.", true);
-    lookup(cfg.resolveUrl, { url: link }, "Opening link");
-  });
-
-  var searchInput = document.getElementById("searchInput");
-  var placeholders = { song: "Song title and artist...", artist: "Artist name...", album: "Album name and artist..." };
-  document.querySelectorAll('input[name="mode"]').forEach(function (radio) {
-    radio.addEventListener("change", function () { searchInput.placeholder = placeholders[radio.value]; });
+  document.getElementById("backBtn").addEventListener("click", function () {
+    var back = parent;
+    parent = null;
+    if (back) showView(back);
   });
 
   addAllBtn.addEventListener("click", function () { addToBasket(pageSongs()); });
@@ -286,7 +364,7 @@
       basket = [];
       saveBasket();
       renderBasket();
-      if (results.length) renderResults(resultsNote.textContent);
+      if (view) renderResults();
     }
   });
 
@@ -315,7 +393,7 @@
       messageInput.value = "";
       saveBasket();
       renderBasket();
-      if (results.length) renderResults(resultsNote.textContent);
+      if (view) renderResults();
       loadSent();
     }).then(function () { renderBasket(); });
   });

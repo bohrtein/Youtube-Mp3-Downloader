@@ -5,13 +5,28 @@
 .sg-row-form { display: flex; gap: 8px; align-items: stretch; }
 .sg-row-form .mx-input { flex: 1 1 auto; min-width: 0; }
 .sg-row-form .mx-btn { flex: 0 0 auto; }
-.sg-chips { grid-template-columns: repeat(3, 1fr); margin-bottom: 10px; }
 
 .sg-status { margin: 10px 0 0; font-size: 11px; color: var(--mx-ink-dim); min-height: 1.4em; }
 .sg-status.mx-err { color: var(--mx-red); }
 .sg-note { margin: 0 0 10px; font-size: 10.5px; color: var(--mx-amber); line-height: 1.4; }
 
 .sg-list { display: flex; flex-direction: column; gap: 6px; }
+
+/* Search results: artists, albums and songs, best match first. */
+.sg-groups { display: flex; flex-direction: column; gap: 16px; }
+.sg-group[hidden] { display: none; }
+.sg-group-title {
+  margin: 0 0 8px;
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--mx-ink-dim);
+}
+.sg-group-title[hidden] { display: none; }
+.sg-drill { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; min-width: 0; }
+.sg-drill[hidden] { display: none; }
+.sg-drill-title { font-size: 12.5px; color: var(--mx-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sg-song {
   display: flex;
   align-items: center;
@@ -136,6 +151,7 @@ a.sg-song-title:hover { color: var(--mx-green); }
   background: var(--mx-panel-sol);
 }
 .sg-album-cover-blank { display: inline-block; border: 1px solid var(--mx-line-soft); }
+.sg-round { border-radius: 50%; }
 .sg-album-head { text-align: left; }
 .mx-row[hidden] { display: none; }
 .sg-album-songs { list-style: none; margin: 8px 0 0; padding: 0; }

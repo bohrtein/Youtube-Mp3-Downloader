@@ -1,7 +1,7 @@
 import json
 import re
 import subprocess
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, urlparse
 from ytmusicapi import YTMusic
 import core.interfaceComponents as interfaceComponents
 import core.checkDependencies as checkDependencies
@@ -17,6 +17,9 @@ MAX_SONG_SECONDS = 15 * 60
 _RELEASE_PREFIX_RE = re.compile(r"^(album|ep|single)\s+-\s+", re.IGNORECASE)
 _NON_ALNUM_RE = re.compile(r"[^0-9a-z]+")
 _CHANNEL_ID_RE = re.compile(r"/channel/(UC[0-9A-Za-z_-]{22})")
+_ALBUM_PLAYLIST_RE = re.compile(r"^OLAK5uy_[A-Za-z0-9_-]{10,64}$")
+# Where YouTube Music serves album and artist pictures from.
+THUMBNAIL_HOSTS = ("lh3.googleusercontent.com", "yt3.googleusercontent.com", "yt3.ggpht.com", "i.ytimg.com")
 
 _ytmusic_client = None
 
@@ -149,6 +152,69 @@ def search_songs(query, limit=20):
             seen.add(song["youtube_id"])
             songs.append(song)
     return songs
+
+
+def _thumbnail(result, max_width=226):
+    """The largest thumbnail up to max_width, if it's hosted where the friend page may load images from."""
+    best = None
+    for thumb in result.get("thumbnails") or []:
+        url = thumb.get("url") or ""
+        host = (urlparse(url).hostname or "").lower() if url.startswith("https://") else ""
+        if host in THUMBNAIL_HOSTS and (best is None or (thumb.get("width") or 0) <= max_width):
+            best = url
+    return best
+
+
+def is_album_playlist_id(value):
+    """True for a YouTube Music album's auto-generated playlist ID ("OLAK5uy_...")."""
+    return bool(_ALBUM_PLAYLIST_RE.match(value or ""))
+
+
+def search_everything(query, song_limit=20, album_limit=6, artist_limit=4):
+    """
+    One search for anything: YouTube Music's own mixed search (top result,
+    albums, artists), plus its song search for a full list of songs with
+    their lengths - the mixed search only carries a handful of songs, often
+    without artist or length.
+
+    Returns:
+        dict: {"songs": search_songs() shape,
+               "albums": [{playlist_id, title, artist, year, type, thumbnail}],
+               "artists": [{name, thumbnail}],
+               "top": "song" | "album" | "artist" | None}
+    """
+    mixed = []
+    try:
+        mixed = _ytmusic().search(query)
+    except Exception as e:
+        interfaceComponents.Print_Tag(f"YouTube Music search failed for '{query}': {e}", tag="Error")
+
+    albums, artists, seen_names, top = [], [], set(), None
+    for result in mixed:
+        kind = result.get("resultType")
+        is_top = result.get("category") == "Top result"
+        if is_top and kind in ("song", "album", "artist"):
+            top = kind
+        if kind == "album" and len(albums) < album_limit:
+            playlist_id = result.get("playlistId") or ""
+            if is_album_playlist_id(playlist_id):
+                albums.append({
+                    "playlist_id": playlist_id,
+                    "title": result.get("title") or "",
+                    "artist": ", ".join(a["name"] for a in result.get("artists") or [] if a.get("name")),
+                    "year": result.get("year"),
+                    "type": result.get("type") or "Album",
+                    "thumbnail": _thumbnail(result),
+                })
+        elif kind == "artist" and len(artists) < artist_limit:
+            # The top result names the artist in "artists"; the rest in "artist".
+            name = result.get("artist") or ", ".join(a["name"] for a in result.get("artists") or [] if a.get("name"))
+            # Real artist pages have a radio; fan and upload channels don't.
+            if name and _normalize(name) not in seen_names and (is_top or result.get("radioId")):
+                seen_names.add(_normalize(name))
+                artists.append({"name": name, "thumbnail": _thumbnail(result)})
+
+    return {"songs": search_songs(query, song_limit), "albums": albums, "artists": artists, "top": top}
 
 
 def get_video(video_id):
