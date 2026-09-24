@@ -34,6 +34,19 @@ def _venv_bin_candidate(name):
             return str(candidate)
     return None
 
+def resolve_ffmpeg():
+    """
+    Returns the command to invoke ffmpeg with, using the same search order
+    as resolve_ytdlp(): this venv's own bin/, then PATH, then the standalone
+    ./ffmpeg.exe this module downloads on Windows.
+    """
+    found = _venv_bin_candidate("ffmpeg") or shutil.which("ffmpeg") or shutil.which("ffmpeg.exe")
+    if found:
+        return found
+    if platform.system() == "Windows" and Path("./ffmpeg.exe").exists():
+        return "./ffmpeg.exe"
+    return "ffmpeg"
+
 def resolve_ytdlp():
     """
     Returns the command to invoke yt-dlp with.

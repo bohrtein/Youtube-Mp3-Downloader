@@ -3,15 +3,15 @@ import re
 import io
 from pathlib import Path
 from PIL import Image
-from mutagen.flac import FLAC
-import database.databaseConnector as databaseConnector  
+import database.databaseConnector as databaseConnector
 import core.interfaceComponents as interfaceComponents
+import core.audioTags as audioTags
 
 def Sync_Folder_To_Db(target_dir):
     """
     Scans the local storage and synchronizes song metadata into the SQL database.
-    
-    This function performs a deep scan of FLAC files to extract technical data, 
+
+    This function performs a deep scan of FLAC/MP3 files to extract technical data,
     metadata tags, and binary cover art, then maps them into a relational 
     structure (Artists -> Albums -> Songs).
     
@@ -28,12 +28,9 @@ def Sync_Folder_To_Db(target_dir):
     covers_dir = Path(__file__).resolve().parent.parent / 'static' / 'covers'
     covers_dir.mkdir(parents=True, exist_ok=True)
     path = Path(target_dir)
-    flac_files = list(path.rglob("*.flac"))
-
-    for file_path in flac_files:
+    for file_path in audioTags.find_audio_files(path):
         try:
-            # Load FLAC metadata object
-            audio = FLAC(file_path)
+            audio = audioTags.open_tags(file_path)
             
             # --- 1. TRACK & TITLE PARSING ---
             # Logic: Attempt to extract track numbers from filenames (e.g., "01 - SongTitle")
@@ -48,8 +45,8 @@ def Sync_Folder_To_Db(target_dir):
                 song_title = filename_raw[track_match.end():].strip()
 
             # --- 2. TECHNICAL METADATA ---
-            # FLAC technicals aren't always provided as a simple bitrate; we calculate 
-            # the average bitrate based on file size and duration.
+            # FLAC doesn't expose a simple bitrate, so average it from file size and
+            # duration (same formula for MP3 keeps the two comparable).
             duration = audio.info.length
             file_size_bits = os.path.getsize(file_path) * 8
             actual_bitrate = int((file_size_bits / duration) / 1000) if duration > 0 else 0
@@ -67,19 +64,18 @@ def Sync_Folder_To_Db(target_dir):
             # --- URL EXTRACTION ---
             # Iterates through all metadata fields to find a source link (e.g., YouTube URL)
             source_url = None
-            for tag_name, values in audio.items():
-                for val in values:
-                    url_match = re.search(r'(https?://[^\s"\'<>]+)', str(val))
-                    if url_match:
-                        source_url = url_match.group(1)
-                        break
-                if source_url: break
+            for val in audioTags.iter_tag_text(file_path):
+                url_match = re.search(r'(https?://[^\s"\'<>]+)', str(val))
+                if url_match:
+                    source_url = url_match.group(1)
+                    break
 
             # --- 3. ALBUM COVER PROCESSING ---
             # Extracts the first embedded picture and resizes it for the Web Dashboard
             cover_binary = None
-            if audio.pictures:
-                img = Image.open(io.BytesIO(audio.pictures[0].data))
+            cover_bytes = audioTags.get_cover_bytes(file_path)
+            if cover_bytes:
+                img = Image.open(io.BytesIO(cover_bytes)).convert("RGB")
                 img = img.resize((250, 250), Image.LANCZOS)
                 img_byte_arr = io.BytesIO()
                 img.save(img_byte_arr, format='JPEG')
@@ -118,7 +114,7 @@ def Sync_Folder_To_Db(target_dir):
             # Step C: Sync Song
             # Unique constraint check: Song title + Album ID + Track Number
             cursor.execute("""
-                SELECT song_id, source_url FROM songs
+                SELECT song_id, source_url, file_type FROM songs
                 WHERE song_title = ? AND album_id = ? AND track_number = ?
             """, (song_title, album_id, track_num))
 
@@ -133,10 +129,15 @@ def Sync_Folder_To_Db(target_dir):
                 interfaceComponents.Print_Tag(f"Synced: {song_title} (Track {track_num})", tag="DB Success")
             else:
                 # If song exists but URL is missing, update the record
-                db_song_id, db_source_url = song_res
+                db_song_id, db_source_url, db_file_type = song_res
                 if source_url and not db_source_url:
                     cursor.execute("UPDATE songs SET source_url = ? WHERE song_id = ?", (source_url, db_song_id))
                     interfaceComponents.Print_Tag(f"Patched URL for: {song_title} (Track {track_num})", tag="DB Update")
+                # A FLAC converted to MP3 in place keeps its title/album/track,
+                # so it lands here rather than as a new row.
+                if db_file_type != file_ext:
+                    cursor.execute("UPDATE songs SET file_type = ?, bit_rate = ? WHERE song_id = ?", (file_ext, bitrate_str, db_song_id))
+                    interfaceComponents.Print_Tag(f"Updated format to {file_ext}: {song_title} (Track {track_num})", tag="DB Update")
 
         except Exception as e:
             interfaceComponents.Print_Tag(f"Error: {e}", tag="Error")

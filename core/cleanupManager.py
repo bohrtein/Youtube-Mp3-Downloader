@@ -1,24 +1,23 @@
 import os
 import re
 from pathlib import Path
-from mutagen.flac import FLAC
 import database.databaseConnector as databaseConnector
 import core.interfaceComponents as interfaceComponents
+import core.audioTags as audioTags
 
 def cleanup_duplicate_files_by_folder(target_dir):
     """
-    Scans a directory for duplicate FLAC files and enforces a specific folder hierarchy.
-    
-    The function uses audio metadata (tags) to identify duplicates. If a duplicate is 
+    Scans a directory for duplicate FLAC/MP3 files and enforces a specific folder hierarchy.
+
+    The function uses audio metadata (tags) to identify duplicates. If a duplicate is
     found, it prioritizes keeping the version located in a folder starting with 'Album -'.
-    
+
     Args:
-        target_dir (str): The root path to scan for FLAC files.
+        target_dir (str): The root path to scan for FLAC/MP3 files.
     """
     path = Path(target_dir)
-    # rglob("*.flac") recursively finds all FLAC files in subdirectories
-    flac_files = list(path.rglob("*.flac"))
-    
+    audio_files = audioTags.find_audio_files(path)
+
     # Dictionary to track unique songs. 
     # Key: Fingerprint string | Value: pathlib.Path object of the file
     seen_songs = {} 
@@ -26,10 +25,9 @@ def cleanup_duplicate_files_by_folder(target_dir):
 
     interfaceComponents.Print_Tag(f"Scanning {target_dir} for folder-based duplicates...", tag="Process")
 
-    for file_path in flac_files:
+    for file_path in audio_files:
         try:
-            # Load FLAC metadata tags
-            audio = FLAC(file_path)
+            audio = audioTags.open_tags(file_path)
             
             # Extract tags with fallbacks to avoid KeyErrors
             artist = audio.get("artist", ["Unknown"])[0].strip().lower()
@@ -62,6 +60,15 @@ def cleanup_duplicate_files_by_folder(target_dir):
                     seen_songs[fingerprint] = file_path # Keep the one in the proper album folder
                     deleted_count += 1
                     interfaceComponents.Print_Tag(f"Deleted duplicate from non-album folder: {existing_file.name}", tag="Cleanup")
+
+                # CASE 3: Same folder priority, but one is FLAC and the other MP3.
+                # Action: Keep the MP3 (the library is being moved to MP3 for player battery life).
+                elif file_path.suffix.lower() != existing_file.suffix.lower():
+                    flac_file, mp3_file = (file_path, existing_file) if file_path.suffix.lower() == ".flac" else (existing_file, file_path)
+                    os.remove(flac_file)
+                    seen_songs[fingerprint] = mp3_file
+                    deleted_count += 1
+                    interfaceComponents.Print_Tag(f"Deleted FLAC duplicate of an MP3: {flac_file.name}", tag="Cleanup")
             else:
                 # If the song hasn't been seen yet, add it to the tracking dictionary
                 seen_songs[fingerprint] = file_path

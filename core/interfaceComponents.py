@@ -30,7 +30,7 @@ def header_start():
     Used during script initialization to provide visual context to the user.
     """
     print("=======================================")    
-    print("   YouTube Playlist Downloader (FLAC)  ")
+    print("YouTube Playlist Downloader (FLAC/MP3)")
     print("=======================================") 
 
 def header_exit():

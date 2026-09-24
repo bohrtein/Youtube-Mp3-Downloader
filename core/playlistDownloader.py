@@ -82,3 +82,40 @@ def download_file_flac(url, output_dir):
         # Captures network issues, missing binaries, or invalid URLs
         interfaceComponents.Print_Tag(f"Error: {e}", tag="Error")
         return []
+
+def download_file_mp3(url, output_dir):
+    """
+    Same as download_file_flac, but extracts straight to MP3 (320kbps,
+    48000Hz) instead of FLAC, so the result is already player-friendly
+    without a separate conversion pass.
+
+    Args:
+        url (str): The video or playlist link.
+        output_dir (str): The base directory for file storage.
+
+    Returns:
+        list[str]: Absolute paths of the files yt-dlp produced (empty on failure).
+    """
+    output_template = f"{output_dir}/%(playlist_title)s/%(playlist_index)02d - %(title)s.%(ext)s"
+
+    cmd = [
+        checkDependencies.resolve_ytdlp(), "-ciw", "-x",
+        "--audio-format", "mp3",
+        "--audio-quality", "320K",
+        # --audio-quality only sets bitrate. Scoped to ExtractAudio because a
+        # bare "ffmpeg:" would also reach the stream-copy metadata/thumbnail steps.
+        "--postprocessor-args", "ExtractAudio+ffmpeg_o:-ar 48000",
+        "--embed-metadata", "--embed-thumbnail",
+        "--print", "after_move:filepath",
+        "-o", output_template, url
+    ]
+
+    interfaceComponents.Print_Tag(f"Downloading (MP3): {url}", tag="Process")
+
+    try:
+        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        interfaceComponents.Print_Tag("Download Complete", tag="Success")
+        return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    except Exception as e:
+        interfaceComponents.Print_Tag(f"Error: {e}", tag="Error")
+        return []

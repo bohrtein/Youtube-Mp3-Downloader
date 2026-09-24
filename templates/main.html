@@ -47,6 +47,11 @@
                     <textarea class="mx-textarea" id="urlInput" rows="4" placeholder="https://youtube.com/...&#10;https://youtube.com/..."></textarea>
                     <p class="mx-hint">One URL per line. Use the Download button below to start the batch.</p>
                 </div>
+                <label class="mx-toggle">
+                    <input type="checkbox" id="mp3FormatToggle">
+                    <span class="mx-sw"></span>
+                    MP3 320kbps / 48kHz instead of FLAC
+                </label>
             </section>
         </div>
 
@@ -61,6 +66,12 @@
                 <h2 class="mx-panel-title" data-decode>sync</h2>
                 <p class="mx-hint" style="margin-bottom:14px;">Scan your 'downloads' folder and update the database.</p>
                 <button class="mx-btn mx-btn-wide" type="button" onclick="startAction('sync')">Run Database Sync</button>
+            </section>
+
+            <section class="mx-panel mx-glass">
+                <h2 class="mx-panel-title" data-decode>convert to mp3</h2>
+                <p class="mx-hint" style="margin-bottom:14px;">Transcode existing FLAC library files to MP3 (320kbps/48kHz) in place, no re-downloading. Deletes each FLAC once its MP3 is written, then re-syncs the database.</p>
+                <button class="mx-btn mx-btn-wide" type="button" onclick="confirmAndConvertMp3()">Convert Library to MP3</button>
             </section>
 
             <section class="mx-panel mx-glass">
@@ -122,6 +133,13 @@
         console.log("Connected to server!");
     });
 
+    function confirmAndConvertMp3() {
+        if (confirm("Convert every FLAC in the library to MP3 (320kbps/48kHz)? Each FLAC is deleted once its MP3 is written.")) {
+            socket.emit('start_mp3_convert');
+            setBusy('Converting FLAC to MP3...');
+        }
+    }
+
     function confirmAndCleanup() {
         if (confirm("⚠️ Delete physical repeats on G: drive?")) {
             if (confirm("⚠️ Delete duplicate records from the database?")) {
@@ -141,8 +159,9 @@
                 return;
             }
 
+            const format = document.getElementById('mp3FormatToggle').checked ? 'mp3' : 'flac';
             setBusy(`Downloading ${urls.length} item${urls.length === 1 ? '' : 's'}...`);
-            socket.emit('start_download_batch', { urls: urls });
+            socket.emit('start_download_batch', { urls: urls, format: format });
         } else if (actionType === 'sync') {
             setBusy('Syncing...');
             socket.emit('start_sync');

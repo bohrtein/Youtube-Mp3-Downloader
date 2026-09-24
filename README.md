@@ -1,4 +1,4 @@
-# 🎵 YouTube FLAC Downloader
+# 🎵 YouTube FLAC/MP3 Downloader
 
 A web-based tool to download high-quality music from YouTube and manage a local digital library.
 This program specifically designed to download music to fioo snowsky echo mini
@@ -57,7 +57,13 @@ Located mostly in core/, these scripts do the heavy lifting.
 The "Boss" script. It coordinates between the web server and the individual processing tasks, always reading the current library folder from the database so a change takes effect immediately.
 
 #### playlistDownloader.py
-Controls yt-dlp.exe. It manages the download queue and ensures files are saved with the correct naming convention.
+Controls yt-dlp.exe. It manages the download queue and ensures files are saved with the correct naming convention. Downloads FLAC by default, or MP3 (320kbps / 48kHz) when the Dashboard's MP3 toggle is on.
+
+#### convertToMp3.py
+Transcodes the FLAC files already in your library to MP3 (320kbps / 48kHz) with ffmpeg — no re-downloading — keeping tags and cover art, deleting each FLAC once its MP3 is written, then re-syncing the database. MP3 is much cheaper for a portable player to decode than FLAC, so it goes easier on the battery.
+
+#### audioTags.py
+Reads and writes tags and cover art the same way for FLAC and MP3, so sync, covers, and dedupe work on both formats.
 
 #### checkDependencies.py
 A safety script that runs at startup. If it doesn't see ffmpeg or yt-dlp in your folder, it uses curl to download them for you automatically.
@@ -66,7 +72,7 @@ A safety script that runs at startup. If it doesn't see ffmpeg or yt-dlp in your
 The "Artist" script. It extracts the cover art from the music file, crops it into a perfect square, resizes it to 250x250, and cleans up the "Artist" tags so your library looks professional.
 
 #### cleanupManager.py
-The "Janitor." It scans for duplicate songs and makes sure you don't have multiple copies of the same track cluttering your drive.
+The "Janitor." It scans for duplicate songs and makes sure you don't have multiple copies of the same track cluttering your drive. When the same track exists as both FLAC and MP3, it keeps the MP3.
 
 
 ## 🗄️ The Storage & Data Layer
@@ -86,7 +92,7 @@ The blueprint, kept for reference. This is the schema databaseConnector.py build
 Where processed 250x250 album cover JPEGs live, one per album (`<album_id>.jpg`).
 
 #### downloads/
-The default library folder where your music lives if you haven't picked a different one on the Dashboard. Organized by Playlist Name / Track Number - Title.flac.
+The default library folder where your music lives if you haven't picked a different one on the Dashboard. Organized by Playlist Name / Track Number - Title.flac (or .mp3).
 
 ## 🔑 Configuration
 #### .gitignore

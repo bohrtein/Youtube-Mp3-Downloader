@@ -197,6 +197,7 @@ def handle_download_batch(data):
     Emits progress updates to the frontend for each item.
     """
     urls = data.get('urls', [])
+    audio_format = data.get('format', 'flac')
 
     def background_task():
         total_urls = len(urls)
@@ -211,7 +212,7 @@ def handle_download_batch(data):
             })
 
             try:
-                main.start_downloading(url)
+                main.start_downloading(url, audio_format=audio_format)
             except Exception as e:
                 print(f"Error downloading {url}: {e}")
                 socketio.emit('progress', {
@@ -231,6 +232,18 @@ def run_sync_only():
     def task():
         socketio.emit('progress', {'percent': 50, 'status': 'Syncing...'})
         main.sync_to_library()
+        socketio.emit('progress', {'percent': 100, 'status': 'complete'})
+    threading.Thread(target=task).start()
+
+@socketio.on('start_mp3_convert')
+def run_mp3_convert_only():
+    """
+    Background task to transcode existing FLAC library files to MP3
+    (320kbps, 48000Hz) in place -- no re-downloading.
+    """
+    def task():
+        socketio.emit('progress', {'percent': 50, 'status': 'Converting FLAC to MP3...'})
+        main.convert_library_to_mp3()
         socketio.emit('progress', {'percent': 100, 'status': 'complete'})
     threading.Thread(target=task).start()
 

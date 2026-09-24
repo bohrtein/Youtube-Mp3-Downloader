@@ -4,6 +4,7 @@ import core.checkDependencies as checkDependencies
 import core.interfaceComponents as interfaceComponents
 import database.syncLibrary as syncLibrary
 import core.cleanupManager as cleanupManager
+import core.convertToMp3 as convertToMp3
 import database.databaseConnector as databaseConnector
 
 def program_start():
@@ -16,7 +17,7 @@ def program_start():
     interfaceComponents.header_start()
     checkDependencies.dependencies_check()
     playlistDownloader.initiate_playlist_loop()
-    processAlbumCover.process_album_covers_loop_flac(databaseConnector.get_library_folder())
+    processAlbumCover.process_album_covers_loop(databaseConnector.get_library_folder())
     program_exit()
 
 def delete_already_exsisting_files():
@@ -26,15 +27,18 @@ def delete_already_exsisting_files():
     """
     cleanupManager.cleanup_duplicate_files_by_folder(databaseConnector.get_library_folder())
 
-def start_downloading(url):
+def start_downloading(url, audio_format="flac"):
     """
     Direct interface for downloading a single URL or playlist.
     Typically called by the Flask/SocketIO background thread.
 
     Args:
         url (str): The YouTube/Media URL provided by the user.
+        audio_format (str): "flac" (default, lossless) or "mp3" (320kbps/48kHz,
+            for players where FLAC decoding drains the battery faster).
     """
-    file_paths = playlistDownloader.download_file_flac(url, databaseConnector.get_library_folder())
+    download_fn = playlistDownloader.download_file_mp3 if audio_format == "mp3" else playlistDownloader.download_file_flac
+    file_paths = download_fn(url, databaseConnector.get_library_folder())
     if not file_paths:
         # download_file_flac already printed the real reason (missing
         # yt-dlp, network failure, blocked video, etc.) via Print_Tag; raise
@@ -50,13 +54,24 @@ def sync_to_library():
     checkDependencies.dependencies_check()
     syncLibrary.Sync_Folder_To_Db(databaseConnector.get_library_folder())
 
+def convert_library_to_mp3():
+    """
+    Transcodes every FLAC file in the library folder to MP3 (320kbps,
+    48000Hz) in place, deleting each FLAC once its MP3 replacement is
+    written. Does not re-download anything. Re-syncs the database afterwards
+    so existing song rows pick up the new MP3 file type/bitrate.
+    """
+    checkDependencies.dependencies_check()
+    convertToMp3.convert_library_to_mp3(databaseConnector.get_library_folder())
+    syncLibrary.Sync_Folder_To_Db(databaseConnector.get_library_folder())
+
 def process_songs():
     """
-    Scans downloaded FLAC files to extract, resize, and store album
+    Scans downloaded FLAC/MP3 files to extract, resize, and store album
     artwork in the database for the web UI.
     """
     checkDependencies.dependencies_check()
-    processAlbumCover.process_album_covers_loop_flac(databaseConnector.get_library_folder())
+    processAlbumCover.process_album_covers_loop(databaseConnector.get_library_folder())
 
 def program_exit():
     """
