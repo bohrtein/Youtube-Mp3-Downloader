@@ -20,7 +20,7 @@ HOUR, DAY = 3600, 86400
 FRIEND_LIMITS = {
     "search": [(HOUR, 30), (DAY, 150)],
     "resolve": [(HOUR, 10), (DAY, 40)],
-    "submit": [(DAY, 5)],
+    "submit": [(DAY, 20)],
 }
 SERVER_YTDLP_LIMITS = [(DAY, 300)]
 YTDLP_MIN_SPACING_SECONDS = 2.0
