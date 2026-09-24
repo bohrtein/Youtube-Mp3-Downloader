@@ -15,7 +15,7 @@ the two up.
 
 - `core/playlistDownloader.py` - the actual yt-dlp-based FLAC downloader. Already used by the rest of the app; this skill calls it too, just with a different destination folder.
 - `core/checkDependencies.py` - ensures `yt-dlp.exe`/`ffmpeg.exe`/`ffprobe.exe` are present. Always gets called before a real download.
-- `core/musicSearch.py` **(new, added for this skill)** - searches YouTube Music for songs, album candidates, and an artist's channel/releases. Pure yt-dlp wrappers, no scraping.
+- `core/musicSearch.py` **(new, added for this skill)** - searches YouTube Music for songs, album candidates, and an artist's channel/releases. Uses ytmusicapi for song/artist search and yt-dlp for albums and playlists.
 - `core/releaseDedup.py` **(new)** - normalizes release titles (so "Album", "Album (Deluxe Edition)", "Album (Extended)" are recognized as the same release) and filters out live albums/compilations.
 - `core/smartDownload.py` **(new)** - ties the above together into one CLI: builds a plan (what would be downloaded, what's being skipped and why), and only downloads when told to.
 - `database/databaseConnector.py`'s `get_library_folder()` / `library.db` / `database/syncLibrary.py` - the **unrelated** MP3-player library workflow. This skill never reads or writes any of that, and never needs the Flask app (`app.py`) running.

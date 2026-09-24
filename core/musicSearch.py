@@ -2,6 +2,7 @@ import json
 import re
 import subprocess
 from urllib.parse import quote_plus
+from ytmusicapi import YTMusic
 import core.interfaceComponents as interfaceComponents
 import core.checkDependencies as checkDependencies
 
@@ -15,6 +16,26 @@ MAX_SONG_SECONDS = 15 * 60
 
 _RELEASE_PREFIX_RE = re.compile(r"^(album|ep|single)\s+-\s+", re.IGNORECASE)
 _NON_ALNUM_RE = re.compile(r"[^0-9a-z]+")
+_CHANNEL_ID_RE = re.compile(r"/channel/(UC[0-9A-Za-z_-]{22})")
+
+_ytmusic_client = None
+
+
+def _ytmusic():
+    """One shared, signed-out YouTube Music client."""
+    global _ytmusic_client
+    if _ytmusic_client is None:
+        _ytmusic_client = YTMusic()
+    return _ytmusic_client
+
+
+def _ytmusic_search(query, search_filter, limit):
+    """YouTube Music search results of one type ("songs", "artists"), or [] on failure."""
+    try:
+        return _ytmusic().search(query, filter=search_filter, limit=limit)[:limit]
+    except Exception as e:
+        interfaceComponents.Print_Tag(f"YouTube Music search failed for '{query}': {e}", tag="Error")
+        return []
 
 
 def _run_flat_playlist_json(target, playlist_end=None, timeout=YTDLP_TIMEOUT_SECONDS):
@@ -89,21 +110,30 @@ def _entry_to_song(entry):
     }
 
 
-def _unique_songs(entries):
-    songs, seen = [], set()
-    for entry in entries:
-        song = _entry_to_song(entry)
-        if song and song["youtube_id"] not in seen:
-            seen.add(song["youtube_id"])
-            songs.append(song)
-    return songs
+def _ytmusic_song(result):
+    """
+    Maps a YouTube Music song result to the song shape every caller uses.
+    Songs there are the artist's own audio uploads, so the credited artists
+    stand in for the channel.
+    """
+    video_id = result.get("videoId") or ""
+    if len(video_id) != 11:
+        return None
+    artists = ", ".join(a["name"] for a in result.get("artists") or [] if a.get("name"))
+    return {
+        "youtube_id": video_id,
+        "title": result.get("title") or "",
+        "channel": artists,
+        "uploader": artists,
+        "duration": result.get("duration_seconds"),
+        "url": f"https://music.youtube.com/watch?v={video_id}",
+    }
 
 
 def search_songs(query, limit=20):
     """
-    Searches YouTube for individual songs matching a free-text query. Plain
-    YouTube search is used over YouTube Music's because its flat results
-    include channel and duration, which the YT Music song results lack.
+    Searches YouTube Music's songs for a free-text query. Only songs, not
+    videos, so every result is an official audio track.
 
     Args:
         query (str): e.g. "Artist Name Song Title".
@@ -112,7 +142,13 @@ def search_songs(query, limit=20):
     Returns:
         list[dict]: [{youtube_id, title, channel, uploader, duration, url}, ...]
     """
-    return _unique_songs(_run_flat_playlist_json(f"ytsearch{limit}:{query}"))
+    songs, seen = [], set()
+    for result in _ytmusic_search(query, "songs", limit):
+        song = _ytmusic_song(result)
+        if song and song["youtube_id"] not in seen:
+            seen.add(song["youtube_id"])
+            songs.append(song)
+    return songs
 
 
 def get_video(video_id):
@@ -135,9 +171,8 @@ def get_video(video_id):
 
 def search_artist_songs(artist, limit=30):
     """
-    An artist's top songs: a plain search for the name, kept only where the
-    uploading channel is the artist's own ("A Perfect Circle",
-    "Rammstein Official", "Artist - Topic"), minus full-album/concert uploads.
+    An artist's top songs: a YouTube Music song search for the name, kept
+    only where the artist is credited, minus full-album/concert uploads.
 
     Returns:
         list[dict]: Same shape as search_songs().
@@ -226,48 +261,54 @@ def search_album_candidates(artist, album, limit=3):
 
 def discover_artist_channel(artist):
     """
-    Finds the best-matching YouTube Music channel for an artist (usually the
-    auto-generated "Artist - Topic" channel).
+    Finds the YouTube Music artist page whose name matches exactly.
 
     Args:
         artist (str): Artist name.
 
     Returns:
-        str | None: The channel/uploader URL, or None if nothing confidently matched.
+        str | None: The artist's channel URL, or None if nothing confidently matched.
     """
-    entries = _run_flat_playlist_json(f"ytsearch10:{artist}")
-    artist_lower = artist.strip().lower()
-    for e in entries:
-        uploader = (e.get("uploader") or e.get("channel") or "").strip().lower()
-        if uploader == artist_lower or uploader == f"{artist_lower} - topic":
-            channel_url = e.get("uploader_url") or e.get("channel_url")
-            if channel_url:
-                return channel_url
+    artist_key = _normalize(artist)
+    for result in _ytmusic_search(artist, "artists", 10):
+        if artist_key and _normalize(result.get("artist")) == artist_key and result.get("browseId"):
+            return f"https://music.youtube.com/channel/{result['browseId']}"
     return None
 
 
 def list_artist_releases(channel_url):
     """
-    Lists every album/playlist under an artist channel's "releases" tab,
-    falling back to the "albums" tab if releases isn't available.
+    Lists every album on a YouTube Music artist page.
 
     Args:
         channel_url (str): The artist's channel URL, from discover_artist_channel().
 
     Returns:
-        list[dict]: [{title, url, track_count}, ...], or [] if neither tab
-        resolved - callers should ask the user for a direct URL rather than
+        list[dict]: [{title, url, track_count}, ...] (track_count is always
+        None - the artist page doesn't say), or [] if the page couldn't be
+        read - callers should ask the user for a direct URL rather than
         guessing further.
     """
-    for tab in ("releases", "albums"):
-        entries = _run_flat_playlist_json(f"{channel_url.rstrip('/')}/{tab}")
-        if entries:
-            return [
-                {
-                    "title": e.get("title", ""),
-                    "url": e.get("url") or e.get("webpage_url", ""),
-                    "track_count": e.get("playlist_count") or e.get("n_entries"),
-                }
-                for e in entries
-            ]
-    return []
+    match = _CHANNEL_ID_RE.search(channel_url or "")
+    if not match:
+        return []
+    try:
+        shelf = _ytmusic().get_artist(match.group(1)).get("albums") or {}
+        albums = shelf.get("results") or []
+        # The page shows about ten; "params" means there are more behind "More".
+        if shelf.get("params"):
+            albums = _ytmusic().get_artist_albums(shelf["browseId"], shelf["params"])
+    except Exception as e:
+        interfaceComponents.Print_Tag(f"Couldn't read the YouTube Music artist page {channel_url}: {e}", tag="Error")
+        return []
+    releases = []
+    for album in albums:
+        # The artist page calls it audioPlaylistId, the full album list playlistId.
+        playlist_id = album.get("audioPlaylistId") or album.get("playlistId")
+        if playlist_id:
+            releases.append({
+                "title": album.get("title", ""),
+                "url": f"https://music.youtube.com/playlist?list={playlist_id}",
+                "track_count": None,
+            })
+    return releases

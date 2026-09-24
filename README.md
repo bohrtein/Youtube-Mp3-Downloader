@@ -141,7 +141,7 @@ to search YouTube Music and download a song, an album, or an artist's studio
 discography straight to the computer's Downloads folder - completely separate
 from the library folder/`library.db` above. It's backed by three new modules:
 
-- `core/musicSearch.py` - searches YouTube Music for songs, album candidates, and an artist's releases (yt-dlp wrappers, no scraping).
+- `core/musicSearch.py` - searches YouTube Music (never plain YouTube) for songs, album candidates, and an artist's albums, via ytmusicapi and yt-dlp.
 - `core/releaseDedup.py` - normalizes release titles so duplicate editions (deluxe/extended/remaster) collapse to one, and filters out live albums/compilations.
 - `core/smartDownload.py` - the CLI that ties it together: `python -m core.smartDownload --song/--album/--artist ...` prints a plan first, and only downloads once told to with `--download`.
 
