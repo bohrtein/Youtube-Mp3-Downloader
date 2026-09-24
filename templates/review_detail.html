@@ -6,7 +6,7 @@
     <div class="sg-item" id="item-{{ item.item_id }}">
         <div class="sg-song{% if item.decision == 'skipped' %} sg-off{% endif %}">
             <input class="sg-check" type="checkbox" value="{{ item.item_id }}" aria-label="Download {{ item.title }}"
-                   {% if done %}disabled{% elif item.kept and item.decision in ('pending', 'failed') and item.in_library != 'yes' %}checked{% endif %}>
+                   {% if done %}disabled{% elif item.kept and item.decision in ('pending', 'failed') %}checked{% endif %}>
             <div class="sg-song-main">
                 <a class="sg-song-title" href="https://www.youtube.com/watch?v={{ item.youtube_id }}" target="_blank" rel="noopener noreferrer">{{ item.title }}</a>
                 <span class="sg-song-meta">

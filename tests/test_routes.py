@@ -3,6 +3,7 @@ import pytest
 
 import core.lookupJobs as lookupJobs
 import database.suggestionsRepo as suggestionsRepo
+import routes.friendsPublic as friendsPublic
 from tests.conftest import ADMIN_HEADERS
 
 
@@ -161,7 +162,7 @@ def test_submit_validation(client, friend, items):
 
 
 def test_submit_limits(client, friend):
-    ids = [f"id{n:09d}" for n in range(51)]
+    ids = [f"id{n:09d}" for n in range(friendsPublic.MAX_KEPT_ITEMS + 1)]
     serve(friend, *[song(i) for i in ids])
     assert submit(client, friend, [{"youtube_id": i, "kept": True} for i in ids]).status_code == 400
     for n in range(3):

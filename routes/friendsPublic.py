@@ -15,8 +15,8 @@ import database.suggestionsRepo as suggestionsRepo
 bp = Blueprint("friends_public", __name__, url_prefix="/suggest/<token>")
 
 TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{20,64}$")
-MAX_KEPT_ITEMS = 50
-MAX_TOTAL_ITEMS = 150
+MAX_KEPT_ITEMS = 500
+MAX_TOTAL_ITEMS = 500
 MAX_MESSAGE_LENGTH = 500
 MAX_OPEN_SUBMISSIONS = 3
 COVERS_DIR = Path(__file__).resolve().parent.parent / "static" / "covers"

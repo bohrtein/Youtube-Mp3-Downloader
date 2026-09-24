@@ -6,8 +6,8 @@
 
   var cfg = document.body.dataset;
   var toastHost = document.getElementById("toastHost");
-  var MAX_KEPT = 50;
-  var MAX_TOTAL = 150;
+  var MAX_KEPT = 500;
+  var MAX_TOTAL = 500;
   var POLL_MS = 1500;
   var POLL_LIMIT_MS = 8 * 60 * 1000;
   var PAGE_SIZE = 100;
@@ -166,7 +166,7 @@
         youtube_id: song.youtube_id, title: song.title, channel: song.channel || "",
         artist: song.artist || "", album: song.album || "", duration: song.duration || null,
         in_library: song.in_library || "no", sp_title: song.sp_title || "", sp_artist: song.sp_artist || "",
-        kept: song.in_library !== "yes"
+        kept: true
       });
       added++;
     });
