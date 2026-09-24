@@ -23,7 +23,7 @@ COVERS_DIR = Path(__file__).resolve().parent.parent / "static" / "covers"
 
 CONTENT_SECURITY_POLICY = (
     "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
-    "img-src 'self' data:; connect-src 'self'; font-src 'self'; "
+    "img-src 'self' data: https://i.ytimg.com; connect-src 'self'; font-src 'self'; "
     "frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
 )
 

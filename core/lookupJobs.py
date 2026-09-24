@@ -89,7 +89,8 @@ def search_cache_key(mode, query):
 
 
 def link_cache_key(link):
-    return f"link:{link['kind']}:{link['id']}"
+    # v2: playlists used to be cut off at 200 songs; don't serve those.
+    return f"link2:{link['kind']}:{link['id']}"
 
 
 def _remember_served(friend_id, songs):
@@ -234,7 +235,7 @@ def _run(job):
             raise LookupFailed("Couldn't open that playlist (private or empty?).")
         note = None
         if len(songs) >= musicSearch.MAX_PLAYLIST_TRACKS:
-            note = f"Only the first {musicSearch.MAX_PLAYLIST_TRACKS} songs are shown."
+            note = f"Only the first {musicSearch.MAX_PLAYLIST_TRACKS:,} songs are shown."
         return _tag(songs, "ytm_album" if songs[0].get("album") else "yt_playlist"), note
     return _run_spotify(job, link)
 

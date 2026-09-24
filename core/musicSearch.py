@@ -6,7 +6,10 @@ import core.interfaceComponents as interfaceComponents
 import core.checkDependencies as checkDependencies
 
 YTDLP_TIMEOUT_SECONDS = 60
-MAX_PLAYLIST_TRACKS = 200
+# yt-dlp pages through a playlist 100 entries per request, so a big one
+# needs far longer than a search.
+PLAYLIST_TIMEOUT_SECONDS = 300
+MAX_PLAYLIST_TRACKS = 5000
 # Anything longer is a full album/concert upload, not a song.
 MAX_SONG_SECONDS = 15 * 60
 
@@ -14,7 +17,7 @@ _RELEASE_PREFIX_RE = re.compile(r"^(album|ep|single)\s+-\s+", re.IGNORECASE)
 _NON_ALNUM_RE = re.compile(r"[^0-9a-z]+")
 
 
-def _run_flat_playlist_json(target, playlist_end=None):
+def _run_flat_playlist_json(target, playlist_end=None, timeout=YTDLP_TIMEOUT_SECONDS):
     """
     Runs yt-dlp against a search expression or URL with --flat-playlist
     --dump-json and parses each output line as its own JSON object (yt-dlp
@@ -23,6 +26,7 @@ def _run_flat_playlist_json(target, playlist_end=None):
     Args:
         target (str): A yt-dlp search expression (e.g. "ytsearch5:...") or a URL.
         playlist_end (int | None): Stop after this many entries.
+        timeout (int): Seconds before yt-dlp is killed.
 
     Returns:
         list[dict]: Parsed entries, or [] if yt-dlp fails or returns nothing.
@@ -37,7 +41,7 @@ def _run_flat_playlist_json(target, playlist_end=None):
         # No check=True: with --ignore-errors yt-dlp exits non-zero when any
         # single entry fails, even though the rest were printed fine.
         result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8",
-                                errors="replace", timeout=YTDLP_TIMEOUT_SECONDS)
+                                errors="replace", timeout=timeout)
     except Exception as e:
         interfaceComponents.Print_Tag(f"Search failed for '{target}': {e}", tag="Error")
         return []
@@ -156,7 +160,7 @@ def list_playlist_tracks(url, limit=MAX_PLAYLIST_TRACKS):
         list[dict]: search_songs() shape plus "track_number", and "album"
         when the playlist is an auto-generated album ("OLAK5uy..." ID).
     """
-    entries = _run_flat_playlist_json(url, playlist_end=limit)
+    entries = _run_flat_playlist_json(url, playlist_end=limit, timeout=PLAYLIST_TIMEOUT_SECONDS)
     tracks = []
     for entry in entries:
         song = _entry_to_song(entry)

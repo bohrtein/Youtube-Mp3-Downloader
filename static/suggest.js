@@ -10,18 +10,22 @@
   var MAX_TOTAL = 150;
   var POLL_MS = 1500;
   var POLL_LIMIT_MS = 8 * 60 * 1000;
+  var PAGE_SIZE = 100;
 
   var statusEl = document.getElementById("lookupStatus");
   var resultsPanel = document.getElementById("resultsPanel");
   var resultsList = document.getElementById("resultsList");
   var resultsNote = document.getElementById("resultsNote");
   var resultsCount = document.getElementById("resultsCount");
+  var resultsPager = document.getElementById("resultsPager");
+  var addAllBtn = document.getElementById("addAllBtn");
   var basketList = document.getElementById("basketList");
   var basketCount = document.getElementById("basketCount");
   var submitBtn = document.getElementById("submitBtn");
   var messageInput = document.getElementById("messageInput");
   var busy = false;
   var results = [];
+  var page = 0;
 
   /* --- basket storage ---------------------------------------------------- */
   function loadBasket() {
@@ -68,6 +72,20 @@
     });
   }
 
+  /* The video's thumbnail, loaded by the browser straight from YouTube (never
+     through this server). Cropped square, which for YouTube Music uploads is
+     exactly the album cover. */
+  function cover(song) {
+    var img = el("img", "sg-album-cover");
+    img.alt = "";
+    img.loading = "lazy";
+    img.decoding = "async";
+    img.referrerPolicy = "no-referrer";
+    img.src = "https://i.ytimg.com/vi/" + encodeURIComponent(song.youtube_id) + "/mqdefault.jpg";
+    img.addEventListener("error", function () { img.style.visibility = "hidden"; });
+    return img;
+  }
+
   /* One song's text: what was asked for (Spotify) and what was found (YouTube). */
   function songInfo(song) {
     var main = el("div", "sg-song-main");
@@ -87,15 +105,45 @@
   }
 
   /* --- results ------------------------------------------------------------------ */
+  function pageCount() { return Math.max(1, Math.ceil(results.length / PAGE_SIZE)); }
+  function pageSongs() { return results.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE); }
+
+  /* Long playlists are shown a hundred at a time: 1-100, 101-200, ... */
+  function renderPager() {
+    resultsPager.textContent = "";
+    resultsPager.hidden = pageCount() < 2;
+    for (var i = 0; i < pageCount(); i++) {
+      var first = i * PAGE_SIZE + 1;
+      var last = Math.min((i + 1) * PAGE_SIZE, results.length);
+      var btn = el("button", "mx-btn sg-btn-sm" + (i === page ? " sg-page-on" : ""), first + "–" + last);
+      btn.type = "button";
+      if (i === page) btn.setAttribute("aria-current", "page");
+      btn.addEventListener("click", (function (target) {
+        return function () {
+          page = target;
+          renderResults(resultsNote.textContent);
+          resultsPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+        };
+      })(i));
+      resultsPager.appendChild(btn);
+    }
+  }
+
   function renderResults(note) {
     resultsPanel.hidden = false;
     APP.decodeAll(resultsPanel);
     resultsList.textContent = "";
     resultsNote.hidden = !note;
     resultsNote.textContent = note || "";
-    resultsCount.textContent = results.length + (results.length === 1 ? " song" : " songs");
-    results.forEach(function (song) {
+    page = Math.min(page, pageCount() - 1);
+    resultsCount.textContent = pageCount() > 1
+      ? "showing " + (page * PAGE_SIZE + 1) + "–" + Math.min((page + 1) * PAGE_SIZE, results.length) + " of " + results.length + " songs"
+      : results.length + (results.length === 1 ? " song" : " songs");
+    addAllBtn.textContent = pageCount() > 1 ? "Add these " + pageSongs().length : "Add all";
+    renderPager();
+    pageSongs().forEach(function (song) {
       var row = el("div", "sg-song");
+      row.appendChild(cover(song));
       row.appendChild(songInfo(song));
       var added = inBasket(song.youtube_id);
       var btn = el("button", "mx-btn sg-btn-sm" + (added ? " sg-added" : ""), added ? "Added" : "Add");
@@ -159,6 +207,7 @@
         renderBasket();
       });
       row.appendChild(box);
+      row.appendChild(cover(song));
       row.appendChild(songInfo(song));
       var remove = el("button", "mx-btn sg-btn-sm", "✕");
       remove.type = "button";
@@ -185,6 +234,7 @@
       return poll(res.data.job_id, label, Date.now());
     }).then(function (data) {
       results = data.results || [];
+      page = 0;
       setStatus(results.length ? "" : "Nothing found.");
       renderResults(data.note);
     }).catch(function (err) {
@@ -230,7 +280,7 @@
     radio.addEventListener("change", function () { searchInput.placeholder = placeholders[radio.value]; });
   });
 
-  document.getElementById("addAllBtn").addEventListener("click", function () { addToBasket(results); });
+  addAllBtn.addEventListener("click", function () { addToBasket(pageSongs()); });
   document.getElementById("clearBasketBtn").addEventListener("click", function () {
     if (basket.length && confirm("Empty the basket?")) {
       basket = [];

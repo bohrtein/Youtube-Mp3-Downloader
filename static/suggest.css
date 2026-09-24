@@ -63,6 +63,11 @@ a.sg-song-title:hover { color: var(--mx-green); }
 .sg-btn-sm { min-height: 36px; padding: 0 12px; font-size: 11px; flex: 0 0 auto; }
 .sg-btn-sm.sg-added { color: var(--mx-green); border-color: rgba(0, 255, 90, 0.4); }
 
+.sg-pager { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.sg-pager[hidden] { display: none; }
+.sg-pager .sg-btn-sm { min-width: 0; padding: 0 10px; font-variant-numeric: tabular-nums; }
+.sg-btn-sm.sg-page-on { color: var(--mx-green); border-color: rgba(0, 255, 90, 0.55); background: var(--mx-green-low); }
+
 .sg-check {
   flex: 0 0 auto;
   width: 22px; height: 22px;
