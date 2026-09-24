@@ -7,6 +7,7 @@ from flask import Flask, render_template, request, jsonify, abort
 from flask_socketio import SocketIO
 import database.databaseConnector as databaseConnector
 import database.suggestionsRepo as suggestionsRepo
+import database.libraryFiles as libraryFiles
 import core.approvedDownloads as approvedDownloads
 import core.checkDependencies as checkDependencies
 import core.interfaceComponents as interfaceComponents
@@ -192,13 +193,19 @@ def album_detail(album_id):
 @app.route('/delete_album/<int:album_id>', methods=['DELETE'])
 def delete_album(album_id):
     """
-    Performs a cascading delete: removes songs before removing the album record.
+    Performs a cascading delete: removes the album's files from the library
+    folder, then its songs, then the album record.
     """
     conn = databaseConnector.connect_to_db()
     if not conn: return {"success": False, "message": "DB Connection failed"}, 500
     
     try:
         cursor = conn.cursor()
+        # Files first: if one can't be deleted the rows stay, instead of the
+        # next sync quietly bringing the song back.
+        keys = libraryFiles.song_keys(cursor, "s.album_id = ?", (album_id,))
+        deleted_files = libraryFiles.delete_song_files(databaseConnector.get_library_folder(), keys)
+
         # Delete songs first to satisfy potential Foreign Key constraints
         cursor.execute("DELETE FROM songs WHERE album_id = ?", (album_id,))
         cursor.execute("DELETE FROM albums WHERE album_id = ?", (album_id,))
@@ -209,7 +216,8 @@ def delete_album(album_id):
         if os.path.exists(cover_path):
             os.remove(cover_path)
 
-        return {"success": True, "message": "Album deleted successfully"}
+        suggestionsRepo.invalidate_library_index()
+        return {"success": True, "message": f"Album deleted ({deleted_files} files removed)"}
     except Exception as e:
         interfaceComponents.Print_Tag(f"Deleting album {album_id} failed: {e}", tag="Error")
         return {"success": False, "message": str(e)}, 500
@@ -220,7 +228,7 @@ def delete_album(album_id):
 @app.route('/delete_song/<int:song_id>', methods=['DELETE'])
 def delete_song(song_id):
     """
-    Removes a single song record from the database.
+    Removes a single song's file from the library folder, then its record.
     """
     conn = databaseConnector.connect_to_db()
     if not conn:
@@ -228,9 +236,12 @@ def delete_song(song_id):
 
     try:
         cursor = conn.cursor()
+        keys = libraryFiles.song_keys(cursor, "s.song_id = ?", (song_id,))
+        deleted_files = libraryFiles.delete_song_files(databaseConnector.get_library_folder(), keys)
         cursor.execute("DELETE FROM songs WHERE song_id = ?", (song_id,))
         conn.commit()
-        return {"success": True, "message": "Song removed from database"}
+        suggestionsRepo.invalidate_library_index()
+        return {"success": True, "message": f"Song deleted ({deleted_files} files removed)"}
     except Exception as e:
         interfaceComponents.Print_Tag(f"Deleting song {song_id} failed: {e}", tag="Error")
         return {"success": False, "message": str(e)}, 500

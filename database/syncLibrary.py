@@ -8,6 +8,23 @@ import core.interfaceComponents as interfaceComponents
 import core.audioTags as audioTags
 import core.linkResolver as linkResolver
 
+def parse_filename(file_path):
+    """
+    The (track_number, song_title) a song row gets from its file name, e.g.
+    "01 - SongTitle" -> (1, "SongTitle"). No leading number -> (0, whole name).
+    """
+    filename_raw = Path(file_path).stem
+    # Regex: Matches leading digits followed by a period, dash, or space
+    track_match = re.match(r'^(\d+)(?:\s*[\.\-\s]\s*)', filename_raw)
+    if track_match:
+        return int(track_match.group(1)), filename_raw[track_match.end():].strip()
+    return 0, filename_raw
+
+def read_artist_album(audio):
+    """The (artist_name, album_name) a song row is filed under, from its tags."""
+    return (audio.get("artist", ["Unknown Artist"])[0].strip(),
+            audio.get("album", ["Unknown Album"])[0].strip())
+
 def Sync_Folder_To_Db(target_dir):
     """
     Scans the local storage and synchronizes song metadata into the SQL database.
@@ -34,16 +51,7 @@ def Sync_Folder_To_Db(target_dir):
             audio = audioTags.open_tags(file_path)
             
             # --- 1. TRACK & TITLE PARSING ---
-            # Logic: Attempt to extract track numbers from filenames (e.g., "01 - SongTitle")
-            filename_raw = file_path.stem 
-            track_num = 0
-            song_title = filename_raw
-            
-            # Regex: Matches leading digits followed by a period, dash, or space
-            track_match = re.match(r'^(\d+)(?:\s*[\.\-\s]\s*)', filename_raw)
-            if track_match:
-                track_num = int(track_match.group(1))
-                song_title = filename_raw[track_match.end():].strip()
+            track_num, song_title = parse_filename(file_path)
 
             # --- 2. TECHNICAL METADATA ---
             # FLAC doesn't expose a simple bitrate, so average it from file size and
@@ -54,8 +62,7 @@ def Sync_Folder_To_Db(target_dir):
             bitrate_str = f"{actual_bitrate}kbps"
             
             # Metadata tag extraction with fallbacks
-            artist_name = audio.get("artist", ["Unknown Artist"])[0].strip()
-            album_name = audio.get("album", ["Unknown Album"])[0].strip()
+            artist_name, album_name = read_artist_album(audio)
             
             # Date handling: Extracts the first 4 characters to standardize as a Year (int)
             raw_date = audio.get("date", audio.get("year", [None]))[0]

@@ -57,7 +57,7 @@
                     </span>
                     <span class="mx-track-duration">{{ (song.duration_seconds // 60) }}:{{ "%02d" % (song.duration_seconds % 60) }}</span>
                     <span class="mx-pill">{{ song.bit_rate }}</span>
-                    <button class="mx-track-delete" type="button" onclick="removeSong('{{ song.song_id }}')" aria-label="Remove from database">
+                    <button class="mx-track-delete" type="button" onclick="removeSong('{{ song.song_id }}')" aria-label="Delete song">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
                     </button>
                 </div>
@@ -76,7 +76,7 @@
     const APP_ROOT = "{{ request.script_root }}";
 
     function removeSong(songId) {
-        if (confirm("Remove this song from the database?")) {
+        if (confirm("Delete this song? Its file in the library folder is deleted too.")) {
             fetch(`${APP_ROOT}/delete_song/${songId}`, {
                 method: 'DELETE',
                 headers: {

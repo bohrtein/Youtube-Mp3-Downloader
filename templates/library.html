@@ -128,7 +128,7 @@
     }
 
     function removeAlbum(albumId, albumName) {
-        if (confirm(`Delete entire album "${albumName}"?`)) {
+        if (confirm(`Delete entire album "${albumName}"? Its files in the library folder are deleted too.`)) {
             fetch(`${APP_ROOT}/delete_album/${albumId}`, { method: 'DELETE' })
             .then(response => response.json())
             .then(data => {
