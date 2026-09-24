@@ -52,7 +52,7 @@ def _run_flat_playlist_json(target, playlist_end=None, timeout=YTDLP_TIMEOUT_SEC
     Returns:
         list[dict]: Parsed entries, or [] if yt-dlp fails or returns nothing.
     """
-    cmd = [checkDependencies.resolve_ytdlp(), "--flat-playlist", "--dump-json", "--ignore-errors"]
+    cmd = [*checkDependencies.ytdlp_command(), "--flat-playlist", "--dump-json", "--ignore-errors"]
     if playlist_end:
         cmd += ["--playlist-end", str(playlist_end)]
     # "--" stops option parsing, so a target starting with "-" can never be

@@ -27,6 +27,10 @@ Track list with duration, bitrate, and a link back to the original source video.
 ```bash
 pip install -r requirements.txt
 ```
+yt-dlp also needs a JavaScript runtime to download from YouTube (without one every download fails with `HTTP Error 403: Forbidden`). Install [deno](https://deno.com); the app finds it on PATH or in `~/.deno/bin`, and falls back to node, quickjs, or bun:
+```bash
+curl -fsSL https://deno.land/install.sh | sh
+```
 ### 2. Launch the App
 ```bash
 python app.py

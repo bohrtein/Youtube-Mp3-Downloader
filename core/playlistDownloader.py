@@ -66,7 +66,7 @@ def download_file_flac(url, output_dir, file_template=PLAYLIST_FILE_TEMPLATE, wr
     # --print after_move:filepath reports the final on-disk path for each item,
     # which callers need to stream/tag the file without re-scanning the folder.
     cmd = [
-        checkDependencies.resolve_ytdlp(), "-ciw", "-x",
+        *checkDependencies.ytdlp_command(), "-ciw", "-x",
         "--audio-format", "flac",
         "--audio-quality", "0",
         "--embed-metadata", "--embed-thumbnail",
@@ -106,7 +106,7 @@ def download_file_mp3(url, output_dir, file_template=PLAYLIST_FILE_TEMPLATE, wri
     output_template = f"{output_dir}/{file_template}"
 
     cmd = [
-        checkDependencies.resolve_ytdlp(), "-ciw", "-x",
+        *checkDependencies.ytdlp_command(), "-ciw", "-x",
         "--audio-format", "mp3",
         "--audio-quality", "320K",
         # --audio-quality only sets bitrate. Scoped to ExtractAudio because a

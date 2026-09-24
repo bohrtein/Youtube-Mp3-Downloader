@@ -12,6 +12,7 @@ def dependencies_check():
     Checks for yt-dlp, ffprobe, and ffmpeg sequentially.
     """
     check_ytdlp()
+    check_js_runtime()
     check_ffprobe()
     check_ffmpeg()
     interfaceComponents.Print_Tag("Dependencies verified.", tag="Success")
@@ -64,6 +65,60 @@ def resolve_ytdlp():
     if platform.system() == "Windows" and Path("./yt-dlp.exe").exists():
         return "./yt-dlp.exe"
     return "yt-dlp"
+
+# yt-dlp needs a JavaScript runtime to solve YouTube's download challenges;
+# without one YouTube answers the audio request with "HTTP Error 403:
+# Forbidden". yt-dlp's own priority order, highest first.
+JS_RUNTIMES = ("deno", "node", "quickjs", "bun")
+
+def resolve_js_runtime():
+    """
+    Finds a JavaScript runtime for yt-dlp, searching this venv's bin/, PATH,
+    and (for deno) ~/.deno/bin, where deno's install script puts it without
+    adding it to the PATH App Hub's launcher sees.
+
+    Returns:
+        tuple[str, str] | None: (runtime name, binary path), or None.
+    """
+    for name in JS_RUNTIMES:
+        found = _venv_bin_candidate(name) or shutil.which(name) or shutil.which(f"{name}.exe")
+        if not found and name == "deno":
+            exe_name = "deno.exe" if platform.system() == "Windows" else "deno"
+            candidate = Path.home() / ".deno" / "bin" / exe_name
+            if candidate.exists():
+                found = str(candidate)
+        if found:
+            return name, found
+    return None
+
+def ytdlp_command():
+    """
+    The start of every yt-dlp command: the binary, plus --js-runtimes
+    pointing at whichever runtime resolve_js_runtime() found. yt-dlp only
+    enables deno by default, and only from PATH, so it's passed explicitly.
+    """
+    cmd = [resolve_ytdlp()]
+    runtime = resolve_js_runtime()
+    if runtime:
+        cmd += ["--js-runtimes", f"{runtime[0]}:{runtime[1]}"]
+    return cmd
+
+def check_js_runtime():
+    """
+    Reports which JavaScript runtime yt-dlp will use, or warns that there
+    is none (every YouTube download will then fail with 403 Forbidden).
+    Nothing is installed automatically.
+    """
+    interfaceComponents.Print_Tag("Verifying JavaScript runtime for yt-dlp", tag="System")
+    runtime = resolve_js_runtime()
+    if runtime:
+        interfaceComponents.Print_Tag(f"{runtime[0]} verified ({runtime[1]})!", tag="Success")
+    else:
+        interfaceComponents.Print_Tag(
+            "No JavaScript runtime found; YouTube downloads will fail with 403 Forbidden. "
+            "Install deno: `curl -fsSL https://deno.land/install.sh | sh`.",
+            tag="Error"
+        )
 
 def check_ytdlp():
     """
