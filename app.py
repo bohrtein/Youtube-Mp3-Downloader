@@ -6,7 +6,11 @@ from pathlib import Path
 from flask import Flask, render_template, request, jsonify, abort
 from flask_socketio import SocketIO
 import database.databaseConnector as databaseConnector
+import database.suggestionsRepo as suggestionsRepo
+import core.approvedDownloads as approvedDownloads
 import core.checkDependencies as checkDependencies
+import routes.friendsPublic as friendsPublic
+import routes.suggestAdmin as suggestAdmin
 import main
 
 
@@ -71,6 +75,9 @@ def on_socket_connect(auth=None):
 def healthz():
     return "ok"
 
+app.register_blueprint(friendsPublic.bp)
+app.register_blueprint(suggestAdmin.bp)
+
 # --- WEB ROUTES ---
 
 @app.route('/')
@@ -78,7 +85,11 @@ def main_dashboard():
     """
     Renders the primary control dashboard.
     """
-    return render_template('main.html', library_folder=databaseConnector.get_library_folder())
+    return render_template(
+        'main.html',
+        library_folder=databaseConnector.get_library_folder(),
+        pending_suggestions=suggestionsRepo.count_pending_submissions(),
+    )
 
 @app.route('/browse_folders')
 def browse_folders():
@@ -239,6 +250,10 @@ def handle_download_batch(data):
     audio_format = data.get('format', 'flac')
 
     def background_task():
+        with approvedDownloads.download_lock:
+            download_all()
+
+    def download_all():
         total_urls = len(urls)
         checkDependencies.dependencies_check() # Ensure yt-dlp/ffmpeg are present
 

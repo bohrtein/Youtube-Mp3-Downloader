@@ -71,7 +71,8 @@ def _entry_to_song(entry):
     None for entries that aren't single videos (channels, playlists).
     """
     video_id = entry.get("id") or ""
-    if entry.get("ie_key") != "Youtube" or len(video_id) != 11:
+    # Flat playlist entries carry ie_key; a fully extracted video only extractor_key.
+    if (entry.get("ie_key") or entry.get("extractor_key")) != "Youtube" or len(video_id) != 11:
         return None
     channel = entry.get("channel") or entry.get("uploader") or ""
     return {
@@ -108,6 +109,24 @@ def search_songs(query, limit=20):
         list[dict]: [{youtube_id, title, channel, uploader, duration, url}, ...]
     """
     return _unique_songs(_run_flat_playlist_json(f"ytsearch{limit}:{query}"))
+
+
+def get_video(video_id):
+    """
+    Full metadata for one video, including the music fields YouTube attaches
+    to official uploads (artist, album, track number) when it has them.
+
+    Returns:
+        dict | None: search_songs() shape plus "artist", "album", "track_number".
+    """
+    entries = _run_flat_playlist_json(f"https://www.youtube.com/watch?v={video_id}")
+    song = _entry_to_song(entries[0]) if entries else None
+    if song:
+        entry = entries[0]
+        song["artist"] = entry.get("artist") or entry.get("creator") or None
+        song["album"] = entry.get("album") or None
+        song["track_number"] = entry.get("track_number")
+    return song
 
 
 def search_artist_songs(artist, limit=30):

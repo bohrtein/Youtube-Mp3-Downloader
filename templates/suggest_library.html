@@ -1,0 +1,53 @@
+{% extends "_suggest_base.html" %}
+{% block title %}Library{% endblock %}
+{% block content %}
+    <div class="mx-topbar">
+        <div class="mx-brand">
+            <span class="mx-mark">music manager</span>
+            <p class="mx-tagline" data-decode>library</p>
+        </div>
+        <a class="mx-btn" href="{{ url_for('friends_public.home') }}">Suggest</a>
+    </div>
+
+    <div class="mx-search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input class="mx-input" type="search" id="libraryFilter" placeholder="Search albums, artists or songs...">
+    </div>
+
+    <p class="mx-hint" id="libraryCount" style="margin:0 0 10px;">{{ albums|length }} albums</p>
+
+    {% if not albums %}
+    <p class="sg-empty">The library is empty.</p>
+    {% endif %}
+
+    <div class="mx-rows" id="albumList">
+        {% for album in albums %}
+        <div class="mx-row">
+            <button class="mx-row-head sg-album-head" type="button" aria-expanded="false">
+                {% if album.has_cover %}
+                <img class="sg-album-cover" src="{{ url_for('static', filename='covers/' ~ album.album_id ~ '.jpg') }}" alt="" loading="lazy" decoding="async">
+                {% else %}
+                <span class="sg-album-cover sg-album-cover-blank" aria-hidden="true"></span>
+                {% endif %}
+                <span class="mx-row-title">{{ album.album_name }}<span class="sg-song-meta">{{ album.artist_name }}{% if album.release_date %} · {{ album.release_date }}{% endif %}</span></span>
+                <span class="mx-row-meta">{{ album.songs|length }}</span>
+                <span class="mx-chevron" aria-hidden="true">&#9656;</span>
+            </button>
+            <div class="mx-row-body">
+                <ul class="sg-album-songs">
+                    {% for song in album.songs %}
+                    <li>
+                        <span class="sg-num">{{ song.track_number or '' }}</span>
+                        <span class="sg-name">{{ song.title }}</span>
+                        <span class="sg-dur">{% if song.duration %}{{ song.duration // 60 }}:{{ "%02d" % (song.duration % 60) }}{% endif %}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='suggest-library.js') }}" defer></script>
+{% endblock %}

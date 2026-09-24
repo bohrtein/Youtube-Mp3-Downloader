@@ -51,6 +51,69 @@ CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT
 );
+
+-- Friend Suggestions: a friend's token is their whole identity.
+CREATE TABLE IF NOT EXISTS friends (
+    friend_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    token TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    revoked_at TEXT,
+    last_seen_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS submissions (
+    submission_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    friend_id INTEGER NOT NULL,
+    message TEXT,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'in_review', 'done', 'rejected')),
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    reviewed_at TEXT,
+    FOREIGN KEY (friend_id) REFERENCES friends(friend_id) ON DELETE CASCADE
+);
+
+-- Both the songs a friend kept (kept = 1) and the ones they unticked (kept = 0).
+CREATE TABLE IF NOT EXISTS submission_items (
+    item_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    submission_id INTEGER NOT NULL,
+    position INTEGER NOT NULL,
+    kept INTEGER NOT NULL,
+    source TEXT NOT NULL,
+    youtube_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    channel TEXT,
+    artist TEXT,
+    album TEXT,
+    track_number INTEGER,
+    duration_seconds INTEGER,
+    orig_youtube_id TEXT,
+    sp_track_id TEXT,
+    sp_title TEXT,
+    sp_artist TEXT,
+    sp_album TEXT,
+    sp_duration_seconds INTEGER,
+    flags TEXT NOT NULL DEFAULT '[]',
+    in_library TEXT NOT NULL DEFAULT 'no' CHECK (in_library IN ('yes', 'maybe', 'no')),
+    decision TEXT NOT NULL DEFAULT 'pending' CHECK (decision IN ('pending', 'approved', 'skipped', 'downloading', 'downloaded', 'failed')),
+    error TEXT,
+    FOREIGN KEY (submission_id) REFERENCES submissions(submission_id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_submission_items_submission ON submission_items(submission_id);
+
+-- yt-dlp / Spotify lookups, so repeated searches never hit YouTube twice.
+CREATE TABLE IF NOT EXISTS lookup_cache (
+    cache_key TEXT PRIMARY KEY,
+    payload TEXT NOT NULL,
+    fetched_at REAL NOT NULL
+);
+
+-- One row per rate-limited action (friend_id NULL = server-wide budget).
+CREATE TABLE IF NOT EXISTS usage_events (
+    friend_id INTEGER,
+    kind TEXT NOT NULL,
+    at REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_usage_events_lookup ON usage_events(kind, friend_id, at);
 """
 
 DEFAULT_LIBRARY_FOLDER = Path(__file__).resolve().parent.parent / 'downloads'
@@ -65,7 +128,9 @@ def connect_to_db():
         matching how the templates already consume rows.
     """
     try:
-        connection = sqlite3.connect(DB_PATH)
+        # Background jobs and request threads write concurrently; wait for
+        # the lock instead of failing immediately with "database is locked".
+        connection = sqlite3.connect(DB_PATH, timeout=15)
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA foreign_keys = ON")
         return connection

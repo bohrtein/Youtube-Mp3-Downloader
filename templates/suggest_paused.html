@@ -1,0 +1,14 @@
+{% extends "_suggest_base.html" %}
+{% block title %}Suggestions paused{% endblock %}
+{% block content %}
+    <div class="mx-topbar">
+        <div class="mx-brand">
+            <span class="mx-mark">music manager</span>
+            <p class="mx-tagline" data-decode>hi {{ friend.name }}</p>
+        </div>
+    </div>
+    <section class="mx-panel mx-glass">
+        <h2 class="mx-panel-title" data-decode>paused</h2>
+        <p class="sg-empty">Suggestions are switched off for now. Check back later.</p>
+    </section>
+{% endblock %}

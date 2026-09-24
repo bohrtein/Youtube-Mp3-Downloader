@@ -1,0 +1,134 @@
+{% extends "_suggest_base.html" %}
+{% block title %}Friends{% endblock %}
+{% block content %}
+    <div class="mx-topbar">
+        <div class="mx-brand">
+            <span class="mx-mark">music manager</span>
+            <p class="mx-tagline" data-decode>friends</p>
+        </div>
+        <div class="sg-nav">
+            <a class="mx-btn" href="{{ url_for('suggest_admin.review_list') }}">Review</a>
+            <a class="mx-btn" href="{{ url_for('main_dashboard') }}">Dashboard</a>
+        </div>
+    </div>
+
+    <div class="mx-stack">
+        <div class="mx-col">
+            <section class="mx-panel mx-glass">
+                <h2 class="mx-panel-title" data-decode>add a friend</h2>
+                <form id="addFriendForm" class="sg-row-form" autocomplete="off">
+                    <input class="mx-input" id="friendName" maxlength="60" placeholder="Name" aria-label="Friend's name">
+                    <button class="mx-btn mx-btn-go" type="submit">Create link</button>
+                </form>
+                <p class="mx-hint">Each friend gets their own link. The link is their identity: anyone holding it can suggest songs as them.</p>
+            </section>
+
+            <section class="mx-panel mx-glass">
+                <h2 class="mx-panel-title" data-decode>settings</h2>
+                <div class="mx-field">
+                    <label class="mx-label" for="publicBaseUrl">public address</label>
+                    <div class="sg-row-form">
+                        <input class="mx-input" id="publicBaseUrl" value="{{ public_base_url }}"
+                               placeholder="https://your-server.your-tailnet.ts.net:8443">
+                        <button class="mx-btn" type="button" id="saveBaseUrl">Save</button>
+                    </div>
+                    <p class="mx-hint">The Tailscale Funnel address friends reach. Links below are built from it.</p>
+                </div>
+                <label class="mx-toggle">
+                    <input type="checkbox" id="enabledToggle" {% if suggestions_enabled %}checked{% endif %}>
+                    <span class="mx-sw"></span>
+                    Accept suggestions (off = every friend link shows "paused")
+                </label>
+            </section>
+        </div>
+
+        <div class="mx-col">
+            <section class="mx-panel mx-glass">
+                <h2 class="mx-panel-title" data-decode>links</h2>
+                {% if not friends %}<p class="sg-empty">No friends yet.</p>{% endif %}
+                <div class="sg-list">
+                    {% for friend in friends %}
+                    <div class="sg-item">
+                        <div class="sg-song{% if friend.revoked_at %} sg-off{% endif %}" style="flex-direction:column; align-items:stretch;">
+                            <div class="sg-song-main">
+                                <span class="sg-song-title">{{ friend.name }}{% if friend.revoked_at %} (revoked){% endif %}</span>
+                                <span class="sg-song-meta">
+                                    {{ friend.total_submissions }} sent{% if friend.open_submissions %} · {{ friend.open_submissions }} waiting{% endif %}
+                                    · last seen {{ friend.last_seen_at or 'never' }}
+                                </span>
+                            </div>
+                            {% if not friend.revoked_at %}
+                            <input class="mx-input sg-link-field" readonly value="{{ friend.link }}" aria-label="Link for {{ friend.name }}">
+                            {% endif %}
+                            <div class="sg-friend-actions">
+                                {% if not friend.revoked_at %}
+                                <button class="mx-btn sg-btn-sm" type="button" data-copy="{{ friend.link }}">Copy link</button>
+                                <button class="mx-btn sg-btn-sm" type="button" data-action="rotate" data-id="{{ friend.friend_id }}" data-name="{{ friend.name }}">New link</button>
+                                <button class="mx-btn sg-btn-sm" type="button" data-action="revoke" data-id="{{ friend.friend_id }}" data-name="{{ friend.name }}">Revoke</button>
+                                {% else %}
+                                <button class="mx-btn sg-btn-sm" type="button" data-action="rotate" data-id="{{ friend.friend_id }}" data-name="{{ friend.name }}">Restore with new link</button>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
+        </div>
+    </div>
+{% endblock %}
+{% block scripts %}
+<script>
+    const APP_ROOT = "{{ request.script_root }}";
+    const toastHost = document.getElementById('toastHost');
+
+    function postJson(path, body) {
+        return fetch(APP_ROOT + path, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body || {})
+        }).then(r => r.json().catch(() => ({})).then(data => ({ ok: r.ok, data })));
+    }
+
+    function copy(text) {
+        navigator.clipboard.writeText(text)
+            .then(() => MX.toast(true, 'Link copied', toastHost))
+            .catch(() => MX.toast(false, 'Copy failed - select the link and copy it by hand', toastHost));
+    }
+
+    document.getElementById('addFriendForm').addEventListener('submit', e => {
+        e.preventDefault();
+        const name = document.getElementById('friendName').value.trim();
+        if (!name) return MX.toast(false, 'Give the friend a name.', toastHost);
+        postJson('/friends', { name }).then(res => {
+            if (!res.ok) return MX.toast(false, res.data.error || 'Could not create the link.', toastHost);
+            location.reload();
+        });
+    });
+
+    document.querySelectorAll('[data-copy]').forEach(btn => btn.addEventListener('click', () => copy(btn.dataset.copy)));
+
+    document.querySelectorAll('[data-action]').forEach(btn => btn.addEventListener('click', () => {
+        const { action, id, name } = btn.dataset;
+        const question = action === 'revoke'
+            ? `Revoke ${name}'s link? It stops working immediately.`
+            : `Give ${name} a new link? The old one stops working.`;
+        if (!confirm(question)) return;
+        postJson(`/friends/${id}/${action}`).then(res => {
+            if (!res.ok) return MX.toast(false, res.data.error || 'That did not work.', toastHost);
+            location.reload();
+        });
+    }));
+
+    document.getElementById('saveBaseUrl').addEventListener('click', () => {
+        postJson('/settings/suggestions', { public_base_url: document.getElementById('publicBaseUrl').value })
+            .then(res => res.ok ? location.reload() : MX.toast(false, res.data.error || 'Could not save.', toastHost));
+    });
+
+    document.getElementById('enabledToggle').addEventListener('change', e => {
+        postJson('/settings/suggestions', { enabled: e.target.checked }).then(res => {
+            MX.toast(res.ok, res.ok ? (e.target.checked ? 'Suggestions on' : 'Suggestions paused') : 'Could not save.', toastHost);
+        });
+    });
+</script>
+{% endblock %}

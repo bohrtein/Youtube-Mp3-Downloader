@@ -1,0 +1,43 @@
+{% extends "_suggest_base.html" %}
+{% block title %}Review suggestions{% endblock %}
+{% macro submission_row(s) %}
+    <a class="sg-song" href="{{ url_for('suggest_admin.review_detail', submission_id=s.submission_id) }}" style="text-decoration:none;">
+        <div class="sg-song-main">
+            <span class="sg-song-title">{{ s.friend_name }} · {{ s.kept_count or 0 }} songs{% if s.unticked_count %} (+{{ s.unticked_count }} unticked){% endif %}</span>
+            <span class="sg-song-meta">{{ s.created_at }} · {{ s.status|replace('_', ' ') }}{% if s.downloaded_count %} · {{ s.downloaded_count }} downloaded{% endif %}</span>
+            <div class="sg-pills">
+                {% if s.flagged_count %}<span class="sg-flag">{{ s.flagged_count }} flagged</span>{% endif %}
+                {% if s.message %}<span class="sg-flag sg-good">note</span>{% endif %}
+            </div>
+        </div>
+        <span class="mx-chevron" aria-hidden="true">&#9656;</span>
+    </a>
+{% endmacro %}
+{% block content %}
+    <div class="mx-topbar">
+        <div class="mx-brand">
+            <span class="mx-mark">music manager</span>
+            <p class="mx-tagline" data-decode>suggestions</p>
+        </div>
+        <div class="sg-nav">
+            <a class="mx-btn" href="{{ url_for('suggest_admin.friends_page') }}">Friends</a>
+            <a class="mx-btn" href="{{ url_for('main_dashboard') }}">Dashboard</a>
+        </div>
+    </div>
+
+    <section class="mx-panel mx-glass">
+        <h2 class="mx-panel-title" data-decode>waiting</h2>
+        {% if not open_submissions %}<p class="sg-empty">Nothing to review.</p>{% endif %}
+        <div class="sg-list">
+            {% for s in open_submissions %}{{ submission_row(s) }}{% endfor %}
+        </div>
+    </section>
+
+    <section class="mx-panel mx-glass">
+        <h2 class="mx-panel-title" data-decode>recent</h2>
+        {% if not closed_submissions %}<p class="sg-empty">Nothing reviewed yet.</p>{% endif %}
+        <div class="sg-list">
+            {% for s in closed_submissions %}{{ submission_row(s) }}{% endfor %}
+        </div>
+    </section>
+{% endblock %}

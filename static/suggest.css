@@ -1,0 +1,132 @@
+/* Friend Suggestions pages (friend side + my review side), on top of
+   matrix.css + app.css. Only adds what those don't have: song rows with
+   an action, flag pills, and the basket's tick boxes. */
+
+.sg-row-form { display: flex; gap: 8px; align-items: stretch; }
+.sg-row-form .mx-input { flex: 1 1 auto; min-width: 0; }
+.sg-row-form .mx-btn { flex: 0 0 auto; }
+.sg-chips { grid-template-columns: repeat(3, 1fr); margin-bottom: 10px; }
+
+.sg-status { margin: 10px 0 0; font-size: 11px; color: var(--mx-ink-dim); min-height: 1.4em; }
+.sg-status.mx-err { color: var(--mx-red); }
+.sg-note { margin: 0 0 10px; font-size: 10.5px; color: var(--mx-amber); line-height: 1.4; }
+
+.sg-list { display: flex; flex-direction: column; gap: 6px; }
+.sg-song {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--mx-tap);
+  padding: 7px 8px 7px 12px;
+  border: 1px solid rgba(150, 255, 200, 0.15);
+  border-radius: var(--mx-r-sm);
+  background: linear-gradient(160deg, rgba(12, 54, 32, 0.24), rgba(0, 12, 6, 0.10));
+}
+.sg-song.sg-off { opacity: 0.5; }
+.sg-song-main { flex: 1 1 auto; min-width: 0; }
+.sg-song-title {
+  display: block;
+  font-size: 12.5px;
+  color: var(--mx-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+a.sg-song-title { text-decoration: none; }
+a.sg-song-title:hover { color: var(--mx-green); }
+.sg-song-meta {
+  display: block;
+  margin-top: 2px;
+  font-size: 10.5px;
+  color: var(--mx-ink-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sg-song-asked { display: block; margin-top: 2px; font-size: 10.5px; color: var(--mx-ink-dim); }
+.sg-pills { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+.sg-pills:empty { display: none; }
+
+.sg-flag {
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 999px;
+  color: var(--mx-amber);
+  border: 1px solid rgba(255, 201, 74, 0.35);
+  background: rgba(255, 201, 74, 0.08);
+}
+.sg-flag.sg-bad { color: var(--mx-red); border-color: rgba(255, 91, 82, 0.4); background: var(--mx-red-low); }
+.sg-flag.sg-good { color: var(--mx-green); border-color: rgba(0, 255, 90, 0.3); background: var(--mx-green-low); }
+
+.sg-btn-sm { min-height: 36px; padding: 0 12px; font-size: 11px; flex: 0 0 auto; }
+.sg-btn-sm.sg-added { color: var(--mx-green); border-color: rgba(0, 255, 90, 0.4); }
+
+.sg-check {
+  flex: 0 0 auto;
+  width: 22px; height: 22px;
+  margin: 0;
+  accent-color: var(--mx-green);
+  cursor: pointer;
+}
+
+.sg-head-actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; }
+.sg-head-actions .mx-count { font-size: 11px; }
+
+.sg-empty { font-size: 11.5px; color: var(--mx-ink-faint); padding: 8px 2px; }
+
+.sg-nav { display: flex; gap: 8px; flex-wrap: wrap; }
+.sg-badge {
+  display: inline-block;
+  min-width: 18px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--mx-green);
+  color: #001a08;
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.sg-message {
+  white-space: pre-wrap;
+  font-size: 12.5px;
+  color: var(--mx-ink);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.sg-link-field { font-size: 12px; min-height: 36px; padding: 8px 10px; }
+.sg-friend-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+
+/* Friend library: albums as expandable rows. */
+.sg-album-cover {
+  flex: 0 0 auto;
+  width: 38px; height: 38px;
+  border-radius: 5px;
+  object-fit: cover;
+  background: var(--mx-panel-sol);
+}
+.sg-album-cover-blank { display: inline-block; border: 1px solid var(--mx-line-soft); }
+.sg-album-head { text-align: left; }
+.mx-row[hidden] { display: none; }
+.sg-album-songs { list-style: none; margin: 8px 0 0; padding: 0; }
+.sg-album-songs li {
+  display: flex;
+  gap: 8px;
+  padding: 5px 0;
+  font-size: 12px;
+  color: var(--mx-ink);
+  border-bottom: 1px solid var(--mx-line-soft);
+}
+.sg-album-songs li:last-child { border-bottom: 0; }
+.sg-album-songs .sg-num { width: 20px; text-align: right; color: var(--mx-ink-faint); font-variant-numeric: tabular-nums; }
+.sg-album-songs .sg-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sg-album-songs .sg-dur { color: var(--mx-ink-faint); font-variant-numeric: tabular-nums; }
+
+.sg-candidates { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.sg-fix { padding: 8px 12px 12px; border-top: 1px solid var(--mx-line-soft); margin-top: 6px; }
+.sg-fix[hidden] { display: none; }
+.sg-item { display: flex; flex-direction: column; }
+.sg-item > .sg-song { border-radius: var(--mx-r-sm); }

@@ -8,6 +8,7 @@
     <title>Music Manager Dashboard</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='matrix.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='suggest.css') }}">
     <script src="{{ url_for('static', filename='matrix.js') }}" defer></script>
     <script src="{{ url_for('static', filename='app.js') }}" defer></script>
 </head>
@@ -25,7 +26,11 @@
             <span class="mx-mark">music manager</span>
             <p class="mx-tagline" data-decode>library control<span class="mx-caret" aria-hidden="true"></span></p>
         </div>
-        <a class="mx-btn" href="{{ url_for('library_view') }}">Library</a>
+        <div class="sg-nav">
+            <a class="mx-btn" href="{{ url_for('suggest_admin.review_list') }}">Suggestions{% if pending_suggestions %} <span class="sg-badge">{{ pending_suggestions }}</span>{% endif %}</a>
+            <a class="mx-btn" href="{{ url_for('suggest_admin.friends_page') }}">Friends</a>
+            <a class="mx-btn" href="{{ url_for('library_view') }}">Library</a>
+        </div>
     </div>
 
     <div class="mx-stack">

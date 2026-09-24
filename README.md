@@ -98,6 +98,46 @@ The default library folder where your music lives if you haven't picked a differ
 #### .gitignore
 A list that tells Git to ignore temporary files, library.db, generated covers, and your actual music downloads so your GitHub repository stays small and clean.
 
+## 🤝 Friend Suggestions
+
+Friends get a personal link (`/suggest/<token>/`) where they can search (Song / Artist / Album), paste YouTube, YouTube Music or Spotify links, browse the library read-only, fill a basket, untick what they don't want, and send it. Nothing downloads until you approve it on **Suggestions** (dashboard top bar). There you see who sent what, what they kept and what they unticked, and flags such as live/cover/lyrics versions, length mismatches against Spotify, non-official uploaders and songs already in the library. You can fix a match, then download the songs you pick into `Artist/Album/NN - Title` in your library folder. Manage links on **Friends**.
+
+- `routes/friendsPublic.py`: the only public pages. Unknown or revoked tokens return 404, pages send a strict CSP and `no-referrer`, and a submission can only contain songs the server actually showed that friend.
+- `routes/suggestAdmin.py`: friends, review, fix match, approve/reject.
+- `core/lookupJobs.py`: friend searches run one at a time in the background (the page polls). Results are cached in `lookup_cache`, per-friend limits (30 searches/hour, 10 links/hour, 5 submissions/day, at most 3 waiting) and a server-wide budget of 300 yt-dlp calls/day are stored in `usage_events`, and yt-dlp calls are spaced 2 s apart.
+- `core/approvedDownloads.py`: downloads approved songs, writes artist/album/title/track tags, moves them into place and syncs just those folders.
+- `core/spotifyClient.py`: reads public Spotify playlists, albums and tracks (Client Credentials, server-side only).
+
+### Server setup (behind the App Hub)
+
+Admin routes return 404 unless the request came through the App Hub login (the hub sends a per-process secret in `X-Apphub-Auth`). The hub must be a version with `public_paths` support. In `apps/youtube-mp3-downloader/app.toml` on the server:
+
+```toml
+health_path = "/healthz"
+idle_timeout_minutes = 60          # approval downloads run in the background
+public_paths = ["/suggest/", "/static/"]
+
+[env]
+SPOTIFY_CLIENT_ID = "..."          # optional: from developer.spotify.com (Client Credentials)
+SPOTIFY_CLIENT_SECRET = "..."
+```
+
+`app.toml` is gitignored, so the secrets never reach GitHub. Friends reach the app through Tailscale Funnel on its own port, exposing only the public paths:
+
+```bash
+tailscale funnel --bg --https=8443 --set-path /app/youtube-mp3-downloader/suggest http://127.0.0.1:8000/app/youtube-mp3-downloader/suggest
+tailscale funnel --bg --https=8443 --set-path /app/youtube-mp3-downloader/static http://127.0.0.1:8000/app/youtube-mp3-downloader/static
+```
+
+Then put `https://<server>.<tailnet>.ts.net:8443` into **Friends → public address** so the copied links point there.
+
+### Tests
+
+```bash
+pip install pytest
+python -m pytest tests
+```
+
 ## 🤖 Agent Skill: YouTube Music Download
 
 `.claude/skills/youtube-music-download/SKILL.md` teaches an agent (e.g. Claude Code)

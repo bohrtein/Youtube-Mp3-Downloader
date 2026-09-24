@@ -39,7 +39,9 @@ def initiate_playlist_loop():
         else:
             interfaceComponents.Print_Tag("Please enter a valid URL.", tag="Warning")
 
-def download_file_flac(url, output_dir):
+PLAYLIST_FILE_TEMPLATE = "%(playlist_title)s/%(playlist_index)02d - %(title)s.%(ext)s"
+
+def download_file_flac(url, output_dir, file_template=PLAYLIST_FILE_TEMPLATE):
     """
     Executes the yt-dlp binary to download and convert a specific URL.
 
@@ -49,14 +51,13 @@ def download_file_flac(url, output_dir):
     Args:
         url (str): The video or playlist link.
         output_dir (str): The base directory for file storage.
+        file_template (str): yt-dlp output template, relative to output_dir.
+            The default names playlist items "Playlist Title/01 - Title.flac".
 
     Returns:
         list[str]: Absolute paths of the files yt-dlp produced (empty on failure).
     """
-    # Define the file naming and folder hierarchy logic:
-    # Subfolders are named after the Playlist title.
-    # Files are prefixed with their position in the playlist (01 - Title.flac).
-    output_template = f"{output_dir}/%(playlist_title)s/%(playlist_index)02d - %(title)s.%(ext)s"
+    output_template = f"{output_dir}/{file_template}"
 
     # Command Arguments:
     # -c: continue | -i: ignore errors | -w: no overwrites | -x: extract audio
@@ -83,7 +84,7 @@ def download_file_flac(url, output_dir):
         interfaceComponents.Print_Tag(f"Error: {e}", tag="Error")
         return []
 
-def download_file_mp3(url, output_dir):
+def download_file_mp3(url, output_dir, file_template=PLAYLIST_FILE_TEMPLATE):
     """
     Same as download_file_flac, but extracts straight to MP3 (320kbps,
     48000Hz) instead of FLAC, so the result is already player-friendly
@@ -92,11 +93,12 @@ def download_file_mp3(url, output_dir):
     Args:
         url (str): The video or playlist link.
         output_dir (str): The base directory for file storage.
+        file_template (str): yt-dlp output template, relative to output_dir.
 
     Returns:
         list[str]: Absolute paths of the files yt-dlp produced (empty on failure).
     """
-    output_template = f"{output_dir}/%(playlist_title)s/%(playlist_index)02d - %(title)s.%(ext)s"
+    output_template = f"{output_dir}/{file_template}"
 
     cmd = [
         checkDependencies.resolve_ytdlp(), "-ciw", "-x",

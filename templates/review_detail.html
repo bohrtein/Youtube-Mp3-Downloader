@@ -1,0 +1,193 @@
+{% extends "_suggest_base.html" %}
+{% block title %}Suggestions from {{ submission.friend_name }}{% endblock %}
+{% macro fmt(seconds) %}{% if seconds %}{{ seconds // 60 }}:{{ "%02d" % (seconds % 60) }}{% endif %}{% endmacro %}
+{% macro item_row(item) %}
+    {% set done = item.decision in ('downloaded', 'downloading') %}
+    <div class="sg-item" id="item-{{ item.item_id }}">
+        <div class="sg-song{% if item.decision == 'skipped' %} sg-off{% endif %}">
+            <input class="sg-check" type="checkbox" value="{{ item.item_id }}" aria-label="Download {{ item.title }}"
+                   {% if done %}disabled{% elif item.kept and item.decision in ('pending', 'failed') and item.in_library != 'yes' %}checked{% endif %}>
+            <div class="sg-song-main">
+                <a class="sg-song-title" href="https://www.youtube.com/watch?v={{ item.youtube_id }}" target="_blank" rel="noopener noreferrer">{{ item.title }}</a>
+                <span class="sg-song-meta">
+                    {{ item.channel or item.artist or 'unknown channel' }}
+                    {% if item.album %} · {{ item.album }}{% endif %}
+                    {% if item.duration_seconds %} · {{ fmt(item.duration_seconds) }}{% endif %}
+                    · {{ item.source|replace('_', ' ') }}
+                </span>
+                {% if item.sp_title %}
+                <span class="sg-song-asked">asked for: {{ item.sp_artist }} - {{ item.sp_title }}{% if item.sp_album %} ({{ item.sp_album }}){% endif %}{% if item.sp_duration_seconds %} · {{ fmt(item.sp_duration_seconds) }}{% endif %}</span>
+                {% endif %}
+                {% if item.orig_youtube_id %}<span class="sg-song-asked">match changed by you (was {{ item.orig_youtube_id }})</span>{% endif %}
+                <div class="sg-pills">
+                    {% for flag in item.flags %}
+                    <span class="sg-flag{% if flag in ('in_library', 'duplicate') %} sg-bad{% endif %}">{{ flag_labels.get(flag, flag) }}</span>
+                    {% endfor %}
+                    {% if item.decision == 'downloaded' %}<span class="sg-flag sg-good">downloaded</span>
+                    {% elif item.decision == 'downloading' %}<span class="sg-flag">downloading</span>
+                    {% elif item.decision == 'failed' %}<span class="sg-flag sg-bad" title="{{ item.error or '' }}">failed: {{ (item.error or '')[:60] }}</span>
+                    {% elif item.decision == 'skipped' %}<span class="sg-flag">skipped</span>{% endif %}
+                </div>
+            </div>
+            {% if not done %}
+            <button class="mx-btn sg-btn-sm" type="button" data-fix="{{ item.item_id }}">Fix match</button>
+            {% endif %}
+        </div>
+        <div class="sg-fix" id="fix-{{ item.item_id }}" hidden>
+            <div class="sg-row-form">
+                <input class="mx-input sg-link-field" placeholder="Paste a YouTube link or video ID" data-fix-input="{{ item.item_id }}">
+                <button class="mx-btn sg-btn-sm" type="button" data-fix-use="{{ item.item_id }}">Use</button>
+            </div>
+            <p class="sg-status" data-fix-status="{{ item.item_id }}"></p>
+            <div class="sg-candidates" data-fix-list="{{ item.item_id }}"></div>
+        </div>
+    </div>
+{% endmacro %}
+{% block content %}
+    <div class="mx-topbar">
+        <div class="mx-brand">
+            <span class="mx-mark">music manager</span>
+            <p class="mx-tagline" data-decode>from {{ submission.friend_name }}</p>
+        </div>
+        <div class="sg-nav">
+            <a class="mx-btn" href="{{ url_for('suggest_admin.review_list') }}">All suggestions</a>
+        </div>
+    </div>
+
+    <section class="mx-panel mx-glass">
+        <h2 class="mx-panel-title" data-decode>submission</h2>
+        <p class="sg-song-meta" style="margin:0 0 8px;">{{ submission.created_at }} · {{ submission.status|replace('_', ' ') }} · {{ kept|length }} kept, {{ unticked|length }} unticked</p>
+        {% if submission.message %}<p class="sg-message">{{ submission.message }}</p>{% endif %}
+    </section>
+
+    <section class="mx-panel mx-glass">
+        <h2 class="mx-panel-title" data-decode>kept</h2>
+        {% if not kept %}<p class="sg-empty">None.</p>{% endif %}
+        <div class="sg-list">{% for item in kept %}{{ item_row(item) }}{% endfor %}</div>
+    </section>
+
+    <section class="mx-panel mx-glass">
+        <h2 class="mx-panel-title" data-decode>unticked by {{ submission.friend_name }}</h2>
+        {% if not unticked %}<p class="sg-empty">None - they kept everything they added.</p>{% endif %}
+        <div class="sg-list">{% for item in unticked %}{{ item_row(item) }}{% endfor %}</div>
+    </section>
+
+    <section class="mx-panel mx-glass">
+        <h2 class="mx-panel-title" data-decode>decide</h2>
+        <label class="mx-toggle">
+            <input type="checkbox" id="mp3Toggle">
+            <span class="mx-sw"></span>
+            MP3 320kbps / 48kHz instead of FLAC
+        </label>
+        <div class="sg-friend-actions">
+            <button class="mx-btn mx-btn-go" type="button" id="approveBtn">Download selected</button>
+            {% if submission.status in ('pending', 'in_review') %}
+            <button class="mx-btn" type="button" id="rejectBtn">Reject all</button>
+            {% endif %}
+        </div>
+        <p class="mx-hint">Downloading is the decision for this submission: anything left unticked is marked skipped. Songs go to Artist/Album/NN - Title in your library folder.</p>
+        <div id="progressBox" hidden style="margin-top:12px;">
+            <div class="mx-readout mx-busy" id="progressText">Starting...</div>
+            <div class="mx-progress-track"><div class="mx-progress-fill mx-busy" id="progressBar"></div></div>
+        </div>
+    </section>
+{% endblock %}
+{% block scripts %}
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script>
+    const APP_ROOT = "{{ request.script_root }}";
+    const SUBMISSION_ID = {{ submission.submission_id }};
+    const toastHost = document.getElementById('toastHost');
+
+    function el(tag, cls, text) {
+        const e = document.createElement(tag);
+        if (cls) e.className = cls;
+        if (text !== undefined && text !== null) e.textContent = text;
+        return e;
+    }
+    function fmt(s) { return s ? `${Math.floor(s / 60)}:${String(Math.round(s) % 60).padStart(2, '0')}` : ''; }
+    function postJson(path, body) {
+        return fetch(APP_ROOT + path, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {})
+        }).then(r => r.json().catch(() => ({})).then(data => ({ ok: r.ok, data })));
+    }
+
+    /* --- fix match --- */
+    function useVideo(itemId, video) {
+        const status = document.querySelector(`[data-fix-status="${itemId}"]`);
+        status.textContent = 'Fetching video...';
+        postJson(`/review/items/${itemId}/match`, { video }).then(res => {
+            if (!res.ok) { status.textContent = res.data.error || 'That did not work.'; return; }
+            location.reload();
+        });
+    }
+
+    document.querySelectorAll('[data-fix]').forEach(btn => btn.addEventListener('click', () => {
+        const itemId = btn.dataset.fix;
+        const box = document.getElementById(`fix-${itemId}`);
+        box.hidden = !box.hidden;
+        const list = document.querySelector(`[data-fix-list="${itemId}"]`);
+        if (box.hidden || list.dataset.loaded) return;
+        list.dataset.loaded = '1';
+        const status = document.querySelector(`[data-fix-status="${itemId}"]`);
+        status.textContent = 'Looking for alternatives...';
+        fetch(`${APP_ROOT}/review/items/${itemId}/candidates`).then(r => r.json()).then(data => {
+            status.textContent = data.candidates.length ? `Alternatives for "${data.query}":` : 'No alternatives found - paste a link instead.';
+            data.candidates.forEach(c => {
+                const row = el('div', 'sg-song');
+                const main = el('div', 'sg-song-main');
+                const link = el('a', 'sg-song-title', c.title);
+                link.href = `https://www.youtube.com/watch?v=${encodeURIComponent(c.youtube_id)}`;
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+                main.appendChild(link);
+                main.appendChild(el('span', 'sg-song-meta', [c.channel, fmt(c.duration)].filter(Boolean).join(' · ')));
+                row.appendChild(main);
+                const use = el('button', 'mx-btn sg-btn-sm', 'Use this');
+                use.type = 'button';
+                use.addEventListener('click', () => useVideo(itemId, c.youtube_id));
+                row.appendChild(use);
+                list.appendChild(row);
+            });
+        }).catch(() => { status.textContent = 'Search failed.'; });
+    }));
+
+    document.querySelectorAll('[data-fix-use]').forEach(btn => btn.addEventListener('click', () => {
+        const itemId = btn.dataset.fixUse;
+        const value = document.querySelector(`[data-fix-input="${itemId}"]`).value.trim();
+        if (value) useVideo(itemId, value);
+    }));
+
+    /* --- approve / reject --- */
+    document.getElementById('approveBtn').addEventListener('click', () => {
+        const ids = [...document.querySelectorAll('.sg-check:checked:not(:disabled)')].map(c => Number(c.value));
+        if (!ids.length) return MX.toast(false, 'Tick at least one song.', toastHost);
+        const format = document.getElementById('mp3Toggle').checked ? 'mp3' : 'flac';
+        if (!confirm(`Download ${ids.length} song${ids.length === 1 ? '' : 's'} as ${format.toUpperCase()}?`)) return;
+        postJson(`/review/${SUBMISSION_ID}/approve`, { item_ids: ids, format }).then(res => {
+            if (!res.ok) return MX.toast(false, res.data.error || 'Could not start the download.', toastHost);
+            document.getElementById('progressBox').hidden = false;
+            document.getElementById('approveBtn').disabled = true;
+        });
+    });
+
+    const rejectBtn = document.getElementById('rejectBtn');
+    if (rejectBtn) rejectBtn.addEventListener('click', () => {
+        if (!confirm('Reject this whole submission?')) return;
+        postJson(`/review/${SUBMISSION_ID}/reject`).then(res => res.ok ? location.reload()
+            : MX.toast(false, res.data.error || 'Could not reject.', toastHost));
+    });
+
+    /* --- live progress (same event the dashboard uses) --- */
+    const socket = io({ transports: ['polling'], path: `${APP_ROOT}/socket.io/` });
+    socket.on('progress', data => {
+        const box = document.getElementById('progressBox');
+        box.hidden = false;
+        document.getElementById('progressBar').style.width = `${data.percent}%`;
+        const text = document.getElementById('progressText');
+        text.textContent = data.status === 'complete' ? 'Done - library synced.' : data.status;
+        text.className = 'mx-readout ' + (data.status === 'complete' ? 'mx-ok' : /error/i.test(data.status) ? 'mx-err' : 'mx-busy');
+        if (data.percent >= 100) setTimeout(() => location.reload(), 1500);
+    });
+</script>
+{% endblock %}

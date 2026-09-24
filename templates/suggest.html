@@ -1,0 +1,83 @@
+{% extends "_suggest_base.html" %}
+{% block title %}Suggest songs{% endblock %}
+{% block body_attrs %}
+    data-search-url="{{ url_for('friends_public.api_search') }}"
+    data-resolve-url="{{ url_for('friends_public.api_resolve') }}"
+    data-job-url="{{ url_for('friends_public.api_job', job_id='JOBID') }}"
+    data-submit-url="{{ url_for('friends_public.api_submit') }}"
+    data-submissions-url="{{ url_for('friends_public.api_submissions') }}"
+    data-basket-key="basket:{{ friend.friend_id }}"
+{% endblock %}
+{% block content %}
+    <div class="mx-topbar">
+        <div class="mx-brand">
+            <span class="mx-mark">music manager</span>
+            <p class="mx-tagline" data-decode>hi {{ friend.name }}</p>
+        </div>
+        <a class="mx-btn" href="{{ url_for('friends_public.library') }}">Library</a>
+    </div>
+
+    <div class="mx-stack">
+        <div class="mx-col">
+            <section class="mx-panel mx-glass">
+                <h2 class="mx-panel-title" data-decode>find songs</h2>
+                <form id="searchForm" autocomplete="off">
+                    <fieldset class="mx-chips sg-chips">
+                        <legend>Search for</legend>
+                        <label><input type="radio" name="mode" value="song" checked><span>Song</span></label>
+                        <label><input type="radio" name="mode" value="artist"><span>Artist</span></label>
+                        <label><input type="radio" name="mode" value="album"><span>Album</span></label>
+                    </fieldset>
+                    <div class="sg-row-form">
+                        <input class="mx-input" type="search" id="searchInput" maxlength="100"
+                               placeholder="Song title and artist..." aria-label="Search">
+                        <button class="mx-btn mx-btn-go" type="submit">Search</button>
+                    </div>
+                </form>
+                <form id="linkForm" autocomplete="off" style="margin-top:12px;">
+                    <div class="sg-row-form">
+                        <input class="mx-input" type="url" id="linkInput" maxlength="300"
+                               placeholder="...or paste a YouTube / Spotify link" aria-label="Link">
+                        <button class="mx-btn" type="submit">Open</button>
+                    </div>
+                </form>
+                <p class="sg-status" id="lookupStatus" aria-live="polite"></p>
+            </section>
+
+            <section class="mx-panel mx-glass" id="resultsPanel" hidden>
+                <h2 class="mx-panel-title" data-decode>results</h2>
+                <p class="sg-note" id="resultsNote" hidden></p>
+                <div class="sg-head-actions">
+                    <span class="mx-count" id="resultsCount"></span>
+                    <button class="mx-btn sg-btn-sm" type="button" id="addAllBtn">Add all</button>
+                </div>
+                <div class="sg-list" id="resultsList"></div>
+            </section>
+        </div>
+
+        <div class="mx-col">
+            <section class="mx-panel mx-glass">
+                <h2 class="mx-panel-title" data-decode>basket</h2>
+                <div class="sg-head-actions">
+                    <span class="mx-count" id="basketCount">empty</span>
+                    <button class="mx-btn sg-btn-sm" type="button" id="clearBasketBtn">Clear</button>
+                </div>
+                <p class="mx-hint" style="margin:0 0 10px;">Untick anything you changed your mind about. Nothing downloads until it's been reviewed.</p>
+                <div class="sg-list" id="basketList"></div>
+                <div class="mx-field" style="margin-top:14px;">
+                    <label class="mx-label" for="messageInput">note (optional)</label>
+                    <textarea class="mx-textarea" id="messageInput" rows="2" maxlength="500" placeholder="Why these?"></textarea>
+                </div>
+                <button class="mx-btn mx-btn-go mx-btn-wide" type="button" id="submitBtn">Send suggestions</button>
+            </section>
+
+            <section class="mx-panel mx-glass">
+                <h2 class="mx-panel-title" data-decode>sent</h2>
+                <div class="sg-list" id="sentList"><p class="sg-empty">Nothing sent yet.</p></div>
+            </section>
+        </div>
+    </div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='suggest.js') }}" defer></script>
+{% endblock %}
