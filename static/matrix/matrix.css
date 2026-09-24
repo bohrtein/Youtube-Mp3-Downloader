@@ -1093,6 +1093,7 @@
   /* --- status chip + LED -------------------------------------------------------
      One connection at a glance. data-mx-state = ok / err / busy. */
   .mx-status-chip {
+    appearance: none;
     flex: 0 0 auto;
     display: inline-flex;
     align-items: center;
@@ -1120,6 +1121,9 @@
   [data-mx-state="ok"]  .mx-led { background: var(--mx-accent); box-shadow: 0 0 10px var(--mx-accent); animation: mx-pulse 2.4s ease-in-out infinite; }
   [data-mx-state="err"] { color: var(--mx-danger); border-color: var(--mx-danger-line); }
   [data-mx-state="err"] .mx-led { background: var(--mx-danger); box-shadow: 0 0 10px var(--mx-danger); }
+  /* warn: amber and steady -- "needs attention" rather than "busy". */
+  [data-mx-state="warn"] { color: var(--mx-warn); border-color: var(--mx-warn-line); }
+  [data-mx-state="warn"] .mx-led { background: var(--mx-warn); box-shadow: 0 0 10px var(--mx-warn); }
   [data-mx-state="busy"] .mx-led { background: var(--mx-warn); box-shadow: 0 0 10px var(--mx-warn); animation: mx-pulse 0.9s ease-in-out infinite; }
   @keyframes mx-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 
@@ -1694,7 +1698,7 @@
   .mx-toasts {
     position: fixed;
     left: 0; right: 0;
-    bottom: calc(var(--mx-bar-h) + env(safe-area-inset-bottom) + var(--mx-kb) + 10px);
+    bottom: calc(18px + env(safe-area-inset-bottom) + var(--mx-kb));
     z-index: 50;
     display: flex;
     flex-direction: column;
@@ -1703,7 +1707,12 @@
     padding: 0 var(--mx-gutter);
     pointer-events: none;
   }
-  @media (max-width: 599px) { body.mx-has-nav .mx-toasts { bottom: calc(var(--mx-nav-h) + var(--mx-bar-h) + env(safe-area-inset-bottom) + 10px); } }
+  /* Above the command bar and the bottom nav, when the page has them. */
+  body.mx-has-cmdbar .mx-toasts { bottom: calc(var(--mx-bar-h) + env(safe-area-inset-bottom) + var(--mx-kb) + 10px); }
+  @media (max-width: 599px) {
+    body.mx-has-nav .mx-toasts { bottom: calc(var(--mx-nav-h) + env(safe-area-inset-bottom) + 10px); }
+  }
+  @media (max-width: 599px) { body.mx-has-nav.mx-has-cmdbar .mx-toasts { bottom: calc(var(--mx-nav-h) + var(--mx-bar-h) + env(safe-area-inset-bottom) + 10px); } }
   .mx-toast {
     max-width: 520px;
     width: 100%;
