@@ -38,6 +38,10 @@ class PrefixMiddleware:
 # Initialize Flask application and SocketIO for real-time communication
 app = Flask(__name__)
 app.wsgi_app = PrefixMiddleware(app.wsgi_app, prefix=os.environ.get("APP_PREFIX", ""))
+# Static files revalidate on every load (max-age=0 + ETag): otherwise
+# browsers cache app.css/app.js by heuristic for days, and after an update
+# a page can run yesterday's script against today's markup.
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Ensure the local SQLite database and schema exist before the first request
