@@ -184,7 +184,7 @@
     --mx-dur-fast: 0.14s;
     --mx-dur:      0.22s;
     --mx-dur-slow: 0.28s;
-    --mx-rain-opacity: 0.45;
+    --mx-rain-opacity: 0.85;
 
     /* --- 1.0 names, kept working through /ds/1/ ---------------------
        Removed in 2.0. New code uses the names above. */
