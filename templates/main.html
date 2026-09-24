@@ -84,6 +84,12 @@
                 <p class="mx-hint" style="margin-bottom:14px;">Process and optimize album artwork.</p>
                 <button class="mx-btn mx-btn-wide" type="button" onclick="startAction('processCovers')">Process Covers</button>
             </section>
+
+            <section class="mx-panel mx-glass mx-danger">
+                <h2 class="mx-panel-title" data-decode>danger zone</h2>
+                <p class="mx-hint" style="margin-bottom:14px;">Delete every artist, album and song from the database and rebuild it from the library folder. Your music files are not touched.</p>
+                <button class="mx-btn mx-btn-wide mx-btn-danger" type="button" onclick="openResetSheet()">Reset Library Database</button>
+            </section>
         </div>
     </div>
 
@@ -108,6 +114,35 @@
         <div class="mx-sheet-actions">
             <button class="mx-btn" type="button" onclick="closeFolderBrowser()">Cancel</button>
             <button class="mx-btn mx-btn-go" type="button" onclick="chooseCurrentFolder()">Select This Folder</button>
+        </div>
+    </div>
+</div>
+
+<div class="mx-overlay" id="resetOverlay" onclick="if (event.target === this) closeResetSheet()">
+    <div class="mx-panel mx-glass mx-sheet mx-danger">
+        <h2 class="mx-panel-title" data-decode>reset library database</h2>
+        <div class="mx-reset-body">
+            <p class="mx-reset-warning">⚠ This deletes the library from the database. There's no undo button.</p>
+            <ul class="mx-reset-list">
+                <li><strong>Deleted:</strong> all artists, albums, songs and album covers in the app.</li>
+                <li><strong>Kept:</strong> your music files, the library folder setting, friends and suggestions.</li>
+                <li><strong>Backup:</strong> a copy of the database is saved first as <code>library-backup-&lt;date&gt;.db</code> next to <code>library.db</code>.</li>
+            </ul>
+            <label class="mx-toggle">
+                <input type="checkbox" id="resetRescan" checked>
+                <span class="mx-sw"></span>
+                Rebuild from the library folder right after
+            </label>
+            <div class="mx-field">
+                <div class="mx-field-head">
+                    <label class="mx-label" for="resetConfirmInput">type RESET to confirm</label>
+                </div>
+                <input class="mx-input" id="resetConfirmInput" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="RESET" oninput="updateResetButton()">
+            </div>
+        </div>
+        <div class="mx-sheet-actions">
+            <button class="mx-btn" type="button" onclick="closeResetSheet()">Cancel</button>
+            <button class="mx-btn mx-btn-danger" id="resetConfirmButton" type="button" onclick="confirmLibraryReset()" disabled>Delete &amp; Reset</button>
         </div>
     </div>
 </div>
@@ -152,6 +187,34 @@
                 setBusy('Starting cleanup...');
             }
         }
+    }
+
+    const RESET_PHRASE = 'RESET';
+
+    function openResetSheet() {
+        const overlay = document.getElementById('resetOverlay');
+        document.getElementById('resetConfirmInput').value = '';
+        document.getElementById('resetRescan').checked = true;
+        updateResetButton();
+        overlay.classList.add('mx-open');
+        APP.decodeAll(overlay);   // the sheet title, skipped on page load while hidden
+    }
+
+    function closeResetSheet() {
+        document.getElementById('resetOverlay').classList.remove('mx-open');
+    }
+
+    function updateResetButton() {
+        const typed = document.getElementById('resetConfirmInput').value.trim();
+        document.getElementById('resetConfirmButton').disabled = typed !== RESET_PHRASE;
+    }
+
+    function confirmLibraryReset() {
+        if (document.getElementById('resetConfirmInput').value.trim() !== RESET_PHRASE) return;
+        const rescan = document.getElementById('resetRescan').checked;
+        closeResetSheet();
+        setBusy('Resetting library...');
+        socket.emit('start_library_reset', { confirm: RESET_PHRASE, rescan: rescan });
     }
 
     function startAction(actionType) {

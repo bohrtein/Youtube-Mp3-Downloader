@@ -167,6 +167,28 @@
 .mx-sheet-actions { display: flex; gap: 10px; flex: 0 0 auto; }
 .mx-sheet-actions .mx-btn-go { flex: 1 1 auto; }
 
+/* --- danger zone ---------------------------------------------------------------
+   Red is the "something is wrong" accent, so it's reserved for the one
+   destructive action on the dashboard: the library reset and its sheet. */
+.mx-panel.mx-danger { border-color: rgba(255, 91, 82, 0.4); }
+.mx-danger .mx-panel-title { color: var(--mx-red); }
+.mx-btn-danger { color: var(--mx-red); border-color: rgba(255, 91, 82, 0.45); background: var(--mx-red-low); }
+.mx-btn-danger:not([disabled]):active { background: rgba(255, 91, 82, 0.22); }
+.mx-sheet-actions .mx-btn-danger { flex: 1 1 auto; }
+.mx-reset-body { overflow-y: auto; margin-bottom: 14px; display: flex; flex-direction: column; gap: 14px; }
+.mx-reset-warning {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 91, 82, 0.35);
+  border-radius: var(--mx-r-sm);
+  background: var(--mx-red-low);
+  color: var(--mx-red);
+  font-size: 13px;
+}
+.mx-reset-list { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.55; color: var(--mx-ink-dim); }
+.mx-reset-list strong { color: var(--mx-ink); font-weight: 700; }
+.mx-reset-list code { overflow-wrap: anywhere; }
+
 /* --- search field ----------------------------------------------------------- */
 .mx-search { position: relative; margin: 4px 0 18px; }
 .mx-search svg {

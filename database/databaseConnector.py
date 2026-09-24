@@ -1,4 +1,5 @@
 import sqlite3
+import time
 from pathlib import Path
 import core.interfaceComponents as interfaceComponents
 import core.linkResolver as linkResolver
@@ -117,6 +118,10 @@ CREATE INDEX IF NOT EXISTS idx_usage_events_lookup ON usage_events(kind, friend_
 """
 
 DEFAULT_LIBRARY_FOLDER = Path(__file__).resolve().parent.parent / 'downloads'
+COVERS_DIR = Path(__file__).resolve().parent.parent / 'static' / 'covers'
+
+# What reset_library() empties. Settings, friends and suggestions are kept.
+LIBRARY_TABLES = ("songs", "albums", "artists")
 
 def connect_to_db():
     """
@@ -168,6 +173,41 @@ def _migrate(connection):
         video_id = linkResolver.extract_video_id(source_url)
         if video_id:
             connection.execute("UPDATE songs SET youtube_id = ? WHERE song_id = ?", (video_id, song_id))
+
+def reset_library():
+    """
+    Empties the library (artists, albums, songs) so the next sync rebuilds it
+    from scratch. Settings, friends and suggestions are left alone, and no
+    audio files are touched. A copy of the whole database is saved next to
+    it first, so a reset can be undone by swapping that file back in.
+
+    Returns:
+        Path: The backup file that was written.
+    """
+    backup_path = DB_PATH.with_name(f"library-backup-{time.strftime('%Y%m%d-%H%M%S')}.db")
+    source = sqlite3.connect(DB_PATH, timeout=15)
+    backup = sqlite3.connect(backup_path)
+    source.backup(backup)
+    backup.close()
+
+    try:
+        with source:
+            for table in LIBRARY_TABLES:
+                source.execute(f"DELETE FROM {table}")
+            # Restart the ids at 1. Covers are saved as <album_id>.jpg, so they go too -
+            # otherwise a new album would inherit the old album's cover.
+            source.execute(
+                f"DELETE FROM sqlite_sequence WHERE name IN ({','.join('?' * len(LIBRARY_TABLES))})",
+                LIBRARY_TABLES
+            )
+    finally:
+        source.close()
+
+    for cover in COVERS_DIR.glob('*.jpg'):
+        cover.unlink()
+
+    interfaceComponents.Print_Tag(f"Library cleared (backup at {backup_path})", tag="DB Success")
+    return backup_path
 
 def get_library_folder():
     """

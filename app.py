@@ -293,6 +293,41 @@ def run_sync_only():
         socketio.emit('progress', {'percent': 100, 'status': 'complete'})
     threading.Thread(target=task).start()
 
+LIBRARY_RESET_PHRASE = "RESET"
+
+@socketio.on('start_library_reset')
+def run_library_reset(data=None):
+    """
+    Background task that wipes the library tables (after backing up the
+    database) and, unless told not to, rebuilds them from the library folder.
+    The confirmation phrase is checked here too, not just in the page.
+    """
+    data = data or {}
+    if data.get('confirm') != LIBRARY_RESET_PHRASE:
+        socketio.emit('progress', {'percent': 0, 'status': 'Error: reset not confirmed'})
+        return
+    rescan = data.get('rescan', True)
+
+    def task():
+        # Never wipe the tables out from under a running download.
+        if not approvedDownloads.download_lock.acquire(blocking=False):
+            socketio.emit('progress', {'percent': 0, 'status': 'Error: a download is running, try again once it finishes'})
+            return
+        try:
+            socketio.emit('progress', {'percent': 10, 'status': 'Backing up and clearing the library...'})
+            databaseConnector.reset_library()
+            suggestionsRepo.invalidate_library_index()
+            if rescan:
+                socketio.emit('progress', {'percent': 40, 'status': 'Rebuilding from the library folder...'})
+                main.sync_to_library()
+                suggestionsRepo.invalidate_library_index()
+            socketio.emit('progress', {'percent': 100, 'status': 'complete'})
+        except Exception as e:
+            socketio.emit('progress', {'percent': 100, 'status': f'Error resetting library: {e}'})
+        finally:
+            approvedDownloads.download_lock.release()
+    threading.Thread(target=task).start()
+
 @socketio.on('start_mp3_convert')
 def run_mp3_convert_only():
     """
