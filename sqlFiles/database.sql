@@ -28,9 +28,12 @@ CREATE TABLE IF NOT EXISTS songs (
     bit_rate TEXT,
     file_type TEXT,
     source_url TEXT,
+    youtube_id TEXT,
     FOREIGN KEY (album_id) REFERENCES albums(album_id) ON DELETE CASCADE,
     UNIQUE (song_title, album_id)
 );
+
+CREATE INDEX IF NOT EXISTS idx_songs_youtube_id ON songs(youtube_id);
 
 CREATE VIEW IF NOT EXISTS album_gallery AS
 SELECT

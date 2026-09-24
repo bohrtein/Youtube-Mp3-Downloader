@@ -1,6 +1,7 @@
 import sqlite3
 from pathlib import Path
 import core.interfaceComponents as interfaceComponents
+import core.linkResolver as linkResolver
 
 # Single-file SQLite database at the project root - no server, no .env setup
 DB_PATH = Path(__file__).resolve().parent.parent / 'library.db'
@@ -31,6 +32,7 @@ CREATE TABLE IF NOT EXISTS songs (
     bit_rate TEXT,
     file_type TEXT,
     source_url TEXT,
+    youtube_id TEXT,
     FOREIGN KEY (album_id) REFERENCES albums(album_id) ON DELETE CASCADE,
     UNIQUE (song_title, album_id)
 );
@@ -78,9 +80,29 @@ def init_db():
     """
     connection = sqlite3.connect(DB_PATH)
     connection.executescript(SCHEMA)
+    _migrate(connection)
     connection.commit()
     connection.close()
     interfaceComponents.Print_Tag(f"Database ready at {DB_PATH}", tag="DB Success")
+
+def _migrate(connection):
+    """
+    Brings databases created by older versions up to the current SCHEMA.
+    CREATE TABLE IF NOT EXISTS never adds columns to an existing table, so
+    new columns are added here, guarded by PRAGMA table_info.
+    """
+    song_columns = {row[1] for row in connection.execute("PRAGMA table_info(songs)")}
+    if "youtube_id" not in song_columns:
+        connection.execute("ALTER TABLE songs ADD COLUMN youtube_id TEXT")
+    connection.execute("CREATE INDEX IF NOT EXISTS idx_songs_youtube_id ON songs(youtube_id)")
+
+    rows = connection.execute(
+        "SELECT song_id, source_url FROM songs WHERE youtube_id IS NULL AND source_url IS NOT NULL"
+    ).fetchall()
+    for song_id, source_url in rows:
+        video_id = linkResolver.extract_video_id(source_url)
+        if video_id:
+            connection.execute("UPDATE songs SET youtube_id = ? WHERE song_id = ?", (video_id, song_id))
 
 def get_library_folder():
     """

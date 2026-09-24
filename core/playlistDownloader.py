@@ -68,7 +68,7 @@ def download_file_flac(url, output_dir):
         "--audio-quality", "0",
         "--embed-metadata", "--embed-thumbnail",
         "--print", "after_move:filepath",
-        "-o", output_template, url
+        "-o", output_template, "--", url
     ]
 
     interfaceComponents.Print_Tag(f"Downloading: {url}", tag="Process")
@@ -107,7 +107,7 @@ def download_file_mp3(url, output_dir):
         "--postprocessor-args", "ExtractAudio+ffmpeg_o:-ar 48000",
         "--embed-metadata", "--embed-thumbnail",
         "--print", "after_move:filepath",
-        "-o", output_template, url
+        "-o", output_template, "--", url
     ]
 
     interfaceComponents.Print_Tag(f"Downloading (MP3): {url}", tag="Process")

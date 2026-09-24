@@ -6,6 +6,7 @@ from PIL import Image
 import database.databaseConnector as databaseConnector
 import core.interfaceComponents as interfaceComponents
 import core.audioTags as audioTags
+import core.linkResolver as linkResolver
 
 def Sync_Folder_To_Db(target_dir):
     """
@@ -62,12 +63,19 @@ def Sync_Folder_To_Db(target_dir):
             file_ext = file_path.suffix.replace(".", "").upper()
 
             # --- URL EXTRACTION ---
-            # Iterates through all metadata fields to find a source link (e.g., YouTube URL)
+            # yt-dlp stores the video URL in purl/comment, but descriptions often
+            # carry other links (instagram, lnk.to) that can come first, so a
+            # YouTube video URL wins over whatever URL happens to be seen first.
             source_url = None
+            youtube_id = None
             for val in audioTags.iter_tag_text(file_path):
-                url_match = re.search(r'(https?://[^\s"\'<>]+)', str(val))
-                if url_match:
-                    source_url = url_match.group(1)
+                for url in re.findall(r'https?://[^\s"\'<>]+', str(val)):
+                    video_id = linkResolver.extract_video_id(url)
+                    if video_id:
+                        source_url, youtube_id = url, video_id
+                        break
+                    source_url = source_url or url
+                if youtube_id:
                     break
 
             # --- 3. ALBUM COVER PROCESSING ---
@@ -123,15 +131,15 @@ def Sync_Folder_To_Db(target_dir):
             if not song_res:
                 # Create a new song record
                 cursor.execute("""
-                    INSERT INTO songs (song_title, duration_seconds, track_number, album_id, release_date, bit_rate, file_type, source_url)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (song_title, int(duration), track_num, album_id, release_date, bitrate_str, file_ext, source_url))
+                    INSERT INTO songs (song_title, duration_seconds, track_number, album_id, release_date, bit_rate, file_type, source_url, youtube_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (song_title, int(duration), track_num, album_id, release_date, bitrate_str, file_ext, source_url, youtube_id))
                 interfaceComponents.Print_Tag(f"Synced: {song_title} (Track {track_num})", tag="DB Success")
             else:
-                # If song exists but URL is missing, update the record
+                # Patch a missing URL, or replace a non-YouTube one once the video URL is found
                 db_song_id, db_source_url, db_file_type = song_res
-                if source_url and not db_source_url:
-                    cursor.execute("UPDATE songs SET source_url = ? WHERE song_id = ?", (source_url, db_song_id))
+                if source_url and source_url != db_source_url and not linkResolver.extract_video_id(db_source_url):
+                    cursor.execute("UPDATE songs SET source_url = ?, youtube_id = ? WHERE song_id = ?", (source_url, youtube_id, db_song_id))
                     interfaceComponents.Print_Tag(f"Patched URL for: {song_title} (Track {track_num})", tag="DB Update")
                 # A FLAC converted to MP3 in place keeps its title/album/track,
                 # so it lands here rather than as a new row.
