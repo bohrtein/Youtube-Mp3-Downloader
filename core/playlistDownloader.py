@@ -41,7 +41,7 @@ def initiate_playlist_loop():
 
 PLAYLIST_FILE_TEMPLATE = "%(playlist_title)s/%(playlist_index)02d - %(title)s.%(ext)s"
 
-def download_file_flac(url, output_dir, file_template=PLAYLIST_FILE_TEMPLATE):
+def download_file_flac(url, output_dir, file_template=PLAYLIST_FILE_TEMPLATE, write_info_json=False):
     """
     Executes the yt-dlp binary to download and convert a specific URL.
 
@@ -53,6 +53,8 @@ def download_file_flac(url, output_dir, file_template=PLAYLIST_FILE_TEMPLATE):
         output_dir (str): The base directory for file storage.
         file_template (str): yt-dlp output template, relative to output_dir.
             The default names playlist items "Playlist Title/01 - Title.flac".
+        write_info_json (bool): also write yt-dlp's full metadata next to
+            each file as <name>.info.json.
 
     Returns:
         list[str]: Absolute paths of the files yt-dlp produced (empty on failure).
@@ -71,6 +73,8 @@ def download_file_flac(url, output_dir, file_template=PLAYLIST_FILE_TEMPLATE):
         "--print", "after_move:filepath",
         "-o", output_template, "--", url
     ]
+    if write_info_json:
+        cmd[1:1] = ["--write-info-json"]
 
     interfaceComponents.Print_Tag(f"Downloading: {url}", tag="Process")
 
@@ -84,7 +88,7 @@ def download_file_flac(url, output_dir, file_template=PLAYLIST_FILE_TEMPLATE):
         interfaceComponents.Print_Tag(f"Error: {e}", tag="Error")
         return []
 
-def download_file_mp3(url, output_dir, file_template=PLAYLIST_FILE_TEMPLATE):
+def download_file_mp3(url, output_dir, file_template=PLAYLIST_FILE_TEMPLATE, write_info_json=False):
     """
     Same as download_file_flac, but extracts straight to MP3 (320kbps,
     48000Hz) instead of FLAC, so the result is already player-friendly
@@ -94,6 +98,7 @@ def download_file_mp3(url, output_dir, file_template=PLAYLIST_FILE_TEMPLATE):
         url (str): The video or playlist link.
         output_dir (str): The base directory for file storage.
         file_template (str): yt-dlp output template, relative to output_dir.
+        write_info_json (bool): also write <name>.info.json, as in download_file_flac.
 
     Returns:
         list[str]: Absolute paths of the files yt-dlp produced (empty on failure).
@@ -111,6 +116,8 @@ def download_file_mp3(url, output_dir, file_template=PLAYLIST_FILE_TEMPLATE):
         "--print", "after_move:filepath",
         "-o", output_template, "--", url
     ]
+    if write_info_json:
+        cmd[1:1] = ["--write-info-json"]
 
     interfaceComponents.Print_Tag(f"Downloading (MP3): {url}", tag="Process")
 

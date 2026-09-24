@@ -98,17 +98,23 @@ def test_library_status():
 def test_item_metadata_priority():
     item = {"title": "A Perfect Circle - Judith (Official Music Video)", "channel": "A Perfect Circle",
             "artist": None, "album": None, "track_number": None, "sp_title": None, "sp_artist": None, "sp_album": None}
-    meta = approvedDownloads.item_metadata(item, {})
-    assert meta == {"artist": "A Perfect Circle", "album": "Singles", "title": "Judith", "track_number": 0}
+    meta = approvedDownloads.item_metadata(item, {"upload_date": "20091003"})
+    assert meta == {"artist": "A Perfect Circle", "album_artist": "A Perfect Circle", "album": "Singles",
+                    "title": "Judith", "track_number": 0, "disc_number": 0, "year": "2009", "genre": None}
 
     item.update(sp_title="Judith", sp_artist="A Perfect Circle", sp_album="Mer de Noms")
-    meta = approvedDownloads.item_metadata(item, {"album": ["Wrong Album"]})
+    meta = approvedDownloads.item_metadata(item, {"album": "Wrong Album", "track_number": 7, "release_year": 1999})
     assert meta["album"] == "Mer de Noms"
+    # Track/year belong to the release yt-dlp saw, not the Spotify album.
+    assert meta["track_number"] == 0 and meta["year"] is None
 
     topic = {"title": "The Hollow", "channel": "A Perfect Circle - Topic", "artist": None, "album": None,
-             "track_number": 1, "sp_title": None, "sp_artist": None, "sp_album": None}
-    meta = approvedDownloads.item_metadata(topic, {"artist": ["A Perfect Circle"], "album": ["Mer De Noms"]})
-    assert meta == {"artist": "A Perfect Circle", "album": "Mer De Noms", "title": "The Hollow", "track_number": 1}
+             "track_number": None, "sp_title": None, "sp_artist": None, "sp_album": None}
+    info = {"artists": ["A Perfect Circle", "Someone Else"], "album": "Mer De Noms", "track": "The Hollow",
+            "track_number": 1, "release_year": 2000, "album_artist": "A Perfect Circle", "genres": ["Rock"]}
+    meta = approvedDownloads.item_metadata(topic, info)
+    assert meta == {"artist": "A Perfect Circle", "album_artist": "A Perfect Circle", "album": "Mer De Noms",
+                    "title": "The Hollow", "track_number": 1, "disc_number": 0, "year": "2000", "genre": "Rock"}
 
 
 @pytest.mark.parametrize("title, channel, expected", [
@@ -124,12 +130,28 @@ def test_artist_from_upload(title, channel, expected):
 def test_uploader_tag_is_not_trusted_as_artist():
     item = {"title": "Rammstein - Sonne (Official Video)", "channel": "Rammstein Official", "artist": None,
             "album": None, "track_number": None, "sp_title": None, "sp_artist": None, "sp_album": None}
-    meta = approvedDownloads.item_metadata(item, {"artist": ["Rammstein Official"]})
+    meta = approvedDownloads.item_metadata(item, {"artist": "Rammstein Official"})
     assert meta["artist"] == "Rammstein" and meta["title"] == "Sonne"
 
 
 def test_target_path_is_sanitized():
     meta = {"artist": 'AC/DC', "album": 'What?: "Live"', "title": "Back In Black.", "track_number": 3}
     path = approvedDownloads.target_path("/lib", meta, ".flac")
-    assert path == Path("/lib") / "AC_DC" / "What__ _Live_" / "03 - Back In Black.flac"
+    assert path == Path("/lib") / "Album - What__ _Live_" / "03 - Back In Black.flac"
+    singles = dict(meta, album="Singles", track_number=0)
+    assert approvedDownloads.target_path("/lib", singles, ".mp3") == Path("/lib") / "Singles" / "00 - Back In Black.mp3"
     assert approvedDownloads.safe_name("...", "fallback") == "fallback"
+
+
+def test_track_number_in_album():
+    meta = {"artist": "A Perfect Circle", "album": "Mer De Noms", "title": "The Hollow"}
+    tracks = [
+        {"youtube_id": "aaaaaaaaaaa", "title": "The Hollow", "album": "Mer de Noms", "track_number": 1},
+        {"youtube_id": "bbbbbbbbbbb", "title": "Magdalena", "album": "Mer de Noms", "track_number": 2},
+    ]
+    assert approvedDownloads.track_number_in_album(tracks, meta, "bbbbbbbbbbb") == 2
+    # A music video's ID isn't on the album, so the title decides.
+    assert approvedDownloads.track_number_in_album(tracks, meta, "zzzzzzzzzzz") == 1
+    assert approvedDownloads.track_number_in_album(tracks, dict(meta, album="Thirteenth Step"), "aaaaaaaaaaa") == 0
+    assert approvedDownloads.track_number_in_album(tracks, dict(meta, title="Judith"), "zzzzzzzzzzz") == 0
+    assert approvedDownloads.track_number_in_album([], meta, "aaaaaaaaaaa") == 0

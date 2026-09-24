@@ -40,6 +40,11 @@ def video_url(video_id):
     return f"https://www.youtube.com/watch?v={video_id}"
 
 
+def music_url(video_id):
+    """The YouTube Music watch URL, which gets yt-dlp's music metadata and formats."""
+    return f"https://music.youtube.com/watch?v={video_id}"
+
+
 def parse_link(raw):
     """
     Classifies a pasted link and rebuilds it from its extracted ID, so the
