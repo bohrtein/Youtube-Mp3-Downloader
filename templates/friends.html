@@ -58,7 +58,7 @@
                                 </span>
                             </div>
                             {% if not friend.revoked_at %}
-                            <input class="mx-input sg-link-field" readonly value="{{ friend.link }}" aria-label="Link for {{ friend.name }}">
+                            <div class="sg-link-box" tabindex="0" aria-label="Link for {{ friend.name }}">{{ friend.link }}</div>
                             {% endif %}
                             <div class="sg-friend-actions">
                                 {% if not friend.revoked_at %}
@@ -90,11 +90,45 @@
         }).then(r => r.json().catch(() => ({})).then(data => ({ ok: r.ok, data })));
     }
 
-    function copy(text) {
-        navigator.clipboard.writeText(text)
-            .then(() => MX.toast(true, 'Link copied', toastHost))
-            .catch(() => MX.toast(false, 'Copy failed - select the link and copy it by hand', toastHost));
+    // navigator.clipboard only exists on HTTPS/localhost; the dashboard is
+    // usually opened over plain http on the LAN, so fall back to execCommand.
+    function legacyCopy(text) {
+        const area = document.createElement('textarea');
+        area.value = text;
+        area.setAttribute('readonly', '');
+        area.style.position = 'fixed';
+        area.style.opacity = '0';
+        document.body.appendChild(area);
+        area.select();
+        let ok = false;
+        try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+        area.remove();
+        return ok;
     }
+
+    function selectText(el) {
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+    }
+
+    function copy(text, box) {
+        const done = () => MX.toast(true, 'Link copied', toastHost);
+        const fallback = () => {
+            if (legacyCopy(text)) return done();
+            if (box) selectText(box);
+            MX.toast(false, 'Press Ctrl+C (or long-press > Copy) to copy the selected link', toastHost);
+        };
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text).then(done, fallback);
+        } else {
+            fallback();
+        }
+    }
+
+    document.querySelectorAll('.sg-link-box').forEach(box => box.addEventListener('focus', () => selectText(box)));
 
     document.getElementById('addFriendForm').addEventListener('submit', e => {
         e.preventDefault();
@@ -106,7 +140,8 @@
         });
     });
 
-    document.querySelectorAll('[data-copy]').forEach(btn => btn.addEventListener('click', () => copy(btn.dataset.copy)));
+    document.querySelectorAll('[data-copy]').forEach(btn => btn.addEventListener('click', () =>
+        copy(btn.dataset.copy, btn.closest('.sg-song').querySelector('.sg-link-box'))));
 
     document.querySelectorAll('[data-action]').forEach(btn => btn.addEventListener('click', () => {
         const { action, id, name } = btn.dataset;

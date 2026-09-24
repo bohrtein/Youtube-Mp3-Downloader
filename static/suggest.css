@@ -77,6 +77,13 @@ a.sg-song-title:hover { color: var(--mx-green); }
 .sg-empty { font-size: 11.5px; color: var(--mx-ink-faint); padding: 8px 2px; }
 
 .sg-nav { display: flex; gap: 8px; flex-wrap: wrap; }
+/* On a phone, several nav buttons beside the title would squeeze it to
+   "music man…": give them their own row under the title instead. */
+@media (max-width: 600px) {
+  .mx-topbar { flex-wrap: wrap; }
+  .mx-topbar .sg-nav { flex: 1 1 100%; }
+  .mx-topbar .sg-nav .mx-btn { flex: 1 1 0; padding: 0 10px; }
+}
 .sg-badge {
   display: inline-block;
   min-width: 18px;
@@ -98,6 +105,21 @@ a.sg-song-title:hover { color: var(--mx-green); }
 }
 
 .sg-link-field { font-size: 12px; min-height: 36px; padding: 8px 10px; }
+.sg-link-box {
+  margin-top: 8px;
+  padding: 9px 11px;
+  border: 1px solid var(--mx-line);
+  border-radius: var(--mx-r-sm);
+  background: rgba(0, 12, 6, 0.6);
+  color: var(--mx-ink-hot);
+  font-size: 12px;
+  line-height: 1.5;
+  word-break: break-all;
+  user-select: all;
+  -webkit-user-select: all;
+  cursor: text;
+}
+.sg-link-box:focus { outline: 2px solid var(--mx-green); outline-offset: 2px; }
 .sg-friend-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 
 /* Friend library: albums as expandable rows. */
