@@ -15,17 +15,20 @@
       cls      extra classes
 -#}
 
-{#- The two tags that load Matrix. With `live` (App Hub's "/ds/1/") the
-    page uses the shared copy and falls back to `local` (the project's
-    synced copy, ending in "/") if that fails -- e.g. running on its own.
+{#- The tags that load Matrix. With `live` (App Hub's "/ds/1/") the page
+    uses the shared copy and falls back to `local` (the project's synced
+    copy, ending in "/") if that fails -- e.g. running on its own. The
+    script loads in order (no defer), so if the live copy is missing the
+    local one is in place before any page script asks for MX.
       {{ mx.head(mx_live, mx_local) }} -#}
 {%- macro head(live, local) -%}
 {%- if live -%}
 <link rel="stylesheet" href="{{ live }}matrix.css" onerror="this.onerror=null;this.href='{{ local }}matrix.css'">
-<script src="{{ live }}matrix.js" defer onerror="var s=document.createElement('script');s.src='{{ local }}matrix.js';document.head.appendChild(s)"></script>
+<script src="{{ live }}matrix.js"></script>
+<script>window.MX || document.write('<script src="{{ local }}matrix.js"><\/script>')</script>
 {%- else -%}
 <link rel="stylesheet" href="{{ local }}matrix.css">
-<script src="{{ local }}matrix.js" defer></script>
+<script src="{{ local }}matrix.js"></script>
 {%- endif -%}
 {%- endmacro -%}
 
@@ -62,6 +65,8 @@
   "music":    '<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
   "settings": '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>',
   "user":     '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+  "logout":   '<path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 17l5-5-5-5M15 12H4"/>',
+  "code":     '<path d="M8 7l-5 5 5 5M16 7l5 5-5 5"/>',
   "link":     '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
   "refresh":  '<path d="M20 11a8 8 0 0 0-14.9-3M4 5v4h4M4 13a8 8 0 0 0 14.9 3M20 19v-4h-4"/>',
   "tv":       '<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8"/>',

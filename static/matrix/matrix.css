@@ -447,6 +447,8 @@
   .mx-flow    { display: flex; flex-direction: column; gap: var(--mx-space-3); }
   .mx-cluster { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mx-space-2); }
   .mx-spread  { display: flex; align-items: center; justify-content: space-between; gap: var(--mx-space-3); }
+  /* A message in place of the items spans the whole grid. */
+  :is(.mx-grid, .mx-view-grid, .mx-layout-dashboard) > :is(.mx-empty, .mx-placeholder) { grid-column: 1 / -1; }
   .mx-grid, .mx-view-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--mx-card-min)), 1fr));
@@ -598,6 +600,8 @@
     .mx-nav-item[aria-current="page"], .mx-nav-item.mx-selected { background: var(--mx-accent-low); }
     .mx-nav-item[aria-current="page"]::before, .mx-nav-item.mx-selected::before { left: calc(-1 * var(--mx-space-3)); }
     body.mx-has-nav { padding-left: calc(var(--mx-sidebar-w) + env(safe-area-inset-left)); }
+    /* The sidebar carries the wordmark now; don't show it twice. */
+    body.mx-has-nav .mx-topbar .mx-mark { display: none; }
   }
   /* TV beats every width: a top menu, in the page flow. */
   :root[data-mx-device="tv"] .mx-nav {
@@ -614,6 +618,7 @@
   :root[data-mx-device="tv"] .mx-nav-brand { display: block; margin-right: var(--mx-space-6); padding: 0; }
   :root[data-mx-device="tv"] .mx-nav-item { flex: 0 0 auto; flex-direction: row; padding: 0 var(--mx-space-5); }
   :root[data-mx-device="tv"] .mx-nav-item[aria-current="page"]::before { left: 20%; right: 20%; top: auto; bottom: 0; width: auto; height: 3px; }
+  :root[data-mx-device="tv"] body.mx-has-nav .mx-topbar .mx-mark { display: none; }
   :root[data-mx-device="tv"] body.mx-has-nav { padding-left: 0; padding-bottom: var(--mx-space-7); }
 
   /* --- tabs -----------------------------------------------------------------
@@ -1083,6 +1088,7 @@
     padding: 2px 9px;
   }
   .mx-badge.mx-primary { font-weight: 700; }
+  .mx-badge:empty { display: none; }
 
   /* --- status chip + LED -------------------------------------------------------
      One connection at a glance. data-mx-state = ok / err / busy. */
