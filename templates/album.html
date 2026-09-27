@@ -11,8 +11,9 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
     <script src="{{ url_for('static', filename='app.js') }}" defer></script>
 </head>
-<body class="mx">
+<body class="mx mx-has-nav">
 
+{% include "_app_nav.html" %}
 <div class="mx-shell">
 
     <a href="{{ url_for('library_view') }}" class="mx-back">

@@ -1,0 +1,13 @@
+<nav class="mx-nav" aria-label="Music Manager">
+  <a class="mx-nav-brand" href="{{ url_for('main_dashboard') }}">music manager</a>
+  {% for endpoint, label, symbol, active in [
+    ('main_dashboard', 'Dashboard', 'grid', 'main_dashboard'),
+    ('library_view', 'Library', 'music', 'library_view'),
+    ('suggest_admin.review_list', 'Suggestions', 'list', 'suggest_admin.review_list'),
+    ('suggest_admin.friends_page', 'Friends', 'users', 'suggest_admin.friends_page')
+  ] %}
+  <a class="mx-nav-item" href="{{ url_for(endpoint) }}"{% if request.endpoint == active or (active == 'library_view' and request.endpoint == 'album_detail') or (active == 'suggest_admin.review_list' and request.endpoint == 'suggest_admin.review_detail') %} aria-current="page"{% endif %}>
+    {{ mx.icon(symbol) }}<span class="mx-nav-label">{{ label }}{% if endpoint == 'suggest_admin.review_list' and pending_suggestions %} ({{ pending_suggestions }}){% endif %}</span>
+  </a>
+  {% endfor %}
+</nav>

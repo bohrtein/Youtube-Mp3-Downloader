@@ -1,5 +1,5 @@
 /* =====================================================================
-   MATRIX 1.1.0 — the moving parts of the design system.
+   MATRIX 1.2.0 — the moving parts of the design system.
 
        <script src="matrix.js" defer></script>
 
@@ -28,7 +28,7 @@
 window.MX = window.MX || (function () {
   "use strict";
 
-  var VERSION = "1.1.0";
+  var VERSION = "1.2.0";
   var root = document.documentElement;
   var reduceMotion = window.matchMedia &&
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -329,7 +329,8 @@ window.MX = window.MX || (function () {
       /* True when the view is on screen: either it's the selected tab,
          or the screen is big enough that everything is shown. */
       visible: function (view) {
-        return document.body.getAttribute("data-mx-view") === view || isWide();
+        return document.body.getAttribute("data-mx-view") === view ||
+          (!document.body.classList.contains("mx-nav-views") && isWide());
       },
       mark: function (view) {
         buttons.forEach(function (b) {

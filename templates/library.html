@@ -11,8 +11,9 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
     <script src="{{ url_for('static', filename='app.js') }}" defer></script>
 </head>
-<body class="mx">
+<body class="mx mx-has-nav">
 
+{% include "_app_nav.html" %}
 <div class="mx-shell">
 
     <div class="mx-topbar">
@@ -20,7 +21,6 @@
             <span class="mx-mark">music manager</span>
             <p class="mx-tagline" data-decode>library</p>
         </div>
-        <a class="mx-btn" href="{{ url_for('main_dashboard') }}">Dashboard</a>
     </div>
 
     <div class="mx-input-icon yt-search">

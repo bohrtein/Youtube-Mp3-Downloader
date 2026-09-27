@@ -14,8 +14,9 @@
     <script src="{{ url_for('static', filename='app.js') }}" defer></script>
     {% block head %}{% endblock %}
 </head>
-<body class="mx" {% block body_attrs %}{% endblock %}>
+<body class="mx{% if request.blueprint == 'suggest_admin' %} mx-has-nav{% endif %}" {% block body_attrs %}{% endblock %}>
 
+{% if request.blueprint == 'suggest_admin' %}{% include "_app_nav.html" %}{% endif %}
 <div class="mx-shell">
 {% block content %}{% endblock %}
 </div>

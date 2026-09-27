@@ -12,19 +12,15 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='suggest.css') }}">
     <script src="{{ url_for('static', filename='app.js') }}" defer></script>
 </head>
-<body class="mx mx-has-cmdbar">
+<body class="mx mx-has-nav mx-has-cmdbar">
 
+{% include "_app_nav.html" %}
 <div class="mx-shell">
 
     <div class="mx-topbar">
         <div class="mx-brand">
             <span class="mx-mark">music manager</span>
             <p class="mx-tagline" data-decode>library control<span class="mx-caret" aria-hidden="true"></span></p>
-        </div>
-        <div class="mx-topbar-nav">
-            <a class="mx-btn" href="{{ url_for('suggest_admin.review_list') }}">Suggestions{% if pending_suggestions %} <span class="sg-badge">{{ pending_suggestions }}</span>{% endif %}</a>
-            <a class="mx-btn" href="{{ url_for('suggest_admin.friends_page') }}">Friends</a>
-            <a class="mx-btn" href="{{ url_for('library_view') }}">Library</a>
         </div>
         <div class="mx-topbar-actions" data-mx-slot="actions"></div>
     </div>

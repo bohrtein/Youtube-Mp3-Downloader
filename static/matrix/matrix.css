@@ -1,5 +1,5 @@
 /* =====================================================================
-   MATRIX 1.1.0 — a small design system
+   MATRIX 1.2.0 — a small design system
    Phosphor-on-black terminal. Pitch-black surfaces, digital rain in the
    gaps, phone-first but laid out for every screen up to a TV.
 
@@ -184,7 +184,7 @@
     --mx-dur-fast: 0.14s;
     --mx-dur:      0.22s;
     --mx-dur-slow: 0.28s;
-    --mx-rain-opacity: 0.85;
+    --mx-rain-opacity: 0.42;
 
     /* --- 1.0 names, kept working through /ds/1/ ---------------------
        Removed in 2.0. New code uses the names above. */
@@ -276,6 +276,8 @@
   html {
     -webkit-text-size-adjust: 100%;
     background: var(--mx-bg);
+    scrollbar-color: var(--mx-border-strong) var(--mx-bg);
+    scrollbar-width: thin;
   }
 
   body.mx {
@@ -465,6 +467,9 @@
     display: flex;
     align-items: center;
     gap: var(--mx-space-3);
+    background: var(--mx-bg);
+    border-bottom: 1px solid var(--mx-border-soft);
+    margin-bottom: var(--mx-space-4);
   }
   .mx-brand { min-width: 0; flex: 1 1 auto; }
   .mx-mark {
@@ -504,6 +509,9 @@
   }
   /* Where the command bar moves on big screens (see command bar). */
   .mx-topbar-actions { flex: 0 1 auto; min-width: 0; display: flex; align-items: center; gap: var(--mx-space-2); }
+  @media (min-width: 600px) and (max-width: 1023px) {
+    .mx-topbar { flex-wrap: wrap; }
+  }
 
   /* --- adaptive navigation -------------------------------------------------
      One <nav class="mx-nav"> of .mx-nav-item links; add mx-has-nav to
@@ -542,6 +550,7 @@
   }
   .mx-nav-item svg, .mx-nav-icon { width: 20px; height: 20px; flex: 0 0 auto; }
   .mx-nav-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+  .mx-nav-item[aria-selected="true"] { color: var(--mx-accent); background: var(--mx-accent-low); }
   .mx-nav-item[aria-current="page"], .mx-nav-item.mx-selected { color: var(--mx-accent); }
   .mx-nav-item[aria-current="page"]::before, .mx-nav-item.mx-selected::before {
     content: "";
@@ -683,6 +692,12 @@
     body.mx-tabbed [data-mx-panel] { display: none; }
     body.mx-tabbed [data-mx-panel].mx-shown { display: block; }
   }
+  /* Persistent app navigation, like App Hub. Opt in to one view at every
+     width; the existing tabbed split layout remains available. */
+  body.mx-nav-views.mx-tabbed [data-mx-panel] { display: none; }
+  body.mx-nav-views.mx-tabbed [data-mx-panel].mx-shown { display: block; }
+  .mx-nav-views .mx-stack { display: block; }
+  .mx-nav-views .mx-col { display: contents; }
 
   /* --- command bar -------------------------------------------------------
      The page's primary action. A full-width bottom bar in thumb reach on
