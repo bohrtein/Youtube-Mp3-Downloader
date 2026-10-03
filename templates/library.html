@@ -12,17 +12,20 @@
     <script src="{{ url_for('static', filename='app.js') }}" defer></script>
 </head>
 <body class="mx">
-{% call mx.app() %}
+<div class="mx-app">
 
 {% include "_app_nav.html" %}
-{% call mx.app_page() %}
+<main class="mx-app-page">
 
-    {{ mx.app_header("Library", "Albums in your collection", mark="Music Manager") }}
+    <header class="mx-app-header"><div class="mx-app-heading">
+        <span class="mx-mark">music manager</span>
+        <h1 class="mx-app-title">library</h1>
+    </div></header>
 
     <div class="mx-viewbar" aria-label="Album collection controls">
-        <label class="mx-btn mx-viewbar-pick"><span class="mx-sr-only">Sort albums</span>
+        <label class="mx-btn mx-viewbar-pick"><span>Sort albums</span>
             <select class="mx-select" id="librarySort" aria-label="Sort albums">
-                <option value="release">Release</option><option value="added">Added</option><option value="name">A–Z</option>
+                <option value="release">Release date</option><option value="added">Recently added</option><option value="name">A–Z</option>
             </select>
         </label>
         <label class="mx-input-icon mx-viewbar-search">{{ mx.icon("search") }}
@@ -46,11 +49,11 @@
         {# --yt-i drives the entrance stagger (see .album-item.yt-enter in app.css);
            the cap must match STAGGER_CAP in the script below. #}
         <div class="mx-item album-item yt-enter" id="album-container-{{ album.album_id }}" style="--yt-i:{{ [loop.index0, 18]|min }}"
-             data-order="{{ loop.index0 }}" data-added="{{ album.last_song_id or 0 }}" data-mx-hold="albumActions" tabindex="0" aria-label="Album actions for {{ album.album_name }}">
-                <a class="mx-slot-lead" href="{{ url_for('album_detail', album_id=album.album_id) }}"><span class="mx-media yt-cover-frame">
+             data-order="{{ loop.index0 }}" data-added="{{ album.last_song_id or 0 }}" data-mx-hold="albumActions">
+                <a class="mx-slot-lead" href="{{ url_for('album_detail', album_id=album.album_id) }}"><span class="mx-media">
                     <img src="{{ url_for('static', filename='covers/' ~ album.album_id ~ '.jpg') }}"
-                         alt="{{ album.album_name }}" loading="lazy" decoding="async" data-mx-cover>
-                    <span class="yt-cover-fallback" aria-hidden="true">{{ mx.icon("music") }}</span>
+                         alt="{{ album.album_name }}" loading="lazy" decoding="async"
+                         onerror="this.onerror=null;this.src='data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 fill=%22%23000%22/><path d=%22M35 65V32l30-5v33%22 stroke=%22%232c6042%22 stroke-width=%223%22 fill=%22none%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22/><circle cx=%2230%22 cy=%2265%22 r=%226%22 stroke=%22%232c6042%22 stroke-width=%223%22 fill=%22none%22/><circle cx=%2260%22 cy=%2260%22 r=%226%22 stroke=%22%232c6042%22 stroke-width=%223%22 fill=%22none%22/></svg>'">
                 </span></a>
                 <span class="mx-slot-main">
                     <a class="mx-slot-title yt-album-name" href="{{ url_for('album_detail', album_id=album.album_id) }}">{{ album.album_name }}</a>
@@ -194,7 +197,7 @@
 
     document.getElementById('librarySearch').addEventListener('input', filterLibrary);
 </script>
-{% endcall %}
-{% endcall %}
+</main>
+</div>
 </body>
 </html>

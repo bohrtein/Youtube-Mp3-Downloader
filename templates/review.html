@@ -14,7 +14,12 @@
     </a>
 {% endmacro %}
 {% block content %}
-    {{ mx.app_header("Suggestions", "Review music shared by friends", mark="Music Manager") }}
+    <div class="mx-app-header">
+        <div class="mx-app-heading">
+            <span class="mx-mark">music manager</span>
+            <p class="mx-tagline" data-decode>suggestions</p>
+        </div>
+    </div>
 
     <section class="mx-panel">
         <h2 class="mx-panel-title" data-decode>waiting</h2>

@@ -1,7 +1,12 @@
 {% extends "_suggest_base.html" %}
 {% block title %}Friends{% endblock %}
 {% block content %}
-    {{ mx.app_header("Friends", "Manage shared suggestion links", mark="Music Manager") }}
+    <div class="mx-app-header">
+        <div class="mx-app-heading">
+            <span class="mx-mark">music manager</span>
+            <p class="mx-tagline" data-decode>friends</p>
+        </div>
+    </div>
 
     <div class="mx-adaptive-grid">
         <div class="mx-col">

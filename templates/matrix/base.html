@@ -7,7 +7,8 @@
 
     Context it reads (a Flask context processor is the easy way, see README):
       mx_local   URL of the project's synced copy, ending in "/"   required
-      mx_live    URL of the live copy served by App Hub, "/ds/2/"   optional
+      mx_live    URL of the live copy served by App Hub, "/ds/1/"   optional
+                 or "/ds/2/" (the same 2.x files)
       mx_theme   force a theme ("amber", "ice")                     optional
       mx_density "compact" | "dense" for the whole app              optional
       mx_device  "tv" for a TV app                                  optional
@@ -18,7 +19,7 @@
     Blocks: title, head, body_class, body_attrs, body, nav, shell_class,
     topbar, content, overlays, cmdbar, scripts.
 
-    A 2.1 app, sized by its pane, replaces the whole 1.x page shell by
+    A 2.0 app, sized by its pane, replaces the whole 1.x page shell by
     overriding `body`:
 
     {% block body %}

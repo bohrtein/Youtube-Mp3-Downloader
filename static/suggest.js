@@ -33,7 +33,6 @@
   var basketList = document.getElementById("basketList");
   var basketCount = document.getElementById("basketCount");
   var submitBtn = document.getElementById("submitBtn");
-  var submitStatus = document.getElementById("suggestCmdStatus");
   var messageInput = document.getElementById("messageInput");
   var busy = false;
   var view = null;    // what the results panel shows: {songs, albums, artists, top, note, title}
@@ -269,14 +268,6 @@
     basketCount.textContent = basket.length
       ? kept + " of " + basket.length + " ticked" + (kept > MAX_KEPT ? " (max " + MAX_KEPT + ")" : "")
       : "empty";
-    if (submitStatus) {
-      submitStatus.textContent = "";
-      var prompt = document.createElement("span");
-      prompt.className = "mx-prompt";
-      prompt.textContent = ">";
-      submitStatus.appendChild(prompt);
-      submitStatus.appendChild(document.createTextNode(kept + (kept === 1 ? " song selected" : " songs selected")));
-    }
     submitBtn.disabled = kept === 0 || kept > MAX_KEPT;
     if (!basket.length) {
       basketList.appendChild(el("p", "sg-empty", "Add songs from your search results."));

@@ -12,12 +12,14 @@
     <script src="{{ url_for('static', filename='app.js') }}" defer></script>
 </head>
 <body class="mx">
-{% call mx.app() %}
+<div class="mx-app">
 
 {% include "_app_nav.html" %}
-{% call mx.app_page() %}
+<main class="mx-app-page">
 
-    {{ mx.app_header(album.album_name, album.artist_name, back_href=url_for('library_view'), back_label="Library", mark="Music Manager") }}
+    <header class="mx-app-header">
+        <a href="{{ url_for('library_view') }}" class="mx-back">{{ mx.icon("back") }}Back to Library</a>
+    </header>
 
     <div class="mx-scroll-region" aria-label="Album tracks">
     <section class="mx-hero">
@@ -25,31 +27,20 @@
         <div class="mx-hero-body">
             <img class="mx-hero-media"
                  src="{{ url_for('static', filename='covers/' ~ album_id ~ '.jpg') }}"
-                 alt="">
+                 alt="{{ album.album_name }}"
+                 onerror="this.onerror=null;this.src='data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 fill=%22%23000%22/><path d=%22M35 65V32l30-5v33%22 stroke=%22%232c6042%22 stroke-width=%223%22 fill=%22none%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22/><circle cx=%2230%22 cy=%2265%22 r=%226%22 stroke=%22%232c6042%22 stroke-width=%223%22 fill=%22none%22/><circle cx=%2260%22 cy=%2260%22 r=%226%22 stroke=%22%232c6042%22 stroke-width=%223%22 fill=%22none%22/></svg>'">
+            <div class="mx-hero-text">
+                <h1 class="mx-title">{{ album.album_name }}</h1>
+                <p class="mx-tagline">{{ album.artist_name }}</p>
+            </div>
         </div>
     </section>
-    <div class="mx-viewbar" aria-label="Track collection controls">
-        <label class="mx-btn mx-viewbar-pick"><span class="mx-sr-only">Sort tracks</span>
-            <select class="mx-select" id="trackSort" aria-label="Sort tracks">
-                <option value="number">Number</option><option value="title">Title</option>
-            </select>
-        </label>
-        <label class="mx-input-icon mx-viewbar-search">{{ mx.icon("search") }}
-            <input class="mx-input" type="search" id="trackSearch" placeholder="Search tracks..." aria-label="Search tracks">
-        </label>
-        <button class="mx-btn mx-ghost mx-square mx-viewbar-find" type="button" data-mx-search-open aria-label="Open search">{{ mx.icon("search") }}</button>
-        <button class="mx-btn mx-ghost mx-viewbar-cancel" type="button" data-mx-search-close>Cancel</button>
-        <div class="mx-layout-switch" data-mx-layout-switch="trackList" data-mx-remember="youtube-mp3-downloader-album-tracks" aria-label="Track layout">
-            <button class="mx-btn mx-square" type="button" data-mx-layout="grid" aria-label="Grid view">{{ mx.icon("grid") }}</button>
-            <button class="mx-btn mx-square" type="button" data-mx-layout="list" aria-label="List view">{{ mx.icon("list") }}</button>
-        </div>
-    </div>
     <section class="mx-panel">
         <h2 class="mx-panel-title" data-decode>tracks</h2>
-        <div class="mx-list" id="trackList">
+        <div class="mx-list">
             {% for song in songs %}
             {# --yt-i staggers the slide-in (see .yt-enter in app.css). #}
-            <div class="mx-item yt-enter" id="row-{{ song.song_id }}" data-track="{{ song.track_number or loop.index }}" data-title="{{ song.song_title|lower }}" data-mx-hold="trackActions" tabindex="0" aria-label="Track actions for {{ song.song_title }}" style="--yt-i:{{ [loop.index0, 20]|min }}">
+            <div class="mx-item yt-enter" id="row-{{ song.song_id }}" data-mx-hold="trackActions" style="--yt-i:{{ [loop.index0, 20]|min }}">
                 <span class="mx-slot-lead">{{ song.track_number }}</span>
                 <span class="mx-slot-main">
                     {% if song.source_url %}
@@ -113,8 +104,7 @@
     }
 
     let heldSongId = null;
-    const trackList = document.getElementById('trackList');
-    trackList.addEventListener('mx:hold', event => {
+    document.querySelector('.mx-list').addEventListener('mx:hold', event => {
         const row = event.target.closest('[data-mx-hold="trackActions"]');
         heldSongId = row ? row.id.replace('row-', '') : null;
     });
@@ -124,20 +114,8 @@
         heldSongId = null;
         document.getElementById('trackActions').classList.remove('mx-open');
     });
-
-    const trackRows = Array.from(trackList.querySelectorAll('.mx-item'));
-    document.getElementById('trackSearch').addEventListener('input', event => {
-        const query = event.target.value.trim().toLowerCase();
-        trackRows.forEach(row => { row.hidden = query !== '' && !row.dataset.title.includes(query); });
-    });
-    document.getElementById('trackSort').addEventListener('change', event => {
-        const compare = event.target.value === 'title'
-            ? (a, b) => a.dataset.title.localeCompare(b.dataset.title, undefined, { numeric: true, sensitivity: 'base' })
-            : (a, b) => Number(a.dataset.track) - Number(b.dataset.track);
-        trackRows.sort(compare).forEach(row => trackList.appendChild(row));
-    });
 </script>
-{% endcall %}
-{% endcall %}
+</main>
+</div>
 </body>
 </html>

@@ -44,7 +44,15 @@
     </div>
 {% endmacro %}
 {% block content %}
-    {{ mx.app_header("Submission", "From " ~ submission.friend_name, back_href=url_for('suggest_admin.review_list'), back_label="All suggestions", mark="Music Manager") }}
+    <div class="mx-app-header">
+        <div class="mx-app-heading">
+            <span class="mx-mark">music manager</span>
+            <p class="mx-tagline" data-decode>from {{ submission.friend_name }}</p>
+        </div>
+        <div class="mx-app-header-actions">
+            <a class="mx-btn" href="{{ url_for('suggest_admin.review_list') }}">All suggestions</a>
+        </div>
+    </div>
 
     <section class="mx-panel">
         <h2 class="mx-panel-title" data-decode>submission</h2>
@@ -71,28 +79,18 @@
             <span class="mx-sw"></span>
             MP3 320kbps / 48kHz instead of FLAC
         </label>
+        <div class="sg-friend-actions">
+            <button class="mx-btn mx-primary" type="button" id="approveBtn">Download selected</button>
+            {% if submission.status in ('pending', 'in_review') %}
+            <button class="mx-btn" type="button" id="rejectBtn">Reject all</button>
+            {% endif %}
+        </div>
         <p class="mx-hint">Downloading is the decision for this submission: anything left unticked is marked skipped. Songs go to Artist/Album/NN - Title in your library folder. Ticking a song that's already downloaded re-downloads it and replaces its file.</p>
+        <div id="progressBox" hidden style="margin-top:12px;">
+            <div class="mx-readout mx-busy" id="progressText">Starting...</div>
+            <div class="mx-progress"><div class="mx-progress-fill mx-busy" id="progressBar"></div></div>
+        </div>
     </section>
-{% endblock %}
-{% block dock %}
-<div class="mx-dock" id="reviewProgressDock" role="status" aria-live="polite" hidden>
-    <span class="mx-dock-icon">{{ mx.icon("down") }}</span>
-    <span class="mx-dock-main">
-        <span class="mx-dock-title" id="reviewProgressTitle">Preparing downloads</span>
-        <span class="mx-dock-sub" id="reviewProgressDetail">Waiting to start</span>
-    </span>
-    <span class="mx-dock-value" id="reviewProgressValue">0%</span>
-    <button class="mx-btn mx-ghost mx-square" type="button" id="cancelReviewDownload" aria-label="Cancel download" title="Cancel download" disabled>{{ mx.icon("close") }}</button>
-</div>
-{% endblock %}
-{% block cmdbar %}
-<div class="mx-cmdbar">
-    <div class="mx-cmdbar-inner">
-        <div class="mx-cmd-status" id="reviewCmdStatus"><span class="mx-prompt">&gt;</span>0 selected</div>
-        <button class="mx-btn" type="button" id="rejectBtn" {% if submission.status not in ('pending', 'in_review') %}hidden{% endif %}>Reject all</button>
-        <button class="mx-btn mx-primary" type="button" id="approveBtn" disabled>Download selected</button>
-    </div>
-</div>
 {% endblock %}
 {% block scripts %}
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
@@ -161,38 +159,8 @@
     }));
 
     /* --- approve / reject --- */
-    const approveBtn = document.getElementById('approveBtn');
-    const reviewCmdStatus = document.getElementById('reviewCmdStatus');
-    const reviewDock = document.getElementById('reviewProgressDock');
-    const cancelDownloadBtn = document.getElementById('cancelReviewDownload');
-    let activeDownloadJob = null;
-    let downloadStarted = false;
-
-    function selectedIds() {
-        return [...document.querySelectorAll('.sg-check:checked:not(:disabled)')].map(c => Number(c.value));
-    }
-    function updateSelection() {
-        const count = selectedIds().length;
-        approveBtn.disabled = count === 0 || downloadStarted;
-        const prompt = reviewCmdStatus.querySelector('.mx-prompt');
-        reviewCmdStatus.textContent = '';
-        reviewCmdStatus.appendChild(prompt);
-        reviewCmdStatus.appendChild(document.createTextNode(`${count} selected`));
-    }
-    document.querySelectorAll('.sg-check').forEach(box => box.addEventListener('change', updateSelection));
-    updateSelection();
-
-    function setDockProgress(percent, detail, terminal) {
-        reviewDock.hidden = false;
-        reviewDock.style.setProperty('--mx-progress', Math.max(0, Math.min(100, Number(percent) || 0)));
-        reviewDock.classList.toggle('mx-busy', !terminal);
-        document.getElementById('reviewProgressTitle').textContent = terminal ? detail : 'Downloading approved songs';
-        document.getElementById('reviewProgressDetail').textContent = detail;
-        document.getElementById('reviewProgressValue').textContent = `${Math.round(Number(percent) || 0)}%`;
-    }
-
-    approveBtn.addEventListener('click', () => {
-        const ids = selectedIds();
+    document.getElementById('approveBtn').addEventListener('click', () => {
+        const ids = [...document.querySelectorAll('.sg-check:checked:not(:disabled)')].map(c => Number(c.value));
         if (!ids.length) return MX.toast(false, 'Tick at least one song.', toastHost);
         const format = document.getElementById('mp3Toggle').checked ? 'mp3' : 'flac';
         const redownloads = ids.filter(id => document.querySelector(`#item-${id} .sg-good`)).length;
@@ -200,18 +168,10 @@
 
 ${redownloads} of them ${redownloads === 1 ? 'is' : 'are'} already downloaded and will be replaced.` : '';
         if (!confirm(`Download ${ids.length} song${ids.length === 1 ? '' : 's'} as ${format.toUpperCase()}?${note}`)) return;
-        downloadStarted = true;
-        approveBtn.disabled = true;
-        setDockProgress(0, 'Starting download', false);
         postJson(`/review/${SUBMISSION_ID}/approve`, { item_ids: ids, format }).then(res => {
-            if (!res.ok) {
-                downloadStarted = false;
-                updateSelection();
-                reviewDock.hidden = true;
-                return MX.toast(false, res.data.error || 'Could not start the download.', toastHost);
-            }
-            activeDownloadJob = res.data.job_id;
-            cancelDownloadBtn.disabled = false;
+            if (!res.ok) return MX.toast(false, res.data.error || 'Could not start the download.', toastHost);
+            document.getElementById('progressBox').hidden = false;
+            document.getElementById('approveBtn').disabled = true;
         });
     });
 
@@ -222,29 +182,16 @@ ${redownloads} of them ${redownloads === 1 ? 'is' : 'are'} already downloaded an
             : MX.toast(false, res.data.error || 'Could not reject.', toastHost));
     });
 
-    cancelDownloadBtn.addEventListener('click', () => {
-        if (!activeDownloadJob) return;
-        cancelDownloadBtn.disabled = true;
-        document.getElementById('reviewProgressTitle').textContent = 'Cancelling download';
-        fetch(`${APP_ROOT}/api/downloads/${encodeURIComponent(activeDownloadJob)}/cancel`, { method: 'POST' })
-            .then(response => response.json())
-            .then(result => {
-                if (!result.success) MX.toast(false, result.message || 'Could not cancel the download.', toastHost);
-            })
-            .catch(() => MX.toast(false, 'Could not reach the server to cancel.', toastHost));
-    });
-
-    /* --- live progress for this download job --- */
+    /* --- live progress (same event the dashboard uses) --- */
     const socket = io({ transports: ['polling'], path: `${APP_ROOT}/socket.io/` });
     socket.on('progress', data => {
-        if (!downloadStarted || !activeDownloadJob || data.job_id !== activeDownloadJob) return;
-        const terminal = Number(data.percent) >= 100;
-        setDockProgress(data.percent, data.status, terminal);
-        if (terminal) {
-            activeDownloadJob = null;
-            cancelDownloadBtn.disabled = true;
-            setTimeout(() => location.reload(), 1500);
-        }
+        const box = document.getElementById('progressBox');
+        box.hidden = false;
+        document.getElementById('progressBar').style.width = `${data.percent}%`;
+        const text = document.getElementById('progressText');
+        text.textContent = data.status === 'complete' ? 'Done - library synced.' : data.status;
+        text.className = 'mx-readout ' + (data.status === 'complete' ? 'mx-ok' : /error/i.test(data.status) ? 'mx-err' : 'mx-busy');
+        if (data.percent >= 100) setTimeout(() => location.reload(), 1500);
     });
 </script>
 {% endblock %}

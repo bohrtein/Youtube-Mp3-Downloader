@@ -181,7 +181,7 @@ def _read_info_json(media_path):
         info_path.unlink(missing_ok=True)
 
 
-def _download_one(item, audio_format, library_folder, work_dir, overwrite=False, cancel_event=None):
+def _download_one(item, audio_format, library_folder, work_dir, overwrite=False):
     """
     Returns the album folder the song landed in.
 
@@ -191,7 +191,7 @@ def _download_one(item, audio_format, library_folder, work_dir, overwrite=False,
     """
     download_fn = playlistDownloader.download_file_mp3 if audio_format == "mp3" else playlistDownloader.download_file_flac
     files = download_fn(linkResolver.music_url(item["youtube_id"]), work_dir,
-                        file_template="%(id)s.%(ext)s", write_info_json=True, cancel_event=cancel_event)
+                        file_template="%(id)s.%(ext)s", write_info_json=True)
     if not files or not Path(files[0]).exists():
         raise RuntimeError("yt-dlp produced no file (see the server log)")
     downloaded = Path(files[0])
@@ -212,8 +212,7 @@ def _download_one(item, audio_format, library_folder, work_dir, overwrite=False,
     return destination.parent
 
 
-def run_approval(submission_id, item_ids, audio_format, progress, redownload_ids=(),
-                 cancel_event=None, previous_decisions=None):
+def run_approval(submission_id, item_ids, audio_format, progress, redownload_ids=()):
     """
     Background job: download each approved item, record per-item results,
     sync the album folders that changed.
@@ -222,10 +221,6 @@ def run_approval(submission_id, item_ids, audio_format, progress, redownload_ids
         progress (callable): progress(percent, status) for the admin UI.
         redownload_ids (set): items downloaded before, whose library file
             this download may replace.
-        cancel_event (threading.Event): stops yt-dlp and leaves unfinished
-            suggestions available for a later review.
-        previous_decisions (dict): decisions to restore for selected items
-            that did not finish before cancellation.
     """
     items = [suggestionsRepo.get_item(item_id) for item_id in item_ids]
     items = [i for i in items if i and i["submission_id"] == submission_id]
@@ -233,27 +228,16 @@ def run_approval(submission_id, item_ids, audio_format, progress, redownload_ids
     library_folder = databaseConnector.get_library_folder()
     touched_folders = set()
     failures = 0
-    previous_decisions = previous_decisions or {}
-    completed = set()
-    cancelled = False
 
     with download_lock, tempfile.TemporaryDirectory(prefix="friend-dl-") as work_dir:
         checkDependencies.dependencies_check()
         for index, item in enumerate(items):
-            if cancel_event is not None and cancel_event.is_set():
-                cancelled = True
-                break
             progress(index / total * 100, f"Downloading {index + 1} of {total}: {item['title'][:40]}")
             try:
                 touched_folders.add(_download_one(item, audio_format, library_folder, work_dir,
-                                                  overwrite=item["item_id"] in redownload_ids,
-                                                  cancel_event=cancel_event))
+                                                  overwrite=item["item_id"] in redownload_ids))
                 suggestionsRepo.set_item_decision(item["item_id"], "downloaded")
-                completed.add(item["item_id"])
             except Exception as e:
-                if cancel_event is not None and cancel_event.is_set():
-                    cancelled = True
-                    break
                 failures += 1
                 interfaceComponents.Print_Tag(f"Friend download failed for {item['youtube_id']}: {e}", tag="Error")
                 suggestionsRepo.set_item_decision(item["item_id"], "failed", str(e)[:300])
@@ -263,22 +247,8 @@ def run_approval(submission_id, item_ids, audio_format, progress, redownload_ids
         syncLibrary.Sync_Folder_To_Db(str(folder))
     suggestionsRepo.invalidate_library_index()
 
-    if cancel_event is not None and cancel_event.is_set():
-        cancelled = True
-    if cancelled:
-        for item in items:
-            if item["item_id"] not in completed:
-                suggestionsRepo.set_item_decision(item["item_id"], previous_decisions.get(item["item_id"], "pending"))
-
     submission = suggestionsRepo.get_submission(submission_id)
     if submission and not any(i["kept"] and i["decision"] in ("pending", "approved", "downloading")
                               for i in submission["items"]):
         suggestionsRepo.set_submission_status(submission_id, "done")
-    if cancelled:
-        detail, state = "Download cancelled", "cancelled"
-    elif failures:
-        detail, state = f"Error: {failures} of {total} downloads failed", "failed"
-    else:
-        detail, state = "complete", "done"
-    progress(100, detail)
-    return {"state": state, "detail": detail}
+    progress(100, "complete" if not failures else f"Error: {failures} of {total} downloads failed")

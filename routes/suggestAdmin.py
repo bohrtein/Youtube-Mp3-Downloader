@@ -1,6 +1,8 @@
 """My side of Friend Suggestions: friend links, the review queue, fixing
 matches and approving downloads. Admin-only - app.py's hub-login guard
 404s every route here for requests that didn't pass the app hub login."""
+import threading
+
 from flask import Blueprint, abort, current_app, jsonify, render_template, request, url_for
 
 import core.approvedDownloads as approvedDownloads
@@ -183,7 +185,6 @@ def approve(submission_id):
         return jsonify({"error": "Select at least one song."}), 400
     # Songs I already downloaded once may replace their own library file.
     redownload_ids = {i for i in selected if items[i]["decision"] == "downloaded"}
-    previous_decisions = {i: items[i]["decision"] for i in selected}
     if approvedDownloads.download_lock.locked():
         return jsonify({"error": "A download is already running. Wait for it to finish."}), 409
 
@@ -195,17 +196,17 @@ def approve(submission_id):
             suggestionsRepo.set_item_decision(item["item_id"], "skipped")
     suggestionsRepo.set_submission_status(submission_id, "in_review")
 
-    def work(cancel_event, progress):
-        return approvedDownloads.run_approval(
-            submission_id, selected, audio_format, progress, redownload_ids,
-            cancel_event, previous_decisions,
-        )
+    socketio = current_app.extensions["socketio"]
 
-    job_id = current_app.extensions["start_reported_download"](
-        f"Downloading {len(selected)} approved song{'s' if len(selected) != 1 else ''}",
-        f"review/{submission_id}", work,
-    )
-    return jsonify({"ok": True, "count": len(selected), "job_id": job_id}), 202
+    def progress(percent, status):
+        socketio.emit("progress", {"percent": percent, "status": status})
+
+    threading.Thread(
+        target=approvedDownloads.run_approval,
+        args=(submission_id, selected, audio_format, progress, redownload_ids),
+        daemon=True,
+    ).start()
+    return jsonify({"ok": True, "count": len(selected)}), 202
 
 
 @bp.route("/review/<int:submission_id>/reject", methods=["POST"])

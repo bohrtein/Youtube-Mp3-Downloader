@@ -35,43 +35,6 @@ def test_admin_pages_work_with_hub_secret(client):
         assert client.get(path, headers=ADMIN_HEADERS).status_code == 200, path
 
 
-def test_matrix_21_shell_and_primary_actions_render(client, friend):
-    suggest = client.get(f"/suggest/{friend['token']}/").data.decode()
-    assert '<div class="mx-app">' in suggest
-    assert '<h1 class="mx-app-title">Suggest songs</h1>' in suggest
-    assert 'class="mx-cmdbar"' in suggest and 'id="submitBtn"' in suggest
-
-    review = client.get("/review", headers=ADMIN_HEADERS).data.decode()
-    assert '<h1 class="mx-app-title">Suggestions</h1>' in review
-
-
-def test_review_download_job_reports_progress_and_can_cancel(client, friend, monkeypatch):
-    import app as app_module
-    import core.checkDependencies as checkDependencies
-
-    scheduled = []
-    reports = []
-    monkeypatch.setattr(app_module.socketio, "start_background_task", lambda work: scheduled.append(work))
-    monkeypatch.setattr(app_module, "report_hub_job", lambda job_id, **fields: reports.append((job_id, fields)))
-    monkeypatch.setattr(checkDependencies, "dependencies_check", lambda: None)
-    submission_id = make_submission(client, friend)
-    item_id = suggestionsRepo.get_submission(submission_id)["items"][0]["item_id"]
-
-    response = client.post(f"/review/{submission_id}/approve", json={"item_ids": [item_id]}, headers=ADMIN_HEADERS)
-    assert response.status_code == 202
-    job_id = response.get_json()["job_id"]
-    assert reports[0][0] == job_id
-    assert reports[0][1]["cancel"] == f"api/downloads/{job_id}/cancel"
-
-    cancelled = client.post(f"/api/downloads/{job_id}/cancel", headers=ADMIN_HEADERS)
-    assert cancelled.get_json()["success"]
-    scheduled.pop()()
-
-    assert suggestionsRepo.get_item(item_id)["decision"] == "pending"
-    assert reports[-1][1]["state"] == "cancelled"
-    assert job_id not in app_module.download_jobs
-
-
 def test_album_page_renders_matrix_item_actions(client):
     from tests.helpers import add_library_song
     import database.databaseConnector as databaseConnector

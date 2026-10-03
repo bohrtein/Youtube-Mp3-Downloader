@@ -1,14 +1,18 @@
 {% extends "_suggest_base.html" %}
 {% block title %}Library{% endblock %}
 {% block content %}
-    {% call mx.app_header("Library", "Browse albums and tracks", mark="Music Manager") %}
+    <div class="mx-app-header">
+        <div class="mx-app-heading">
+            <span class="mx-mark">music manager</span>
+            <p class="mx-tagline" data-decode>library</p>
+        </div>
         <a class="mx-btn" href="{{ url_for('friends_public.home') }}">Suggest</a>
-    {% endcall %}
+    </div>
 
     <div class="mx-viewbar" aria-label="Shared library controls">
-        <label class="mx-btn mx-viewbar-pick"><span class="mx-sr-only">Sort albums</span>
+        <label class="mx-btn mx-viewbar-pick"><span>Sort albums</span>
             <select class="mx-select" id="librarySort" aria-label="Sort albums">
-                <option value="release">Release</option><option value="name">A–Z</option>
+                <option value="release">Release date</option><option value="name">Album name</option>
             </select>
         </label>
         <label class="mx-input-icon mx-viewbar-search">{{ mx.icon("search") }}
@@ -35,10 +39,9 @@
         <div class="mx-item mx-row" data-release="{{ album.release_date or 0 }}" data-name="{{ album.album_name|lower }}">
             <button class="mx-row-head sg-album-head" type="button" aria-expanded="false">
                 {% if album.has_cover %}
-                <img class="sg-album-cover" data-mx-cover src="{{ url_for('static', filename='covers/' ~ album.album_id ~ '.jpg') }}" alt="" loading="lazy" decoding="async">
-                <span class="sg-album-cover sg-album-cover-blank sg-album-cover-icon" aria-hidden="true" hidden>{{ mx.icon("music") }}</span>
+                <img class="sg-album-cover" src="{{ url_for('static', filename='covers/' ~ album.album_id ~ '.jpg') }}" alt="" loading="lazy" decoding="async">
                 {% else %}
-                <span class="sg-album-cover sg-album-cover-blank sg-album-cover-icon" aria-hidden="true">{{ mx.icon("music") }}</span>
+                <span class="sg-album-cover sg-album-cover-blank" aria-hidden="true"></span>
                 {% endif %}
                 <span class="mx-row-title">{{ album.album_name }}<span class="sg-song-meta">{{ album.artist_name }}{% if album.release_date %} · {{ album.release_date }}{% endif %}</span></span>
                 <span class="mx-row-meta">{{ album.songs|length }}</span>

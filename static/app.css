@@ -3,10 +3,10 @@
 
    Everything shared (sheets, progress bars, menus, tiles, list rows,
    breadcrumbs, the hero, danger and busy states) comes from Matrix
-   itself, loaded live from the app hub at /ds/2/ with static/matrix/ as
+   itself, loaded live from the app hub at /ds/1/ with static/matrix/ as
    the fallback. This file only places and animates this app's own
    pieces, with Matrix tokens and no colours of its own. Check it with
-       python ../matrix_design/tools/lint.py static templates --strict
+       python ../matrix_design/tools/lint.py static
    ===================================================================== */
 
 /* --- library ------------------------------------------------------------ */
@@ -14,24 +14,15 @@
 .yt-sort-chips { grid-template-columns: repeat(3, 1fr); margin-top: -6px; }
 
 /* Cover-forward tiles; the grid fits as many as the width allows. */
-.yt-album-grid { gap: 14px; }
+.yt-album-grid { --mx-card-min: 140px; gap: 14px; }
 /* .album-item (the Jinja loop wrapper) is the actual grid item: without
    min-width: 0 one long album title blows its column past its share. */
 .album-item { position: relative; min-width: 0; }
+.album-item > .mx-tile { height: 100%; }
 
 /* The album menu floats on the cover art -- a tile this small has no
    room for a separate header row. */
 .yt-album-menu { position: absolute; top: var(--mx-space-2); right: var(--mx-space-2); z-index: 3; }
-.yt-cover-fallback {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  color: var(--mx-ink-faint);
-  background: var(--mx-surface-raised);
-}
-.yt-cover-fallback[hidden] { display: none; }
-.yt-cover-fallback > svg { width: 36%; height: 36%; }
 
 /* Staggered entrance: each tile fades up in turn, 40ms apart, on first
    paint and again whenever a search or sort re-flows the grid. --yt-i is
