@@ -13,25 +13,20 @@
     <script src="{{ url_for('static', filename='app.js') }}" defer></script>
 </head>
 <body class="mx">
-<div class="mx-app">
+{% call mx.app() %}
 
 {% include "_app_nav.html" %}
-<main class="mx-app-page">
+{% call mx.app_page() %}
 
-    <header class="mx-app-header">
-        <div class="mx-app-heading">
-            <span class="mx-mark">music manager</span>
-            <p class="mx-tagline" data-decode>library control<span class="mx-caret" aria-hidden="true"></span></p>
-        </div>
-    </header>
+    {{ mx.app_header("Dashboard", "Download and manage your music", mark="Music Manager") }}
 
     <div class="mx-scroll-region" aria-label="Dashboard controls">
     <div class="mx-adaptive-grid">
         <div class="mx-col">
             <section class="mx-panel">
                 <h2 class="mx-panel-title" data-decode>library folder</h2>
-                <div style="display:flex; align-items:center; gap:10px;">
-                    <div class="mx-readout" id="currentFolderPath" style="flex:1 1 auto;">{{ library_folder }}</div>
+                <div class="mx-toolbar" role="toolbar" aria-label="Library folder">
+                    <div class="mx-readout mx-grow" id="currentFolderPath">{{ library_folder }}</div>
                     <button class="mx-btn" type="button" onclick="openFolderBrowser()">Change</button>
                 </div>
             </section>
@@ -394,7 +389,7 @@
         }
     });
 </script>
-</main>
-</div>
+{% endcall %}
+{% endcall %}
 </body>
 </html>

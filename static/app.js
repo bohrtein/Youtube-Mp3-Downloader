@@ -38,7 +38,26 @@ window.APP = (function () {
     });
   }
 
+  document.addEventListener("error", function (event) {
+    var image = event.target;
+    if (!image.matches || !image.matches("img[data-mx-cover]")) return;
+    var fallback = image.nextElementSibling;
+    if (fallback && fallback.classList.contains("yt-cover-fallback")) {
+      var frame = image.closest(".mx-media");
+      if (frame) frame.classList.add("mx-loaded");
+      fallback.hidden = false;
+    } else if (fallback && fallback.classList.contains("sg-album-cover-icon")) {
+      fallback.hidden = false;
+    }
+    image.hidden = true;
+  }, true);
+
   document.addEventListener("DOMContentLoaded", function () { decodeAll(document); });
+  document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll("img[data-mx-cover]").forEach(function (image) {
+      if (image.complete && image.naturalWidth === 0) image.dispatchEvent(new Event("error"));
+    });
+  });
 
   return { decodeAll: decodeAll };
 })();

@@ -6,7 +6,7 @@
     {{ mx.tile(album.name, album.artist, href=url, image=cover_url) }}
     {% call mx.panel("library") %} ... {% endcall %}
 
-    2.0 app shell (sized by its pane, see the bottom of this file):
+    2.1 app shell (sized by its pane, see the bottom of this file):
     {% call mx.app() %}
       {{ mx.app_nav([("albums", "albums", "music"), ...], current="albums", brand="music") }}
       {% call mx.app_page() %}
@@ -27,10 +27,10 @@
       cls      extra classes
 -#}
 
-{#- The tags that load Matrix. With `live` (App Hub's "/ds/1/") the page
+{#- The tags that load Matrix. With `live` (App Hub's "/ds/2/") the page
     uses the shared copy, with `local` (the project's synced copy, ending
     in "/") underneath it as the fallback -- for when the app runs on its
-    own. "/ds/1/" and "/ds/2/" serve the same 2.x files. No inline script or event handler, so it works under a strict
+    own. The checked-in fallback is Matrix 2.1.1. No inline script or event handler, so it works under a strict
     Content-Security-Policy:
       - the local stylesheet loads first and the live one on top of it;
       - the live matrix.js loads first, and the local one does nothing
@@ -238,7 +238,7 @@
 
 
 {#- =====================================================================
-    2.0: the app container model. Every layout below follows the pane the
+    2.1: the app container model. Every layout below follows the pane the
     app is in (container queries), not the window.
     ===================================================================== -#}
 

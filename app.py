@@ -467,6 +467,49 @@ def delete_song(song_id):
 
 # --- SOCKET.IO EVENTS (ASYNC BACKGROUND TASKS) ---
 
+def start_reported_download(title, open_path, work):
+    """Start a cancellable download that is visible in App Hub and the app dock."""
+    job_id = "download-" + uuid.uuid4().hex
+    cancel_event = threading.Event()
+    with download_jobs_lock:
+        download_jobs[job_id] = cancel_event
+    report_hub_job(job_id, title=title, state="running", progress=0, detail="Starting download",
+                   open=open_path, cancel=f"api/downloads/{job_id}/cancel")
+
+    def progress(percent, detail):
+        percent = max(0, min(100, round(float(percent))))
+        report_hub_job(job_id, state="running", progress=percent, detail=detail)
+        socketio.emit("progress", {"job_id": job_id, "percent": percent, "status": detail})
+
+    def run():
+        outcome = {"state": "done", "detail": "Complete"}
+        try:
+            result = work(cancel_event, progress)
+            if isinstance(result, dict):
+                outcome.update(result)
+            elif result in ("done", "failed", "cancelled"):
+                outcome["state"] = result
+            if cancel_event.is_set() and outcome["state"] == "done":
+                outcome.update(state="cancelled", detail="Download cancelled")
+        except Exception as exc:
+            interfaceComponents.Print_Tag(f"{title} failed: {exc}", tag="Error")
+            outcome.update(state="failed", detail="Download failed")
+        finally:
+            state = outcome["state"]
+            detail = outcome.get("detail") or {"done": "Complete", "failed": "Download failed", "cancelled": "Download cancelled"}.get(state, title)
+            report_hub_job(job_id, state=state, progress=100 if state == "done" else None, detail=detail)
+            socketio.emit("progress", {"job_id": job_id, "percent": 100, "status": detail})
+            with download_jobs_lock:
+                download_jobs.pop(job_id, None)
+
+    socketio.start_background_task(run)
+    return job_id
+
+
+app.extensions["report_hub_job"] = report_hub_job
+app.extensions["start_reported_download"] = start_reported_download
+
+
 @socketio.on('trigger_cleanup')
 def handle_cleanup():
     """
