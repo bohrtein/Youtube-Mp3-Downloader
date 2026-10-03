@@ -48,7 +48,8 @@
   white-space: nowrap;
 }
 a.sg-song-title { text-decoration: none; }
-a.sg-song-title:hover { color: var(--mx-accent); }
+a.sg-song-title:focus-visible { color: var(--mx-accent); }
+@media (hover: hover) { a.sg-song-title:hover { color: var(--mx-accent); } }
 .sg-song-meta {
   display: block;
   margin-top: 2px;
@@ -75,12 +76,12 @@ a.sg-song-title:hover { color: var(--mx-accent); }
 .sg-flag.sg-bad { color: var(--mx-danger); border-color: var(--mx-danger-line); background: var(--mx-danger-low); }
 .sg-flag.sg-good { color: var(--mx-accent); border-color: var(--mx-border-strong); background: var(--mx-accent-low); }
 
-.sg-btn-sm { min-height: 36px; padding: 0 12px; font-size: 11px; flex: 0 0 auto; }
+.sg-btn-sm { min-height: var(--mx-tap); padding: 0 12px; font-size: 11px; flex: 0 0 auto; }
 .sg-btn-sm.sg-added { color: var(--mx-accent); border-color: var(--mx-border-strong); }
 
 .sg-pager { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
 .sg-pager[hidden] { display: none; }
-.sg-pager .sg-btn-sm { min-width: 0; padding: 0 10px; font-variant-numeric: tabular-nums; }
+.sg-pager .sg-btn-sm { min-width: var(--mx-tap); padding: 0 10px; font-variant-numeric: tabular-nums; }
 .sg-btn-sm.sg-page-on { color: var(--mx-accent); border-color: var(--mx-accent); background: var(--mx-accent-low); }
 
 .sg-check {
@@ -96,18 +97,6 @@ a.sg-song-title:hover { color: var(--mx-accent); }
 
 .sg-empty { font-size: 11.5px; color: var(--mx-ink-faint); padding: 8px 2px; }
 
-.sg-badge {
-  display: inline-block;
-  min-width: 18px;
-  padding: 1px 6px;
-  border-radius: 999px;
-  background: var(--mx-accent);
-  color: var(--mx-on-accent);
-  font-size: 10px;
-  font-weight: 700;
-  text-align: center;
-}
-
 .sg-message {
   white-space: pre-wrap;
   font-size: 12.5px;
@@ -116,7 +105,7 @@ a.sg-song-title:hover { color: var(--mx-accent); }
   margin: 0;
 }
 
-.sg-link-field { font-size: 12px; min-height: 36px; padding: 8px 10px; }
+.sg-link-field { font-size: 12px; min-height: var(--mx-tap); padding: 8px 10px; }
 .sg-link-box {
   margin-top: 8px;
   padding: 9px 11px;

@@ -8,18 +8,34 @@
     Context it reads (a Flask context processor is the easy way, see README):
       mx_local   URL of the project's synced copy, ending in "/"   required
       mx_live    URL of the live copy served by App Hub, "/ds/1/"   optional
+                 or "/ds/2/" (the same 2.x files)
       mx_theme   force a theme ("amber", "ice")                     optional
+      mx_density "compact" | "dense" for the whole app              optional
       mx_device  "tv" for a TV app                                  optional
 
     With mx_live set, the page loads the live copy and falls back to the
     local one if it fails (running the app on its own, outside the hub).
 
-    Blocks: title, head, body_class, body_attrs, nav, shell_class, topbar,
-    content, overlays, cmdbar, scripts.
+    Blocks: title, head, body_class, body_attrs, body, nav, shell_class,
+    topbar, content, overlays, cmdbar, scripts.
+
+    A 2.0 app, sized by its pane, replaces the whole 1.x page shell by
+    overriding `body`:
+
+    {% block body %}
+      {% call mx.app() %}
+        {{ mx.app_nav(sections, current=here, brand="music") }}
+        {% call mx.app_page() %} ... {% endcall %}
+      {% endcall %}
+    {% endblock %}
+
+    Everything else (nav, topbar, content, cmdbar) is the 1.x shell,
+    unchanged.
 -#}
 <!doctype html>
 <html lang="{{ mx_lang | default('en') }}"
       {%- if mx_theme %} data-mx-theme="{{ mx_theme }}"{% endif %}
+      {%- if mx_density %} data-mx-density="{{ mx_density }}"{% endif %}
       {%- if mx_device %} data-mx-device="{{ mx_device }}"{% endif %}>
 <head>
 <meta charset="utf-8">
@@ -32,6 +48,7 @@
 {% block head %}{% endblock %}
 </head>
 <body class="mx {% block body_class %}{% endblock %}"{% block body_attrs %}{% endblock %}>
+{% block body %}
 {% block nav %}{% endblock %}
 <div class="mx-shell {% block shell_class %}{% endblock %}">
 {% block topbar %}{% endblock %}
@@ -39,6 +56,7 @@
 </div>
 {% block overlays %}{% endblock %}
 {% block cmdbar %}{% endblock %}
+{% endblock %}
 <div class="mx-toasts" role="status" aria-live="polite"></div>
 {% block scripts %}{% endblock %}
 </body>

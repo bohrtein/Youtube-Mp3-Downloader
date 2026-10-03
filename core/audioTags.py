@@ -6,9 +6,10 @@ from mutagen.id3 import ID3, APIC, ID3NoHeaderError
 AUDIO_EXTENSIONS = (".flac", ".mp3")
 
 def find_audio_files(target_dir):
-    """Every FLAC and MP3 file under target_dir, recursively."""
+    """Every library FLAC and MP3, excluding the temporary undo archive."""
     path = Path(target_dir)
-    return [f for ext in AUDIO_EXTENSIONS for f in path.rglob(f"*{ext}")]
+    return [f for ext in AUDIO_EXTENSIONS for f in path.rglob(f"*{ext}")
+            if ".app-trash" not in f.parts]
 
 def open_tags(file_path):
     """

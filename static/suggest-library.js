@@ -5,7 +5,6 @@
 
   var rows = [].slice.call(document.querySelectorAll("#albumList .mx-row"));
   var count = document.getElementById("libraryCount");
-  var haystacks = rows.map(function (row) { return row.textContent.toLowerCase().replace(/\s+/g, " "); });
 
   rows.forEach(function (row) {
     var head = row.querySelector(".mx-row-head");
@@ -18,11 +17,19 @@
   document.getElementById("libraryFilter").addEventListener("input", function (e) {
     var words = e.target.value.toLowerCase().split(/\s+/).filter(Boolean);
     var shown = 0;
-    rows.forEach(function (row, i) {
-      var match = words.every(function (w) { return haystacks[i].indexOf(w) !== -1; });
+    rows.forEach(function (row) {
+      var haystack = row.textContent.toLowerCase().replace(/\s+/g, " ");
+      var match = words.every(function (w) { return haystack.indexOf(w) !== -1; });
       row.hidden = !match;
       if (match) shown++;
     });
     count.textContent = shown + (shown === 1 ? " album" : " albums");
+  });
+
+  document.getElementById("librarySort").addEventListener("change", function (e) {
+    rows.sort(e.target.value === "name"
+      ? function (a, b) { return a.dataset.name.localeCompare(b.dataset.name); }
+      : function (a, b) { return Number(b.dataset.release) - Number(a.dataset.release); });
+    rows.forEach(function (row) { row.parentNode.appendChild(row); });
   });
 })();
