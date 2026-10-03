@@ -2,7 +2,7 @@
    matrix.css + app.css. Only adds what those don't have: song rows with
    an action, flag pills, and the basket's tick boxes. */
 
-.sg-row-form { display: flex; gap: 8px; align-items: stretch; }
+.sg-row-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; }
 .sg-row-form .mx-input { flex: 1 1 auto; min-width: 0; }
 .sg-row-form .mx-btn { flex: 0 0 auto; }
 
@@ -86,7 +86,7 @@ a.sg-song-title:focus-visible { color: var(--mx-accent); }
 
 .sg-check {
   flex: 0 0 auto;
-  width: 22px; height: 22px;
+  width: var(--mx-tap); height: var(--mx-tap);
   margin: 0;
   accent-color: var(--mx-accent);
   cursor: pointer;
@@ -105,7 +105,7 @@ a.sg-song-title:focus-visible { color: var(--mx-accent); }
   margin: 0;
 }
 
-.sg-link-field { font-size: 12px; min-height: var(--mx-tap); padding: 8px 10px; }
+.sg-link-field { font-size: max(16px, var(--mx-text-base)); min-height: var(--mx-tap); padding: 8px 10px; }
 .sg-link-box {
   margin-top: 8px;
   padding: 9px 11px;
@@ -153,3 +153,9 @@ a.sg-song-title:focus-visible { color: var(--mx-accent); }
 .sg-fix[hidden] { display: none; }
 .sg-item { display: flex; flex-direction: column; }
 .sg-item > .sg-song { border-radius: var(--mx-r-sm); }
+
+@container mx-app (width < 360px) {
+  .sg-song { flex-wrap: wrap; }
+  .sg-song-main { flex-basis: calc(100% - var(--mx-space-8) * 2); }
+  .sg-song > .mx-btn { margin-left: auto; }
+}

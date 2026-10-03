@@ -5,6 +5,8 @@ import subprocess
 
 def _run_download(cmd, cancel_event=None):
     """Run yt-dlp while allowing an App Hub cancellation to stop the process."""
+    if cancel_event is not None and cancel_event.is_set():
+        raise RuntimeError("Download cancelled")
     process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     while True:
         try:

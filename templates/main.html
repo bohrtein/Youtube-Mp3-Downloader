@@ -3,7 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <meta name="theme-color" content="#000400">
     <meta name="color-scheme" content="dark">
     <title>Music Manager Dashboard</title>
     {% import "matrix/macros.html" as mx %}
@@ -12,7 +11,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='suggest.css') }}">
     <script src="{{ url_for('static', filename='app.js') }}" defer></script>
 </head>
-<body class="mx">
+<body class="mx yt-app" data-app-root="{{ request.script_root }}">
 <div class="mx-app">
 
 {% include "_app_nav.html" %}
@@ -56,13 +55,13 @@
         <div class="mx-col">
             <section class="mx-panel">
                 <h2 class="mx-panel-title" data-decode>deduplicate</h2>
-                <p class="mx-hint" style="margin-bottom:14px;">Deletes files from 'downloads' if they are already in the database.</p>
+                <p class="mx-hint" style="margin-bottom:14px;">Remove repeated music files from your selected library folder.</p>
                 <button class="mx-btn mx-block" type="button" onclick="confirmAndCleanup()">Remove repeats</button>
             </section>
 
             <section class="mx-panel">
                 <h2 class="mx-panel-title" data-decode>sync</h2>
-                <p class="mx-hint" style="margin-bottom:14px;">Scan your 'downloads' folder and update the database.</p>
+                <p class="mx-hint" style="margin-bottom:14px;">Scan your selected library folder and update the database.</p>
                 <button class="mx-btn mx-block" type="button" onclick="startAction('sync')">Run Database Sync</button>
             </section>
 
@@ -87,15 +86,7 @@
     </div>
     </div>
 
-    <div class="mx-dock" id="progressContainer" role="status" aria-live="polite" hidden>
-        <span class="mx-dock-icon">{{ mx.icon("music") }}</span>
-        <span class="mx-dock-main">
-            <span class="mx-dock-title" id="statusText">Waiting for task...</span>
-            <span class="mx-dock-sub" id="statusDetail">Your task is ready</span>
-        </span>
-        <span class="mx-dock-value" id="statusPercent">0%</span>
-    </div>
-
+    {% include "_job_dock.html" %}
 
 <div class="mx-overlay" id="folderModalOverlay" onclick="if (event.target === this) closeFolderBrowser()">
     <div class="mx-sheet">
@@ -172,8 +163,8 @@
     }
 
     function confirmAndCleanup() {
-        if (confirm("⚠️ Delete physical repeats on G: drive?")) {
-            if (confirm("⚠️ Delete duplicate records from the database?")) {
+        if (confirm("⚠️ Delete physical repeats on the library folder?")) {
+            if (confirm("⚠️ Remove duplicate music files?")) {
                 socket.emit('trigger_cleanup');
                 setBusy('Starting cleanup...');
             }
@@ -187,12 +178,12 @@
         document.getElementById('resetConfirmInput').value = '';
         document.getElementById('resetRescan').checked = true;
         updateResetButton();
-        overlay.classList.add('mx-open');
+        MX.sheet.open(overlay);
         APP.decodeAll(overlay);   // the sheet title, skipped on page load while hidden
     }
 
     function closeResetSheet() {
-        document.getElementById('resetOverlay').classList.remove('mx-open');
+        MX.sheet.close(document.getElementById('resetOverlay'));
     }
 
     function updateResetButton() {
@@ -220,7 +211,9 @@
 
             const format = document.getElementById('mp3FormatToggle').checked ? 'mp3' : 'flac';
             setBusy(`Downloading ${urls.length} item${urls.length === 1 ? '' : 's'}...`);
-            socket.emit('start_download_batch', { urls: urls, format: format });
+            socket.emit('start_download_batch', { urls: urls, format: format }, reply => {
+                if (reply && reply.error) APP.jobDock({state: 'failed', status: reply.error});
+            });
         } else if (actionType === 'sync') {
             setBusy('Syncing...');
             socket.emit('start_sync');
@@ -244,20 +237,20 @@
         container.style.setProperty('--mx-progress', '0');
         container.classList.add('mx-busy');
         cmdStatus.className = 'mx-cmd-status mx-busy';
-        cmdStatus.innerHTML = '<span class="mx-prompt">&gt;</span>' + message;
+        cmdStatus.textContent = message;
     }
 
     let browsingPath = null;
 
     function openFolderBrowser() {
         const overlay = document.getElementById('folderModalOverlay');
-        overlay.classList.add('mx-open');
+        MX.sheet.open(overlay);
         APP.decodeAll(overlay);   // the sheet title, skipped on page load while hidden
         loadFolder(null);
     }
 
     function closeFolderBrowser() {
-        document.getElementById('folderModalOverlay').classList.remove('mx-open');
+        MX.sheet.close(document.getElementById('folderModalOverlay'));
     }
 
     function loadFolder(path) {
@@ -280,9 +273,10 @@
         const breadcrumb = document.getElementById('folderBreadcrumb');
         breadcrumb.innerHTML = '';
 
-        const rootCrumb = document.createElement('span');
-        rootCrumb.className = 'mx-breadcrumb-item';
-        rootCrumb.innerText = 'This PC';
+        const rootCrumb = document.createElement('button');
+        rootCrumb.type = 'button';
+        rootCrumb.className = 'mx-btn mx-ghost mx-breadcrumb-item';
+        rootCrumb.innerText = 'Folders';
         rootCrumb.onclick = () => loadFolder(null);
         breadcrumb.appendChild(rootCrumb);
 
@@ -295,22 +289,22 @@
             breadcrumb.appendChild(sep);
         };
 
-        const isWindowsDrive = /^[A-Za-z]:\\?$/.test(path);
-        const parts = path.split(/[\\/]/).filter(p => p.length > 0);
-        let accumulated = '';
+        const isWindows = /^[A-Za-z]:/.test(path) || path.startsWith('\\');
+        const sep = isWindows ? '\\' : '/';
+        const parts = path.split(/[\\/]/).filter(Boolean);
+        let accumulated = isWindows ? (path.startsWith('\\') ? '\\\\' : '') : '/';
 
         parts.forEach((part, index) => {
             separator();
-            if (index === 0 && isWindowsDrive) {
-                accumulated = part.endsWith(':') ? part + '\\' : part;
+            if (isWindows && index === 0 && part.endsWith(':')) {
+                accumulated = part + sep;
             } else {
-                accumulated = accumulated.endsWith('\\') || accumulated.endsWith('/')
-                    ? accumulated + part
-                    : accumulated + '\\' + part;
+                accumulated += (accumulated.endsWith(sep) ? '' : sep) + part;
             }
             const crumbPath = accumulated;
-            const crumb = document.createElement('span');
-            crumb.className = 'mx-breadcrumb-item';
+            const crumb = document.createElement('button');
+            crumb.type = 'button';
+            crumb.className = 'mx-btn mx-ghost mx-breadcrumb-item';
             crumb.innerText = part;
             crumb.onclick = () => loadFolder(crumbPath);
             breadcrumb.appendChild(crumb);
@@ -364,34 +358,11 @@
     }
 
     socket.on('progress', function(data) {
-        console.log("Progress received:", data);
-        const container = document.getElementById('progressContainer');
-        const status = document.getElementById('statusText');
-        const percent = document.getElementById('statusPercent');
-        const detail = document.getElementById('statusDetail');
+        if (data.submission_id !== undefined) return;
+        APP.jobDock(data);
         const cmdStatus = document.getElementById('cmdStatus');
-
-        container.hidden = false;
-        container.style.setProperty('--mx-progress', Math.max(0, Math.min(100, Number(data.percent) || 0)));
-        percent.innerText = Math.round(data.percent) + '%';
-        detail.textContent = data.status === 'complete' ? 'Task finished' : 'Working in the background';
-
-        if (data.status === 'complete') {
-            container.classList.remove('mx-busy');
-            status.className = 'mx-readout mx-ok';
-            status.textContent = 'Task finished!';
-            cmdStatus.className = 'mx-cmd-status mx-ok';
-            cmdStatus.innerHTML = '<span class="mx-prompt">&gt;</span>ready';
-            MX.toast(true, 'Task finished!', document.getElementById('toastHost'));
-            setTimeout(() => { location.reload(); }, 2000);
-        } else {
-            const isError = /error/i.test(data.status);
-            status.className = isError ? 'mx-readout mx-err' : 'mx-readout mx-busy';
-            status.textContent = data.status;
-            container.classList.toggle('mx-busy', !isError);
-            cmdStatus.className = isError ? 'mx-cmd-status mx-err' : 'mx-cmd-status mx-busy';
-            cmdStatus.innerHTML = '<span class="mx-prompt">&gt;</span>' + data.status;
-        }
+        cmdStatus.textContent = data.status;
+        cmdStatus.className = 'mx-cmd-status' + (data.state === 'running' ? ' mx-busy' : data.state === 'failed' ? ' mx-err' : '');
     });
 </script>
 </main>

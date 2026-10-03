@@ -1,11 +1,11 @@
 """My side of Friend Suggestions: friend links, the review queue, fixing
 matches and approving downloads. Admin-only - app.py's hub-login guard
 404s every route here for requests that didn't pass the app hub login."""
-import threading
 
 from flask import Blueprint, abort, current_app, jsonify, render_template, request, url_for
 
 import core.approvedDownloads as approvedDownloads
+import core.hubJobs as hubJobs
 import core.linkResolver as linkResolver
 import core.musicSearch as musicSearch
 import core.suggestFlags as suggestFlags
@@ -198,15 +198,23 @@ def approve(submission_id):
 
     socketio = current_app.extensions["socketio"]
 
-    def progress(percent, status):
-        socketio.emit("progress", {"percent": percent, "status": status})
+    job = hubJobs.Job(f"Downloading suggestions from {submission['friend_name']}",
+                      lambda update: socketio.emit("progress", {**update, "submission_id": submission_id}),
+                      open_path=f"review/{submission_id}", cancellable=True)
 
-    threading.Thread(
-        target=approvedDownloads.run_approval,
-        args=(submission_id, selected, audio_format, progress, redownload_ids),
-        daemon=True,
-    ).start()
-    return jsonify({"ok": True, "count": len(selected)}), 202
+    def work(job):
+        try:
+            return approvedDownloads.run_approval(
+                submission_id, selected, audio_format, job.update, redownload_ids, job.cancel_event)
+        except Exception:
+            for item_id in selected:
+                item = suggestionsRepo.get_item(item_id)
+                if item and item["decision"] == "downloading":
+                    suggestionsRepo.set_item_decision(item_id, "failed", "Download job failed; try again.")
+            raise
+
+    socketio.start_background_task(job.run, work)
+    return jsonify({"ok": True, "count": len(selected), "job_id": job.id}), 202
 
 
 @bp.route("/review/<int:submission_id>/reject", methods=["POST"])

@@ -3,7 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <meta name="theme-color" content="#000400">
     <meta name="color-scheme" content="dark">
     <title>{{ album.album_name }}</title>
     {% import "matrix/macros.html" as mx %}
@@ -11,7 +10,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
     <script src="{{ url_for('static', filename='app.js') }}" defer></script>
 </head>
-<body class="mx">
+<body class="mx yt-app" data-app-root="{{ request.script_root }}">
 <div class="mx-app">
 
 {% include "_app_nav.html" %}
@@ -25,10 +24,11 @@
     <section class="mx-hero">
         <div class="mx-hero-bg" style="background-image: url('{{ url_for('static', filename='covers/' ~ album_id ~ '.jpg') }}');"></div>
         <div class="mx-hero-body">
-            <img class="mx-hero-media"
+            <div class="mx-hero-media yt-cover"><img
                  src="{{ url_for('static', filename='covers/' ~ album_id ~ '.jpg') }}"
                  alt="{{ album.album_name }}"
-                 onerror="this.onerror=null;this.src='data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 fill=%22%23000%22/><path d=%22M35 65V32l30-5v33%22 stroke=%22%232c6042%22 stroke-width=%223%22 fill=%22none%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22/><circle cx=%2230%22 cy=%2265%22 r=%226%22 stroke=%22%232c6042%22 stroke-width=%223%22 fill=%22none%22/><circle cx=%2260%22 cy=%2260%22 r=%226%22 stroke=%22%232c6042%22 stroke-width=%223%22 fill=%22none%22/></svg>'">
+                 onerror="this.hidden=true">
+            {{ mx.icon("music") }}</div>
             <div class="mx-hero-text">
                 <h1 class="mx-title">{{ album.album_name }}</h1>
                 <p class="mx-tagline">{{ album.artist_name }}</p>
@@ -40,7 +40,7 @@
         <div class="mx-list">
             {% for song in songs %}
             {# --yt-i staggers the slide-in (see .yt-enter in app.css). #}
-            <div class="mx-item yt-enter" id="row-{{ song.song_id }}" data-mx-hold="trackActions" style="--yt-i:{{ [loop.index0, 20]|min }}">
+            <div class="mx-item yt-enter" id="row-{{ song.song_id }}" tabindex="0" data-mx-hold="trackActions" style="--yt-i:{{ [loop.index0, 20]|min }}">
                 <span class="mx-slot-lead">{{ song.track_number }}</span>
                 <span class="mx-slot-main">
                     {% if song.source_url %}
@@ -75,44 +75,20 @@
     const APP_ROOT = "{{ request.script_root }}";
 
     function removeSong(songId) {
-            fetch(`${APP_ROOT}/delete_song/${songId}`, {
-                method: 'DELETE',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    const element = document.getElementById(`row-${songId}`);
-                    element.style.transition = "opacity 0.5s";
-                    element.style.opacity = "0";
-                    setTimeout(() => element.remove(), 500);
-                    MX.toast(true, 'Song deleted', {
-                        ms: 10000,
-                        action: { label: 'Undo', run: () => fetch(`${APP_ROOT}/restore_delete/${data.undo}`, { method: 'POST' })
-                            .then(response => response.json()).then(result => result.success ? location.reload() : MX.toast(false, result.message || 'Could not restore song.', document.getElementById('toastHost'))) }
-                    });
-                } else {
-                    MX.toast(false, "Error: " + data.message, document.getElementById('toastHost'));
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                MX.toast(false, "Failed to delete song.", document.getElementById('toastHost'));
-            });
+        const row = document.getElementById(`row-${songId}`);
+        APP.deleteItem(row, `${APP_ROOT}/delete_song/${songId}`, row.querySelector('.mx-slot-title').textContent.trim());
     }
 
     let heldSongId = null;
     document.querySelector('.mx-list').addEventListener('mx:hold', event => {
-        const row = event.target.closest('[data-mx-hold="trackActions"]');
+        const row = event.target.closest('[tabindex="0" data-mx-hold="trackActions"]');
         heldSongId = row ? row.id.replace('row-', '') : null;
     });
     document.getElementById('deleteHeldTrack').addEventListener('click', () => {
         if (!heldSongId) return;
         removeSong(heldSongId);
         heldSongId = null;
-        document.getElementById('trackActions').classList.remove('mx-open');
+        MX.sheet.close(document.getElementById('trackActions'));
     });
 </script>
 </main>
