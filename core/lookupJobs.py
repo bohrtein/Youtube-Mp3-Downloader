@@ -8,6 +8,7 @@ import threading
 import time
 
 import core.linkResolver as linkResolver
+import core.hubJobs as hubJobs
 import core.musicSearch as musicSearch
 import core.songMatch as songMatch
 import core.spotifyClient as spotifyClient
@@ -185,17 +186,25 @@ def _worker_loop():
         if job is None:
             continue
         job["status"] = "running"
-        try:
-            found = _run(job)
-            suggestionsRepo.cache_set(job["cache_key"], found)
-            _remember_served(job["friend_id"], found["results"])
-            job.update(found, results=with_library_status(found["results"]), status="done")
-        except (LookupFailed, spotifyClient.SpotifyError) as e:
-            interfaceComponents.Print_Tag(f"Friend lookup ({job['kind']}) refused: {e}", tag="Warning")
-            job.update(error=str(e), status="error")
-        except Exception as e:
-            interfaceComponents.Print_Tag(f"Friend lookup failed: {e!r}", tag="Error")
-            job.update(error="Something went wrong looking that up. Try again later.", status="error")
+        reported = hubJobs.Job("Looking up music suggestions", lambda update: None, open_path="review")
+        job["hub_job"] = reported
+
+        def work(reported):
+            try:
+                found = _run(job)
+                suggestionsRepo.cache_set(job["cache_key"], found)
+                _remember_served(job["friend_id"], found["results"])
+                job.update(found, results=with_library_status(found["results"]), status="done")
+            except (LookupFailed, spotifyClient.SpotifyError) as exc:
+                interfaceComponents.Print_Tag(f"Friend lookup ({job['kind']}) refused: {exc}", tag="Warning")
+                job.update(error=str(exc), status="error")
+                return "failed"
+            except Exception as exc:
+                interfaceComponents.Print_Tag(f"Friend lookup failed: {exc!r}", tag="Error")
+                job.update(error="Something went wrong looking that up. Try again later.", status="error")
+                return "failed"
+        reported.run(work)
+        job.pop("hub_job", None)
 
 
 def _ytdlp(fn, *args, cost=1):
@@ -273,6 +282,8 @@ def _run_spotify(job, link):
     songs, unmatched = [], []
     for index, track in enumerate(tracks):
         job["progress"] = f"Matching {index + 1} of {len(tracks)} on YouTube"
+        if job.get("hub_job"):
+            job["hub_job"].update(index * 100 / max(1, len(tracks)), job["progress"])
         match = suggestionsRepo.cache_get(f"spmatch:{track['sp_track_id']}", SPOTIFY_MATCH_CACHE_TTL)
         if match is None:
             query = f"{track['sp_artist']} - {songMatch.strip_version_suffix(track['sp_title'])}"

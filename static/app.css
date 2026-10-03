@@ -3,7 +3,7 @@
 
    Everything shared (sheets, progress bars, menus, tiles, list rows,
    breadcrumbs, the hero, danger and busy states) comes from Matrix
-   itself, loaded live from the app hub at /ds/1/ with static/matrix/ as
+   itself, loaded live from the app hub at /ds/2/ with static/matrix/ as
    the fallback. This file only places and animates this app's own
    pieces, with Matrix tokens and no colours of its own. Check it with
        python ../matrix_design/tools/lint.py static
@@ -67,3 +67,22 @@
 @media (prefers-reduced-motion: reduce) {
   .album-item.yt-enter, .mx-item.yt-enter { animation: none; }
 }
+
+/* Covers inherit the selected theme even when no artwork exists. */
+.yt-cover { position: relative; display: grid; place-items: center; color: var(--mx-ink-faint); background: var(--mx-surface-raised); overflow: hidden; }
+.yt-cover > img { width: 100%; height: 100%; object-fit: cover; }
+.yt-cover > img[hidden] { display: none; }
+.yt-cover > img:not([hidden]) + svg { display: none; }
+.yt-cover > svg { width: var(--mx-space-8); height: var(--mx-space-8); }
+.yt-album-grid:not(.mx-view-grid) .yt-album-menu { position: static; margin-left: auto; }
+
+.yt-sort-picker { position: relative; }
+.yt-sort-picker > .mx-select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.yt-sort-picker:focus-within { outline: 2px solid var(--mx-accent); outline-offset: 2px; }
+.yt-album-grid:not(.mx-view-grid) .yt-cover { width: var(--mx-tap); height: var(--mx-tap); }
+.sg-library-album { flex-direction: column; align-items: stretch; }
+
+/* Even a compact control remains a complete touch target in a phone pane. */
+.yt-app .mx-btn { min-height: var(--mx-tap); }
+.yt-app .mx-btn.mx-square { min-width: var(--mx-tap); }
+.yt-album-name, .yt-track-link { display: flex; align-items: center; min-height: var(--mx-tap); }

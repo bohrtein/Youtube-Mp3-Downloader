@@ -149,4 +149,36 @@ from the library folder/`library.db` above. It's backed by three new modules:
 - `core/releaseDedup.py` - normalizes release titles so duplicate editions (deluxe/extended/remaster) collapse to one, and filters out live albums/compilations.
 - `core/smartDownload.py` - the CLI that ties it together: `python -m core.smartDownload --song/--album/--artist ...` prints a plan first, and only downloads once told to with `--download`.
 
+## App Hub jobs and pane layouts
+
+Dashboard tasks, approved suggestion downloads, and background music lookups report
+their lifecycle to App Hub's **Developer tools → downloads** through `core/hubJobs.py`.
+Set `APPHUB_URL` and `APPHUB_PROXY_SECRET` together when running behind the hub.
+Reports have a two-second timeout, update at most once per ten seconds plus a
+30-second heartbeat, and are skipped when `APPHUB_URL` is unset. A failed report
+does not stop the work. Downloads can be cancelled from the app's dock or the
+hub; cancellation interrupts yt-dlp or stops a queued download before it starts.
+Unfinished suggestion songs stay available to retry. Maintenance and lookup
+operations have no Cancel button because they do not support safe interruption.
+
+Pages use Matrix 2.1.1, shared `/ds/2/` assets with a synced local fallback, and
+pane-sized navigation. Collection search folds into a magnifier below 360 pixels;
+grid/list preference survives reload. Album and track menus support right-click,
+hold, and Shift+F10. Deletes disappear immediately and offer an eight-second Undo
+action; the server keeps the removed files for ten seconds. Undo refuses to
+overwrite a replacement file. In desktop mode, App Hub injects the background
+helper; the app adds no separate rain or full-page background.
+
+After deploying, check widths of 320, 360, 520, 800 and 1200 pixels, compact search
+and Cancel, grid/list reload, item menus and Undo. Check a download's progress and
+Cancel in the real Hub downloads tab. Check desktop mode with a user agent ending
+in ` AppHubDesktop/test`: `<html>` should carry `data-apphub-shared-bg`, and no
+`#mx-rain` canvas should run. Include Safari and a physical phone in deployment
+checks; local Chromium previews cannot verify those environments.
+
+This checkout is a separate development machine. Pushing a branch or merging a PR
+does not update the server. Pull the merged change on the server, restart Flask,
+and re-test from your browser at
+`http://192.168.2.111:8000/app/youtube-mp3-downloader/` before treating it as live.
+
 Developed by bohrtein

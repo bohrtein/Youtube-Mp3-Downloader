@@ -27,6 +27,7 @@
   });
 
   document.getElementById("librarySort").addEventListener("change", function (e) {
+    document.getElementById("librarySortLabel").textContent = e.target.selectedOptions[0].textContent;
     rows.sort(e.target.value === "name"
       ? function (a, b) { return a.dataset.name.localeCompare(b.dataset.name); }
       : function (a, b) { return Number(b.dataset.release) - Number(a.dataset.release); });

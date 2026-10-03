@@ -86,3 +86,35 @@ def test_rows_stay_when_a_file_cannot_be_deleted(client, library, monkeypatch):
 
     assert response.status_code == 500
     assert ids("Schism") is not None
+
+
+def test_undo_cannot_overwrite_a_replacement(client, library):
+    _root, add_file = library
+    add_library_song("Schism", "Tool", "Lateralus")
+    original = add_file("Tool", "Lateralus", "01 - Schism.flac")
+    response = client.delete(f"/delete_song/{ids('Schism')[0]}", headers=ADMIN_HEADERS)
+    original.parent.mkdir(parents=True, exist_ok=True)
+    original.write_bytes(b"replacement")
+    restored = client.post(f"/restore_delete/{response.get_json()['undo']}", headers=ADMIN_HEADERS)
+    assert restored.status_code == 409
+    assert original.read_bytes() == b"replacement"
+    assert ids("Schism") is None
+
+
+def test_expiry_cannot_purge_files_during_undo(client, library, monkeypatch):
+    import app
+    import shutil
+    _root, add_file = library
+    add_library_song("Schism", "Tool", "Lateralus")
+    original = add_file("Tool", "Lateralus", "01 - Schism.flac")
+    response = client.delete(f"/delete_song/{ids('Schism')[0]}", headers=ADMIN_HEADERS)
+    token = response.get_json()["undo"]
+    move = shutil.move
+    def expire_while_restoring(*args, **kwargs):
+        app._finish_delete(token)
+        return move(*args, **kwargs)
+    monkeypatch.setattr(shutil, "move", expire_while_restoring)
+    restored = client.post(f"/restore_delete/{token}", headers=ADMIN_HEADERS)
+    assert restored.get_json()["success"]
+    assert original.read_bytes() == b"audio"
+    assert ids("Schism") is not None

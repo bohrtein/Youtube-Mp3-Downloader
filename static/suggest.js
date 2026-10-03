@@ -70,6 +70,7 @@
   function setStatus(msg, isError) {
     statusEl.textContent = msg || "";
     statusEl.className = "sg-status" + (isError ? " mx-err" : "");
+    if (busy) APP.jobDock({title: "Music lookup", status: msg || "Loading results…", state: isError ? "failed" : "running"});
   }
   function api(url, options) {
     options = options || {};
@@ -299,6 +300,8 @@
   /* --- lookups (search / link / open an album or artist) ------------------- */
   function setBusy(on) {
     busy = on;
+    if (!on) APP.jobDock({title: "Music lookup", status: statusEl.textContent || "Results ready",
+      state: statusEl.classList.contains("mx-err") ? "failed" : "done", percent: 100});
     document.querySelectorAll("#searchForm button, #resultsPanel .sg-open").forEach(function (b) { b.disabled = on; });
   }
 

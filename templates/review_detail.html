@@ -43,7 +43,7 @@
         </div>
     </div>
 {% endmacro %}
-{% block content %}
+{% block header %}
     <div class="mx-app-header">
         <div class="mx-app-heading">
             <span class="mx-mark">music manager</span>
@@ -53,7 +53,8 @@
             <a class="mx-btn" href="{{ url_for('suggest_admin.review_list') }}">All suggestions</a>
         </div>
     </div>
-
+{% endblock %}
+{% block content %}
     <section class="mx-panel">
         <h2 class="mx-panel-title" data-decode>submission</h2>
         <p class="sg-song-meta" style="margin:0 0 8px;">{{ submission.created_at }} · {{ submission.status|replace('_', ' ') }} · {{ kept|length }} kept, {{ unticked|length }} unticked</p>
@@ -79,18 +80,19 @@
             <span class="mx-sw"></span>
             MP3 320kbps / 48kHz instead of FLAC
         </label>
-        <div class="sg-friend-actions">
+        <p class="mx-hint">Downloading is the decision for this submission: anything left unticked is marked skipped. Songs go to Artist/Album/NN - Title in your library folder. Ticking a song that's already downloaded re-downloads it and replaces its file.</p>
+    </section>
+{% endblock %}
+{% block dock %}{% include "_job_dock.html" %}{% endblock %}
+{% block cmdbar %}
+<div class="mx-cmdbar">
+        <div class="mx-cmdbar-inner">
             <button class="mx-btn mx-primary" type="button" id="approveBtn">Download selected</button>
             {% if submission.status in ('pending', 'in_review') %}
             <button class="mx-btn" type="button" id="rejectBtn">Reject all</button>
             {% endif %}
         </div>
-        <p class="mx-hint">Downloading is the decision for this submission: anything left unticked is marked skipped. Songs go to Artist/Album/NN - Title in your library folder. Ticking a song that's already downloaded re-downloads it and replaces its file.</p>
-        <div id="progressBox" hidden style="margin-top:12px;">
-            <div class="mx-readout mx-busy" id="progressText">Starting...</div>
-            <div class="mx-progress"><div class="mx-progress-fill mx-busy" id="progressBar"></div></div>
-        </div>
-    </section>
+</div>
 {% endblock %}
 {% block scripts %}
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
@@ -170,7 +172,7 @@ ${redownloads} of them ${redownloads === 1 ? 'is' : 'are'} already downloaded an
         if (!confirm(`Download ${ids.length} song${ids.length === 1 ? '' : 's'} as ${format.toUpperCase()}?${note}`)) return;
         postJson(`/review/${SUBMISSION_ID}/approve`, { item_ids: ids, format }).then(res => {
             if (!res.ok) return MX.toast(false, res.data.error || 'Could not start the download.', toastHost);
-            document.getElementById('progressBox').hidden = false;
+            APP.jobDock({job_id: res.data.job_id, title: 'Downloading selected songs', state: 'running', status: 'Queued', cancellable: true});
             document.getElementById('approveBtn').disabled = true;
         });
     });
@@ -185,13 +187,10 @@ ${redownloads} of them ${redownloads === 1 ? 'is' : 'are'} already downloaded an
     /* --- live progress (same event the dashboard uses) --- */
     const socket = io({ transports: ['polling'], path: `${APP_ROOT}/socket.io/` });
     socket.on('progress', data => {
-        const box = document.getElementById('progressBox');
-        box.hidden = false;
-        document.getElementById('progressBar').style.width = `${data.percent}%`;
-        const text = document.getElementById('progressText');
-        text.textContent = data.status === 'complete' ? 'Done - library synced.' : data.status;
-        text.className = 'mx-readout ' + (data.status === 'complete' ? 'mx-ok' : /error/i.test(data.status) ? 'mx-err' : 'mx-busy');
-        if (data.percent >= 100) setTimeout(() => location.reload(), 1500);
+        if (data.submission_id !== SUBMISSION_ID) return;
+        APP.jobDock(data);
+        document.getElementById('approveBtn').disabled = data.state === 'running';
+        if (data.state && data.state !== 'running') setTimeout(() => location.reload(), 2000);
     });
 </script>
 {% endblock %}

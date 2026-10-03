@@ -1,6 +1,6 @@
 {% extends "_suggest_base.html" %}
 {% block title %}Library{% endblock %}
-{% block content %}
+{% block header %}
     <div class="mx-app-header">
         <div class="mx-app-heading">
             <span class="mx-mark">music manager</span>
@@ -8,9 +8,10 @@
         </div>
         <a class="mx-btn" href="{{ url_for('friends_public.home') }}">Suggest</a>
     </div>
-
+{% endblock %}
+{% block toolbar %}
     <div class="mx-viewbar" aria-label="Shared library controls">
-        <label class="mx-btn mx-viewbar-pick"><span>Sort albums</span>
+        <label class="mx-btn mx-viewbar-pick yt-sort-picker"><span id="librarySortLabel">Release date</span>
             <select class="mx-select" id="librarySort" aria-label="Sort albums">
                 <option value="release">Release date</option><option value="name">Album name</option>
             </select>
@@ -26,6 +27,8 @@
         </div>
     </div>
 
+{% endblock %}
+{% block content %}
     <section class="mx-panel">
     <h2 class="mx-panel-title" data-decode>albums</h2>
     <p class="mx-hint" id="libraryCount" style="margin:0 0 10px;">{{ albums|length }} albums</p>
@@ -36,7 +39,7 @@
 
     <div class="mx-list" id="albumList">
         {% for album in albums %}
-        <div class="mx-item mx-row" data-release="{{ album.release_date or 0 }}" data-name="{{ album.album_name|lower }}">
+        <div class="mx-item mx-row sg-library-album" data-release="{{ album.release_date or 0 }}" data-name="{{ album.album_name|lower }}">
             <button class="mx-row-head sg-album-head" type="button" aria-expanded="false">
                 {% if album.has_cover %}
                 <img class="sg-album-cover" src="{{ url_for('static', filename='covers/' ~ album.album_id ~ '.jpg') }}" alt="" loading="lazy" decoding="async">

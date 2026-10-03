@@ -3,8 +3,6 @@ import os
 import shutil
 import string
 import threading
-import json
-import urllib.request
 import uuid
 from pathlib import Path
 from flask import Flask, render_template, request, jsonify, abort, url_for
@@ -18,6 +16,7 @@ import core.interfaceComponents as interfaceComponents
 import routes.friendsPublic as friendsPublic
 import routes.suggestAdmin as suggestAdmin
 import main
+import core.hubJobs as hubJobs
 
 # Before Flask/Socket.IO set up their loggers, so everything they log goes
 # to the same stdout the app hub's log viewer reads.
@@ -69,27 +68,6 @@ if not HUB_PROXY_SECRET:
 MATRIX_LIVE = os.environ.get("MX_LIVE", "/ds/2/" if HUB_PROXY_SECRET else "")
 
 
-def report_hub_job(job_id, **fields):
-    """Best-effort update for App Hub's Developer tools > downloads list."""
-    hub_url = os.environ.get("APPHUB_URL")
-    if not hub_url:
-        return
-    try:
-        body = json.dumps({"id": job_id, **{k: v for k, v in fields.items() if v is not None}}).encode("utf-8")
-        req = urllib.request.Request(
-            hub_url.rstrip("/") + "/api/jobs", data=body,
-            headers={"Content-Type": "application/json",
-                     "X-Apphub-Auth": os.environ.get("APPHUB_PROXY_SECRET", "")},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=2):
-            pass
-    except Exception:
-        pass
-
-
-download_jobs = {}
-download_jobs_lock = threading.Lock()
 DELETE_UNDO_SECONDS = 10
 delete_undo = {}
 delete_undo_lock = threading.Lock()
@@ -156,7 +134,9 @@ def _queue_delete_undo(entry, archive=None, files=None):
 @app.route('/restore_delete/<token>', methods=['POST'])
 def restore_delete(token):
     with delete_undo_lock:
-        entry = delete_undo.get(token)
+        entry = delete_undo.pop(token, None)
+        if entry:
+            entry["timer"].cancel()
     if not entry:
         return jsonify({"success": False, "message": "Undo window expired."}), 404
 
@@ -165,6 +145,8 @@ def restore_delete(token):
     moved = []
     try:
         for original, saved in entry["files"]:
+            if Path(original).exists():
+                raise FileExistsError("A replacement file exists; undo would overwrite it.")
             Path(original).parent.mkdir(parents=True, exist_ok=True)
             shutil.move(saved, original)
             moved.append((original, saved))
@@ -179,9 +161,6 @@ def restore_delete(token):
                            tuple(song[k] for k in ("song_id", "song_title", "duration_seconds", "track_number", "album_id",
                                                    "release_date", "bit_rate", "file_type", "source_url", "youtube_id")))
         conn.commit()
-        entry["timer"].cancel()
-        with delete_undo_lock:
-            delete_undo.pop(token, None)
         shutil.rmtree(entry["archive"], ignore_errors=True)
         suggestionsRepo.invalidate_library_index()
         return jsonify({"success": True})
@@ -193,6 +172,12 @@ def restore_delete(token):
                 shutil.move(original, saved)
             except OSError:
                 pass
+        timer = threading.Timer(DELETE_UNDO_SECONDS, _finish_delete, args=(token,))
+        timer.daemon = True
+        entry["timer"] = timer
+        with delete_undo_lock:
+            delete_undo[token] = entry
+        timer.start()
         return jsonify({"success": False, "message": str(e)}), 409
     finally:
         cursor.close()
@@ -201,39 +186,15 @@ def restore_delete(token):
 
 @app.route('/api/downloads/<job_id>/cancel', methods=['POST'])
 def cancel_download(job_id):
-    with download_jobs_lock:
-        cancel_event = download_jobs.get(job_id)
-    if cancel_event is None:
+    if not hubJobs.cancel(job_id):
         return jsonify({"success": False, "message": "Download is no longer running."}), 404
-    cancel_event.set()
     return jsonify({"success": True})
 
 
 def run_reported_job(title, work):
-    """Run a dashboard maintenance task and expose its lifecycle to App Hub."""
-    job_id = "task-" + uuid.uuid4().hex
-    report_hub_job(job_id, title=title, state="running", detail="Starting", open="library")
-
-    def run():
-        heartbeat_stop = threading.Event()
-
-        def heartbeat():
-            while not heartbeat_stop.wait(30):
-                report_hub_job(job_id, state="running", detail=title)
-
-        threading.Thread(target=heartbeat, daemon=True).start()
-        try:
-            work(job_id)
-        except Exception:
-            report_hub_job(job_id, state="failed", detail="Task failed")
-            raise
-        else:
-            report_hub_job(job_id, state="done", progress=100, detail="Complete")
-        finally:
-            heartbeat_stop.set()
-
-    socketio.start_background_task(run)
-    return job_id
+    job = hubJobs.Job(title, lambda data: socketio.emit("progress", data))
+    socketio.start_background_task(job.run, work)
+    return job.id
 
 
 @app.context_processor
@@ -293,8 +254,9 @@ def browse_folders():
     raw_path = request.args.get('path', '').strip()
 
     if not raw_path:
-        drives = [f"{letter}:\\" for letter in string.ascii_uppercase if os.path.exists(f"{letter}:\\")]
-        folders = [{"name": drive, "path": drive} for drive in drives]
+        roots = ([f"{letter}:\\" for letter in string.ascii_uppercase if os.path.exists(f"{letter}:\\")]
+                 if os.name == "nt" else ["/"])
+        folders = [{"name": root, "path": root} for root in roots]
         return jsonify({"path": None, "parent": None, "folders": folders})
 
     current = Path(raw_path)
@@ -472,99 +434,51 @@ def handle_cleanup():
     """
     Spawns a background thread to delete existing files without blocking the UI.
     """
-    run_reported_job("Removing duplicate files", lambda _job_id: main.delete_already_exsisting_files())
+    run_reported_job("Removing duplicate files", lambda job: main.delete_already_exsisting_files())
     
-    # Notify frontend that the process has begun
-    socketio.emit('progress', {'percent': 5, 'status': 'Starting cleanup on G: drive...'})
 
 @socketio.on('start_download_batch')
 def handle_download_batch(data):
-    """
-    Manages the sequential download of multiple URLs in a background thread.
-    Emits progress updates to the frontend for each item.
-    """
+    data = data if isinstance(data, dict) else {}
     urls = data.get('urls', [])
-    audio_format = data.get('format', 'flac')
-    job_id = "download-" + uuid.uuid4().hex
-    cancel_event = threading.Event()
-    with download_jobs_lock:
-        download_jobs[job_id] = cancel_event
-    report_hub_job(job_id, title=f"Downloading {len(urls)} item{'s' if len(urls) != 1 else ''}",
-                   state="running", progress=0, detail="Starting download batch",
-                   open="library", cancel=f"api/downloads/{job_id}/cancel")
+    if not isinstance(urls, list) or not urls or any(not isinstance(u, str) or not u.strip() for u in urls):
+        return {"error": "Paste at least one URL."}
+    audio_format = 'mp3' if data.get('format') == 'mp3' else 'flac'
+    job = hubJobs.Job(f"Downloading {len(urls)} items", lambda update: socketio.emit('progress', update),
+                      cancellable=True)
 
-    def background_task():
-        heartbeat_stop = threading.Event()
-
-        def heartbeat():
-            while not heartbeat_stop.wait(30):
-                report_hub_job(job_id, state="running", detail="Downloading current item")
-
-        heartbeat_thread = threading.Thread(target=heartbeat, daemon=True)
-        heartbeat_thread.start()
+    def download_all(job):
+        if not hubJobs.acquire_download_lock(approvedDownloads.download_lock, job.cancel_event):
+            return 'cancelled'
         try:
-            with approvedDownloads.download_lock:
-                download_all()
-        except Exception as e:
-            interfaceComponents.Print_Tag(f"Download batch failed: {e}", tag="Error")
-            report_hub_job(job_id, state="failed", detail="Download batch failed")
-            socketio.emit('progress', {'percent': 100, 'status': 'Error: download batch failed'})
+            checkDependencies.dependencies_check()
+            failed = False
+            for index, url in enumerate(urls):
+                if job.cancel_event.is_set():
+                    return 'cancelled'
+                job.update(index * 100 / len(urls), f'Downloading {index + 1} of {len(urls)}: {url[:40]}')
+                try:
+                    main.start_downloading(url, audio_format=audio_format, cancel_event=job.cancel_event)
+                except Exception as exc:
+                    if job.cancel_event.is_set():
+                        return 'cancelled'
+                    failed = True
+                    interfaceComponents.Print_Tag(f"Error downloading {url}: {exc}", tag="Error")
+            return 'failed' if failed else 'done'
         finally:
-            heartbeat_stop.set()
-            with download_jobs_lock:
-                download_jobs.pop(job_id, None)
+            approvedDownloads.download_lock.release()
 
-    def download_all():
-        total_urls = len(urls)
-        checkDependencies.dependencies_check() # Ensure yt-dlp/ffmpeg are present
-        failed = False
-        for index, url in enumerate(urls):
-            if cancel_event.is_set():
-                break
-            current_item = index + 1
-            pct = round(index * 100 / max(total_urls, 1))
-            report_hub_job(job_id, state="running", progress=pct,
-                           detail=f"Track {current_item} of {total_urls}")
-            # Update UI with progress and a truncated URL
-            socketio.emit('progress', {
-                'percent': (index / total_urls) * 100,
-                'status': f'Downloading {current_item} of {total_urls}: {url[:30]}...'
-            })
-
-            try:
-                main.start_downloading(url, audio_format=audio_format, cancel_event=cancel_event)
-            except Exception as e:
-                if cancel_event.is_set():
-                    break
-                failed = True
-                interfaceComponents.Print_Tag(f"Error downloading {url}: {e}", tag="Error")
-                socketio.emit('progress', {
-                    'percent': (current_item/total_urls)*100,
-                    'status': f'Error on item {current_item}'
-                })
-
-        if cancel_event.is_set():
-            state, status = "cancelled", "Download cancelled"
-        elif failed:
-            state, status = "failed", "Download finished with errors"
-        else:
-            state, status = "done", "complete"
-        report_hub_job(job_id, state=state, progress=100 if state == "done" else None,
-                       detail=status)
-        socketio.emit('progress', {'percent': 100, 'status': status})
-
-    socketio.start_background_task(background_task)
+    socketio.start_background_task(job.run, download_all)
+    return {"job_id": job.id}
 
 @socketio.on('start_sync')
 def run_sync_only():
     """
     Background task to sync local files with the database.
     """
-    def task(_job_id):
-        report_hub_job(_job_id, progress=50, detail="Syncing library files")
-        socketio.emit('progress', {'percent': 50, 'status': 'Syncing...'})
+    def task(job):
+        job.update(None, "Syncing library files")
         main.sync_to_library()
-        socketio.emit('progress', {'percent': 100, 'status': 'complete'})
     run_reported_job("Syncing music library", task)
 
 LIBRARY_RESET_PHRASE = "RESET"
@@ -582,22 +496,19 @@ def run_library_reset(data=None):
         return
     rescan = data.get('rescan', True)
 
-    def task(_job_id):
+    def task(job):
         # Never wipe the tables out from under a running download.
         if not approvedDownloads.download_lock.acquire(blocking=False):
             socketio.emit('progress', {'percent': 0, 'status': 'Error: a download is running, try again once it finishes'})
             raise RuntimeError("A download is running; reset was not started")
         try:
-            report_hub_job(_job_id, progress=10, detail="Backing up and clearing the library")
-            socketio.emit('progress', {'percent': 10, 'status': 'Backing up and clearing the library...'})
+            job.update(10, "Backing up and clearing the library")
             databaseConnector.reset_library()
             suggestionsRepo.invalidate_library_index()
             if rescan:
-                report_hub_job(_job_id, progress=40, detail="Rebuilding the library index")
-                socketio.emit('progress', {'percent': 40, 'status': 'Rebuilding from the library folder...'})
+                job.update(40, "Rebuilding the library index")
                 main.sync_to_library()
                 suggestionsRepo.invalidate_library_index()
-            socketio.emit('progress', {'percent': 100, 'status': 'complete'})
         except Exception as e:
             interfaceComponents.Print_Tag(f"Library reset failed: {e}", tag="Error")
             socketio.emit('progress', {'percent': 100, 'status': f'Error resetting library: {e}'})
@@ -612,11 +523,9 @@ def run_mp3_convert_only():
     Background task to transcode existing FLAC library files to MP3
     (320kbps, 48000Hz) in place -- no re-downloading.
     """
-    def task(_job_id):
-        report_hub_job(_job_id, progress=50, detail="Converting FLAC files")
-        socketio.emit('progress', {'percent': 50, 'status': 'Converting FLAC to MP3...'})
+    def task(job):
+        job.update(None, "Converting FLAC files")
         main.convert_library_to_mp3()
-        socketio.emit('progress', {'percent': 100, 'status': 'complete'})
     run_reported_job("Converting library to MP3", task)
 
 @socketio.on('start_covers')
@@ -624,11 +533,9 @@ def run_covers_only():
     """
     Background task to extract and process album artwork.
     """
-    def task(_job_id):
-        report_hub_job(_job_id, progress=50, detail="Processing artwork")
-        socketio.emit('progress', {'percent': 50, 'status': 'Processing Covers...'})
+    def task(job):
+        job.update(None, "Processing artwork")
         main.process_songs()
-        socketio.emit('progress', {'percent': 100, 'status': 'complete'})
     run_reported_job("Processing album covers", task)
 
 if __name__ == '__main__':

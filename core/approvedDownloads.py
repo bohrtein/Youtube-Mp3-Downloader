@@ -7,6 +7,7 @@ import re
 import shutil
 import tempfile
 import threading
+import core.hubJobs as hubJobs
 from pathlib import Path
 
 import core.audioTags as audioTags
@@ -181,7 +182,7 @@ def _read_info_json(media_path):
         info_path.unlink(missing_ok=True)
 
 
-def _download_one(item, audio_format, library_folder, work_dir, overwrite=False):
+def _download_one(item, audio_format, library_folder, work_dir, overwrite=False, cancel_event=None):
     """
     Returns the album folder the song landed in.
 
@@ -191,7 +192,7 @@ def _download_one(item, audio_format, library_folder, work_dir, overwrite=False)
     """
     download_fn = playlistDownloader.download_file_mp3 if audio_format == "mp3" else playlistDownloader.download_file_flac
     files = download_fn(linkResolver.music_url(item["youtube_id"]), work_dir,
-                        file_template="%(id)s.%(ext)s", write_info_json=True)
+                        file_template="%(id)s.%(ext)s", write_info_json=True, cancel_event=cancel_event)
     if not files or not Path(files[0]).exists():
         raise RuntimeError("yt-dlp produced no file (see the server log)")
     downloaded = Path(files[0])
@@ -212,7 +213,7 @@ def _download_one(item, audio_format, library_folder, work_dir, overwrite=False)
     return destination.parent
 
 
-def run_approval(submission_id, item_ids, audio_format, progress, redownload_ids=()):
+def run_approval(submission_id, item_ids, audio_format, progress, redownload_ids=(), cancel_event=None):
     """
     Background job: download each approved item, record per-item results,
     sync the album folders that changed.
@@ -229,18 +230,35 @@ def run_approval(submission_id, item_ids, audio_format, progress, redownload_ids
     touched_folders = set()
     failures = 0
 
-    with download_lock, tempfile.TemporaryDirectory(prefix="friend-dl-") as work_dir:
-        checkDependencies.dependencies_check()
-        for index, item in enumerate(items):
-            progress(index / total * 100, f"Downloading {index + 1} of {total}: {item['title'][:40]}")
-            try:
-                touched_folders.add(_download_one(item, audio_format, library_folder, work_dir,
-                                                  overwrite=item["item_id"] in redownload_ids))
-                suggestionsRepo.set_item_decision(item["item_id"], "downloaded")
-            except Exception as e:
-                failures += 1
-                interfaceComponents.Print_Tag(f"Friend download failed for {item['youtube_id']}: {e}", tag="Error")
-                suggestionsRepo.set_item_decision(item["item_id"], "failed", str(e)[:300])
+    cancel_event = cancel_event or threading.Event()
+    if not hubJobs.acquire_download_lock(download_lock, cancel_event):
+        for item in items:
+            suggestionsRepo.set_item_decision(item["item_id"], "failed", "Download cancelled")
+        return "cancelled"
+    try:
+        with tempfile.TemporaryDirectory(prefix="friend-dl-") as work_dir:
+            if not cancel_event.is_set():
+                checkDependencies.dependencies_check()
+            for index, item in enumerate(items):
+                if cancel_event.is_set():
+                    break
+                progress(index / total * 100, f"Downloading {index + 1} of {total}: {item['title'][:40]}")
+                try:
+                    touched_folders.add(_download_one(item, audio_format, library_folder, work_dir,
+                                                      overwrite=item["item_id"] in redownload_ids, cancel_event=cancel_event))
+                    suggestionsRepo.set_item_decision(item["item_id"], "downloaded")
+                except Exception as e:
+                    failures += 1
+                    interfaceComponents.Print_Tag(f"Friend download failed for {item['youtube_id']}: {e}", tag="Error")
+                    suggestionsRepo.set_item_decision(item["item_id"], "failed", str(e)[:300])
+
+    finally:
+        download_lock.release()
+    if cancel_event.is_set():
+        for item in items:
+            current = suggestionsRepo.get_item(item["item_id"])
+            if current and current["decision"] == "downloading":
+                suggestionsRepo.set_item_decision(item["item_id"], "failed", "Download cancelled")
 
     progress(95, "Syncing library...")
     for folder in touched_folders:
@@ -252,3 +270,4 @@ def run_approval(submission_id, item_ids, audio_format, progress, redownload_ids
                               for i in submission["items"]):
         suggestionsRepo.set_submission_status(submission_id, "done")
     progress(100, "complete" if not failures else f"Error: {failures} of {total} downloads failed")
+    return "cancelled" if cancel_event.is_set() else "failed" if failures else "done"

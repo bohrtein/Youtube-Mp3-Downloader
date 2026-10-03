@@ -1,0 +1,16 @@
+<div class="mx-viewbar" data-app-collection="{{ collection_id }}" aria-label="{{ collection_label }} controls">
+    <label class="mx-btn mx-viewbar-pick yt-sort-picker"><span>Original order</span>
+        <select class="mx-select" data-collection-sort aria-label="Sort {{ collection_label|lower }}">
+            <option value="order">Original order</option><option value="name">A–Z</option>
+        </select>
+    </label>
+    <label class="mx-input-icon mx-viewbar-search">{{ mx.icon("search") }}
+        <input class="mx-input" type="search" placeholder="Search {{ collection_label|lower }}" aria-label="Search {{ collection_label|lower }}">
+    </label>
+    <button class="mx-btn mx-ghost mx-square mx-viewbar-find" type="button" data-mx-search-open aria-label="Open search">{{ mx.icon("search") }}</button>
+    <button class="mx-btn mx-ghost mx-viewbar-cancel" type="button" data-mx-search-close>Cancel</button>
+    <div class="mx-layout-switch" data-mx-layout-switch="{{ collection_id }}" data-mx-remember="youtube-mp3-downloader-{{ collection_id }}" aria-label="{{ collection_label }} layout">
+        <button class="mx-btn mx-square" type="button" data-mx-layout="grid" aria-label="Grid view">{{ mx.icon("grid") }}</button>
+        <button class="mx-btn mx-square" type="button" data-mx-layout="list" aria-label="List view">{{ mx.icon("list") }}</button>
+    </div>
+</div>

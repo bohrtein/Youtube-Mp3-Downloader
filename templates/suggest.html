@@ -8,7 +8,7 @@
     data-submissions-url="{{ url_for('friends_public.api_submissions') }}"
     data-basket-key="basket:{{ friend.friend_id }}"
 {% endblock %}
-{% block content %}
+{% block header %}
     <div class="mx-app-header">
         <div class="mx-app-heading">
             <span class="mx-mark">music manager</span>
@@ -16,7 +16,8 @@
         </div>
         <a class="mx-btn" href="{{ url_for('friends_public.library') }}">Library</a>
     </div>
-
+{% endblock %}
+{% block content %}
     <div class="mx-adaptive-grid">
         <div class="mx-col">
             <section class="mx-panel">
@@ -74,7 +75,7 @@
                     <label class="mx-label" for="messageInput">note (optional)</label>
                     <textarea class="mx-textarea" id="messageInput" rows="2" maxlength="500" placeholder="Why these?"></textarea>
                 </div>
-                <button class="mx-btn mx-primary mx-block" type="button" id="submitBtn">Send suggestions</button>
+
             </section>
 
             <section class="mx-panel">
@@ -83,6 +84,13 @@
             </section>
         </div>
     </div>
+{% endblock %}
+{% block dock %}{% include "_job_dock.html" %}{% endblock %}
+{% block cmdbar %}
+<div class="mx-cmdbar"><div class="mx-cmdbar-inner">
+    <span class="mx-cmd-status">Ready to send</span>
+    <button class="mx-btn mx-primary" type="button" id="submitBtn">Send suggestions</button>
+</div></div>
 {% endblock %}
 {% block scripts %}
 <script src="{{ url_for('static', filename='suggest.js') }}" defer></script>
