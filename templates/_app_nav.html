@@ -7,4 +7,4 @@
             url_for('library_view') if request.endpoint in ['library_view', 'album_detail'] else
             url_for('suggest_admin.review_list') if request.endpoint in ['suggest_admin.review_list', 'suggest_admin.review_detail'] else
             url_for('suggest_admin.friends_page') if request.endpoint == 'suggest_admin.friends_page' else none),
-   brand='music manager', brand_href=url_for('main_dashboard'), label='Music Manager') }}
+   brand='Music', brand_href=url_for('main_dashboard'), label='Music Manager') }}

@@ -15,17 +15,20 @@
     {% block head %}{% endblock %}
 </head>
 <body class="mx" {% block body_attrs %}{% endblock %}>
-<div class="mx-app">
+{% call mx.app() %}
 
 {% if request.blueprint == 'suggest_admin' %}{% include "_app_nav.html" %}{% endif %}
-<main class="mx-app-page">
+{% call mx.app_page() %}
 <div class="mx-scroll-region" aria-label="Music suggestions">
 {% block content %}{% endblock %}
 </div>
 
+{% block dock %}{% endblock %}
+{% block cmdbar %}{% endblock %}
+
 <div class="mx-toasts" id="toastHost"></div>
 {% block scripts %}{% endblock %}
-</main>
-</div>
+{% endcall %}
+{% endcall %}
 </body>
 </html>
