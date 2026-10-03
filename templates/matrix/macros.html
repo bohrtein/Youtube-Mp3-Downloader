@@ -6,6 +6,18 @@
     {{ mx.tile(album.name, album.artist, href=url, image=cover_url) }}
     {% call mx.panel("library") %} ... {% endcall %}
 
+    2.0 app shell (sized by its pane, see the bottom of this file):
+    {% call mx.app() %}
+      {{ mx.app_nav([("albums", "albums", "music"), ...], current="albums", brand="music") }}
+      {% call mx.app_page() %}
+        {{ mx.app_header("Library", "2,418 tracks") }}
+        {{ mx.toolbar([{"label": "filter", "icon": "filter", "priority": 1}, ...], label="Albums") }}
+        {% call(part) mx.master_detail(title=album.name, back="albums") %}
+          {% if part == "list" %} ...rows... {% else %} ...detail... {% endif %}
+        {% endcall %}
+      {% endcall %}
+    {% endcall %}
+
     Shared arguments, same meaning everywhere:
       variant  "primary" | "secondary" | "ghost" | "danger"
       size     "sm" | "md" | "lg"
@@ -18,7 +30,7 @@
 {#- The tags that load Matrix. With `live` (App Hub's "/ds/1/") the page
     uses the shared copy, with `local` (the project's synced copy, ending
     in "/") underneath it as the fallback -- for when the app runs on its
-    own. No inline script or event handler, so it works under a strict
+    own. "/ds/1/" and "/ds/2/" serve the same 2.x files. No inline script or event handler, so it works under a strict
     Content-Security-Policy:
       - the local stylesheet loads first and the live one on top of it;
       - the live matrix.js loads first, and the local one does nothing
@@ -73,6 +85,17 @@
   "refresh":  '<path d="M20 11a8 8 0 0 0-14.9-3M4 5v4h4M4 13a8 8 0 0 0 14.9 3M20 19v-4h-4"/>',
   "tv":       '<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8"/>',
   "printer":  '<path d="M7 9V3h10v6M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2M7 14h10v7H7z"/>',
+  "filter":   '<path d="M4 5h16l-6 7v6l-4 2v-8z"/>',
+  "sort":     '<path d="M7 4v16M3 16l4 4 4-4M17 20V4M13 8l4-4 4 4"/>',
+  "split":    '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/>',
+  "split-y":  '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 12h18"/>',
+  "maximize": '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
+  "terminal": '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M12 15h5"/>',
+  "clock":    '<circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/>',
+  "note":     '<path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/>',
+  "disc":     '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="2.5"/>',
+  "chevron":  '<path d="M6 9l6 6 6-6"/>',
+  "apps":     '<rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/>',
 } -%}
 <svg class="{{ cls }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{{ (paths.get(name, "") ) | safe }}</svg>
 {%- endmacro -%}
@@ -210,4 +233,285 @@
   {%- if caller is defined %}{{ caller() }}{% endif %}
   {%- if actions %}<div class="mx-topbar-actions" data-mx-slot="actions"></div>{% endif %}
 </header>
+{%- endmacro -%}
+
+
+
+{#- =====================================================================
+    2.0: the app container model. Every layout below follows the pane the
+    app is in (container queries), not the window.
+    ===================================================================== -#}
+
+{#- The app root: fills its pane. density: "compact" | "dense" for this app only. -#}
+{%- macro app(cls=None, density=None, attrs=None) -%}
+<div class="mx-app{% if cls %} {{ cls }}{% endif %}"{% if density %} data-mx-density="{{ density }}"{% endif %}{{ _attrs(attrs) }}>
+{{ caller() }}
+</div>
+{%- endmacro -%}
+
+{#- The column beside the nav: header, toolbar, then what fills the rest. -#}
+{%- macro app_page(cls=None, attrs=None, tag="main") -%}
+<{{ tag }} class="mx-app-page{% if cls %} {{ cls }}{% endif %}"{{ _attrs(attrs) }}>
+{{ caller() }}
+</{{ tag }}>
+{%- endmacro -%}
+
+{#- The app's own sections: sidebar / rail / tab strip / selector by app width.
+    items: [(href, label, icon)] or [(href, label, icon, badge)]; a None href
+    item is a section label shown in the sidebar.
+    tabs=True: one-page app, items are views: [(view, label, icon)], panels
+    carry data-mx-panel="<view>". matrix.js adds the micro selector's
+    button; without script the nav stays a tab strip there. -#}
+{%- macro app_nav(items, current=None, brand=None, brand_href="./", label="Sections", tabs=False) -%}
+<nav class="mx-app-nav" aria-label="{{ label }}">
+  {%- if brand %}<a class="mx-app-nav-brand" href="{{ brand_href }}">{{ brand }}</a>{% endif %}
+  <div class="mx-app-nav-list">
+  {%- for it in items %}
+    {%- set parts = (it | list) + [none, none] %}
+    {%- if parts[0] is none %}
+    <span class="mx-app-nav-section">{{ parts[1] }}</span>
+    {%- elif tabs %}
+    <button class="mx-app-nav-item" type="button" data-mx-tab="{{ parts[0] }}" aria-selected="{{ 'true' if parts[0] == current else 'false' }}">{% if parts[2] %}{{ _svg(parts[2], "mx-app-nav-icon") }}{% endif %}<span class="mx-app-nav-label">{{ parts[1] }}</span>{% if parts[3] %}<span class="mx-badge">{{ parts[3] }}</span>{% endif %}</button>
+    {%- else %}
+    <a class="mx-app-nav-item" href="{{ parts[0] }}"{% if parts[0] == current %} aria-current="page"{% endif %}>{% if parts[2] %}{{ _svg(parts[2], "mx-app-nav-icon") }}{% endif %}<span class="mx-app-nav-label">{{ parts[1] }}</span>{% if parts[3] %}<span class="mx-badge">{{ parts[3] }}</span>{% endif %}</a>
+    {%- endif %}
+  {%- endfor %}
+  </div>
+</nav>
+{%- endmacro -%}
+
+{#- Title, subtitle, an optional back link, and actions from the call body. -#}
+{%- macro app_header(title, subtitle=None, back_href=None, back_label="back", mark=None, level=1) -%}
+<header class="mx-app-header">
+  {%- if back_href %}<a class="mx-back" href="{{ back_href }}">{{ _svg("back") }}{{ back_label }}</a>{% endif %}
+  <div class="mx-app-heading">
+    {%- if mark %}<span class="mx-mark">{{ mark }}</span>{% endif %}
+    <h{{ level }} class="mx-app-title">{{ title }}</h{{ level }}>
+    {%- if subtitle %}<p class="mx-app-subtitle">{{ subtitle }}</p>{% endif %}
+  </div>
+  {%- if caller is defined %}<div class="mx-app-header-actions">{{ caller() }}</div>{% endif %}
+</header>
+{%- endmacro -%}
+
+{#- One row of actions that never wraps. actions: list of dicts
+      label     text (also the accessible name when the label is hidden)
+      icon      a built-in icon name
+      priority  1 always shown · 2 overflow below 520px · 3 below 800px · "menu" overflow only
+      variant, href, attrs, key (pairs the bar button with its menu copy)
+    The call body, if any, is the lead: a search field or a title. -#}
+{%- macro toolbar(actions, label="Actions", more_label="More actions") -%}
+<div class="mx-toolbar" role="toolbar" aria-label="{{ label }}">
+  {%- if caller is defined %}<div class="mx-toolbar-lead">{{ caller() }}</div>{% endif %}
+  {%- for a in actions if a.get("priority", 1) | string != "menu" %}
+  {%- set key = a.get("key") or (a.label | lower | replace(" ", "-") | replace('"', "")) %}
+  {%- set battrs = dict(a.get("attrs") or {}, **{"data-mx-priority": a.get("priority", 1) | string, "data-mx-action": key}) %}
+  {%- if a.get("href") %}
+  <a class="mx-btn mx-sm{{ _mods(a.get('variant')) }}" href="{{ a.href }}"{{ _attrs(battrs) }}>{% if a.get("icon") %}{{ _svg(a.icon) }}{% endif %}<span class="mx-toolbar-label">{{ a.label }}</span></a>
+  {%- else %}
+  <button class="mx-btn mx-sm{{ _mods(a.get('variant')) }}" type="button"{{ _attrs(battrs) }}>{% if a.get("icon") %}{{ _svg(a.icon) }}{% endif %}<span class="mx-toolbar-label">{{ a.label }}</span></button>
+  {%- endif %}
+  {%- endfor %}
+  {{ overflow(actions, more_label) }}
+</div>
+{%- endmacro -%}
+
+{#- The overflow menu of a toolbar: a copy of every action that can leave
+    the bar (shown only while its original is hidden), then the menu-only
+    ones. Copies of priority-1 actions exist for when even they don't fit. -#}
+{%- macro overflow(actions, label="More actions") -%}
+<div class="mx-menu mx-toolbar-more">
+  {{ button(label, variant="ghost", size="sm", icon="dots", shape="square", attrs={"data-mx-menu-toggle": "", "aria-haspopup": "menu", "aria-expanded": "false"}) }}
+  <div class="mx-menu-pop" role="menu">
+    {%- for a in actions %}
+    {%- set p = a.get("priority", 1) | string %}
+    {%- set key = a.get("key") or (a.label | lower | replace(" ", "-") | replace('"', "")) %}
+    {%- set mattrs = dict(a.get("attrs") or {}, **{"data-mx-priority": p}) %}
+    {%- if p != "menu" %}{% set mattrs = dict(mattrs, **{"data-mx-action": key}) %}{% endif %}
+    {%- if a.get("href") %}
+    <a class="mx-menu-item{{ _mods(a.get('variant') if a.get('variant') == 'danger' else None) }}" role="menuitem" href="{{ a.href }}"{{ _attrs(mattrs) }}>{% if a.get("icon") %}{{ _svg(a.icon) }}{% endif %}{{ a.label }}</a>
+    {%- else %}
+    <button class="mx-menu-item{{ _mods(a.get('variant') if a.get('variant') == 'danger' else None) }}" type="button" role="menuitem"{{ _attrs(mattrs) }}>{% if a.get("icon") %}{{ _svg(a.icon) }}{% endif %}{{ a.label }}</button>
+    {%- endif %}
+    {%- endfor %}
+  </div>
+</div>
+{%- endmacro -%}
+
+{#- A column with density gaps. (Inside an mx-app; outside one, mx-stack is
+    still 1.0's split layout.) -#}
+{%- macro stack(cls=None, attrs=None) -%}
+<div class="mx-stack{% if cls %} {{ cls }}{% endif %}"{{ _attrs(attrs) }}>{{ caller() }}</div>
+{%- endmacro -%}
+
+{#- Scrolls on its own inside a pane. label makes it a keyboard stop. -#}
+{%- macro scroll_region(label=None, cls=None, attrs=None) -%}
+<div class="mx-scroll-region{% if cls %} {{ cls }}{% endif %}"{% if label %} tabindex="0" aria-label="{{ label }}"{% endif %}{{ _attrs(attrs) }}>{{ caller() }}</div>
+{%- endmacro -%}
+
+{#- 1/2/3/4 columns by the box it sits in. max: 2 or 3 caps it. -#}
+{%- macro adaptive_grid(max=None, cls=None, attrs=None) -%}
+<div class="mx-adaptive-grid{% if max %} mx-max-{{ max }}{% endif %}{% if cls %} {{ cls }}{% endif %}"{{ _attrs(attrs) }}>{{ caller() }}</div>
+{%- endmacro -%}
+
+{#- list | detail from large, drill-in below. The call body is called twice:
+      {% call(part) mx.master_detail(title=a.name, back="albums", open=a) %}
+        {% if part == "list" %}...rows with data-mx-detail-open...{% else %}...{% endif %}
+      {% endcall %}
+    open: truthy to start drilled in (e.g. /albums/<id> on a phone). -#}
+{%- macro master_detail(title="", back="back", open=False, list_label="List", cls=None) -%}
+<div class="mx-master-detail{% if cls %} {{ cls }}{% endif %}"{% if open %} data-mx-detail="open"{% endif %}>
+  <div class="mx-md-list">
+    <div class="mx-scroll-region" aria-label="{{ list_label }}">{{ caller("list") }}</div>
+  </div>
+  <div class="mx-md-detail">
+    <div class="mx-md-head">
+      <button class="mx-back mx-md-back" type="button" data-mx-detail-close>{{ _svg("back") }}{{ back }}</button>
+      <h2 class="mx-md-title">{{ title }}</h2>
+    </div>
+    <div class="mx-scroll-region" aria-label="{{ title or 'Detail' }}">{{ caller("detail") }}</div>
+  </div>
+</div>
+{%- endmacro -%}
+
+
+{#- --- workspace vocabulary (App Hub desktop) --------------------------------- -#}
+
+{#- The square that stands for an app: an icon, or a letter. -#}
+{%- macro app_icon(icon=None, letter=None, image=None) -%}
+<span class="mx-app-icon">{% if image %}<img src="{{ image }}" alt="">{% elif icon %}{{ _svg(icon) }}{% else %}{{ (letter or "?")[:1] }}{% endif %}</span>
+{%- endmacro -%}
+
+{%- macro kbd(keys) -%}<span class="mx-kbd">{{ keys }}</span>{%- endmacro -%}
+
+{%- macro pin(label="pinned") -%}<span class="mx-pin"><span class="mx-sr-only">{{ label }}</span></span>{%- endmacro -%}
+
+{#- An icon button in a pane header. variant "danger" for close. -#}
+{%- macro pane_action(label, icon, variant=None, attrs=None) -%}
+<button class="mx-pane-action{{ _mods(variant) }}" type="button" aria-label="{{ label }}" title="{{ label }}"{{ _attrs(attrs) }}>{{ _svg(icon) }}</button>
+{%- endmacro -%}
+
+{#- One tab in a pane header. -#}
+{%- macro pane_tab(label, selected=False, icon=None, closable=True, unread=False, attrs=None) -%}
+<div class="mx-pane-tab{% if selected %} mx-selected{% endif %}">
+  <button class="mx-pane-tab-btn" type="button" role="tab" aria-selected="{{ 'true' if selected else 'false' }}"{{ _attrs(attrs) }}>{% if icon %}{{ _svg(icon) }}{% endif %}<span>{{ label }}</span>{% if unread %}<span class="mx-dot" aria-label="updated"></span>{% endif %}</button>
+  {%- if closable %}<button class="mx-pane-tab-close" type="button" aria-label="Close {{ label }}">{{ _svg("close") }}</button>{% endif %}
+</div>
+{%- endmacro -%}
+
+{#- A workspace pane. Give it a title, or tabs: [(label, selected, icon)].
+    actions: [(label, icon, variant)]. The call body goes in the pane body. -#}
+{%- macro pane(title=None, icon=None, letter=None, focused=False, tabs=None, actions=None, label=None, cls=None, attrs=None) -%}
+<section class="mx-pane{% if focused %} mx-focused{% endif %}{% if cls %} {{ cls }}{% endif %}" aria-label="{{ label or title or 'Pane' }}"{{ _attrs(attrs) }}>
+  <header class="mx-pane-header">
+    {%- if tabs %}
+    <div class="mx-pane-tabs" role="tablist" aria-label="{{ label or title or 'Tabs' }}">
+      {%- for t in tabs %}{% set tp = (t | list) + [none, none] %}{{ pane_tab(tp[0], selected=tp[1], icon=tp[2]) }}{% endfor %}
+    </div>
+    {%- else %}
+    <h3 class="mx-pane-title">{% if icon or letter %}{{ app_icon(icon, letter) }}{% endif %}<span>{{ title or "" }}</span></h3>
+    {%- endif %}
+    {%- if actions %}
+    <div class="mx-pane-actions">{% for a in actions %}{% set ap = (a | list) + [none] %}{{ pane_action(ap[0], ap[1], ap[2]) }}{% endfor %}</div>
+    {%- endif %}
+  </header>
+  <div class="mx-pane-body">{{ caller() if caller is defined else "" }}</div>
+</section>
+{%- endmacro -%}
+
+{#- What an empty pane shows. The call body, if any, holds the actions. -#}
+{%- macro pane_empty(title="empty pane", hint=None, mark="m") -%}
+<div class="mx-pane-empty">
+  <span class="mx-pane-empty-mark" aria-hidden="true">{{ mark }}</span>
+  <p class="mx-pane-empty-title">{{ title }}</p>
+  {%- if hint %}<p class="mx-pane-empty-hint">{{ hint }}</p>{% endif %}
+  {%- if caller is defined %}<div class="mx-pane-empty-actions">{{ caller() }}</div>{% endif %}
+</div>
+{%- endmacro -%}
+
+{#- Between the two children of an .mx-split. "vertical" splits left|right. -#}
+{%- macro split_handle(orientation="vertical", label="Resize panes") -%}
+<div class="mx-split-handle" role="separator" aria-orientation="{{ orientation }}" aria-label="{{ label }}" tabindex="0"></div>
+{%- endmacro -%}
+
+{#- The drop zones over a pane body while something is dragged. -#}
+{%- macro drop_targets(active=None, open=False, labels=None) -%}
+{%- set names = labels or {"left": "split left", "right": "split right", "top": "split up", "bottom": "split down", "center": "replace"} -%}
+<div class="mx-drop-targets{% if open %} mx-open{% endif %}" aria-hidden="true">
+  {%- for edge in ["left", "right", "top", "bottom", "center"] %}
+  <div class="mx-drop-target{% if edge == active %} mx-active{% endif %}" data-mx-edge="{{ edge }}">{{ names[edge] }}</div>
+  {%- endfor %}
+</div>
+{%- endmacro -%}
+
+{#- A row in the application drawer. state: "busy" | "err". -#}
+{%- macro app_drawer_row(name, meta=None, icon=None, letter=None, href="#", pinned=False, selected=False, state=None, badge=None, draggable=True, attrs=None) -%}
+<a class="mx-app-drawer-row{{ _mods(None, None, state, None, selected) }}" href="{{ href }}"{% if draggable %} draggable="true"{% endif %}{{ _attrs(attrs) }}>
+  {{- app_icon(icon, letter or name) }}{{ _main(name, meta) }}
+  {%- if pinned or badge %}<span class="mx-slot-trail">{% if badge %}{{ badge }}{% endif %}{% if pinned %}{{ pin() }}{% endif %}</span>{% endif -%}
+</a>
+{%- endmacro -%}
+
+{#- A command palette. The call body holds palette_group / palette_result. -#}
+{%- macro palette(placeholder="open an app, run a command", label="Command") -%}
+<div class="mx-palette">
+  <div class="mx-palette-head"><span class="mx-palette-prompt" aria-hidden="true">&gt;</span><input class="mx-palette-input" type="text" placeholder="{{ placeholder }}" aria-label="{{ label }}" autofocus></div>
+  <div class="mx-palette-results">{{ caller() }}<div class="mx-palette-empty" hidden>nothing matches</div></div>
+  <div class="mx-palette-foot"><span>{{ kbd("↑") }} {{ kbd("↓") }} move</span><span>{{ kbd("enter") }} open</span><span>{{ kbd("esc") }} close</span></div>
+</div>
+{%- endmacro -%}
+
+{%- macro palette_group(label) -%}<div class="mx-palette-group">{{ label }}</div>{%- endmacro -%}
+
+{#- One result. app_icon/letter for apps, icon for commands. value is what
+    mx:pick reports; search adds words that match without being shown. -#}
+{%- macro palette_result(title, meta=None, icon=None, app=False, letter=None, kbd_keys=None, value=None, search=None, attrs=None) -%}
+<div class="mx-palette-result"{% if value %} data-mx-value="{{ value }}"{% endif %}{% if search %} data-mx-search="{{ search }}"{% endif %}{{ _attrs(attrs) }}>
+  {%- if app %}{{ app_icon(icon, letter or title) }}{% elif icon %}{{ _svg(icon) }}{% endif %}{{ _main(title, meta) }}
+  {%- if kbd_keys %}<span class="mx-slot-trail">{{ kbd(kbd_keys) }}</span>{% endif -%}
+</div>
+{%- endmacro -%}
+
+
+{#- --- mobile App Hub vocabulary ------------------------------------------------ -#}
+
+{#- An open app in the switcher sheet: open it, or close it (data-mx-dismiss). -#}
+{%- macro switcher_row(name, meta=None, icon=None, letter=None, href="#", pinned=False, current=False, state=None, close=True) -%}
+<li class="mx-switcher-row{{ _mods(None, None, state) }}"{% if current %} aria-current="true"{% endif %}>
+  <a class="mx-switcher-open" href="{{ href }}">{{ app_icon(icon, letter or name) }}{{ _main(name, meta) }}</a>
+  {%- if pinned %}{{ pin() }}{% endif %}
+  {%- if close %}<button class="mx-switcher-close" type="button" data-mx-dismiss aria-label="Close {{ name }}">{{ _svg("close") }}</button>{% endif %}
+</li>
+{%- endmacro -%}
+
+{#- A heading and an <ul> of switcher_row()s from the call body. -#}
+{%- macro switcher(label) -%}
+<h3 class="mx-switcher-label">{{ label }}</h3>
+<ul class="mx-switcher">{{ caller() }}</ul>
+{%- endmacro -%}
+
+{%- macro recent_row(name, when=None, icon=None, letter=None, href="#") -%}
+<a class="mx-recent-row" href="{{ href }}">{{ app_icon(icon, letter or name) }}{{ _main(name) }}{% if when %}<span class="mx-slot-trail">{{ when }}</span>{% endif %}</a>
+{%- endmacro -%}
+
+{#- One app in the bottom quick-switch bar. Without href it is a button
+    (attrs={"data-mx-open": "switcher"} opens the sheet). -#}
+{%- macro quickswitch_item(name, icon=None, letter=None, href=None, current=False, pinned=False, unread=False, attrs=None) -%}
+{%- set tag = "a" if href else "button" -%}
+<{{ tag }} class="mx-quickswitch-item"{% if href %} href="{{ href }}"{% else %} type="button"{% endif %}{% if current %} aria-current="page"{% endif %}{{ _attrs(attrs) }}>
+  {{- app_icon(icon, letter or name) }}<span>{{ name }}</span>{% if pinned %}{{ pin() }}{% endif %}{% if unread %}<span class="mx-dot" aria-label="updated"></span>{% endif -%}
+</{{ tag }}>
+{%- endmacro -%}
+
+{#- The full-height switcher sheet. Open with data-mx-open="{{ id }}". -#}
+{%- macro switcher_sheet(id="switcher", title="apps") -%}
+<div class="mx-overlay" id="{{ id }}" aria-hidden="true">
+  <div class="mx-sheet mx-full" role="dialog" aria-modal="true" aria-labelledby="{{ id }}-title">
+    <div class="mx-sheet-grip" aria-hidden="true"></div>
+    <div class="mx-sheet-head">
+      <h2 class="mx-panel-title" id="{{ id }}-title">{{ title }}</h2>
+      {{ button("close", variant="ghost", icon="close", shape="square", attrs={"data-mx-close": ""}) }}
+    </div>
+    <div class="mx-sheet-body">{{ caller() }}</div>
+  </div>
+</div>
 {%- endmacro -%}

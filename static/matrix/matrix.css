@@ -1,14 +1,28 @@
 /* =====================================================================
-   MATRIX 1.2.0 — a small design system
+   MATRIX 2.1.1 — a small design system
    Phosphor-on-black terminal. Pitch-black surfaces, digital rain in the
-   gaps, phone-first but laid out for every screen up to a TV.
+   gaps. 2.0 sizes applications by the PANE they live in, not by the
+   window: a 400px split pane on a 3440px monitor gets the narrow layout.
 
        <link rel="stylesheet" href="matrix.css">
        <script src="matrix.js" defer></script>
 
+   A 2.0 application:
+
        <body class="mx">
-         <div class="mx-shell"> ...your page... </div>
+         <div class="mx-app">                     fills its pane; the query container
+           <nav class="mx-app-nav">...</nav>      sidebar / rail / tabs / selector
+           <main class="mx-app-page">
+             <header class="mx-app-header">...</header>
+             <div class="mx-toolbar">...</div>
+             <div class="mx-scroll-region">...</div>
+           </main>
+         </div>
        </body>
+
+   A 1.x page (mx-shell, mx-nav, mx-topbar, mx-cmdbar, the mx-layout-*
+   classes) still renders exactly as it did; those layouts follow the
+   window, which is right for a page that owns the whole screen.
 
    matrix.js adds the background layers (rain canvas, vignette,
    scanlines) itself. Put data-mx-bg="off" on <body> to skip them.
@@ -20,17 +34,35 @@
    -------------------------
    Everything lives in cascade layers:
 
-       mx.tokens      raw values (themes), tokens named by job, derived colours
+       mx.tokens      raw values (themes), tokens named by job, derived
+                      colours, density
        mx.base        page, background layers, focus, type
-       mx.components  the component library
-       mx.layout      shell, page layouts, navigation, command bar -- after
-                      components, so "in a dashboard, a panel has no
-                      margin" beats the panel's own margin
+       mx.components  the component library, workspace + mobile vocabulary
+       mx.layout      1.x page layouts (window-sized), then the 2.0 app
+                      container model (pane-sized) -- after components,
+                      so "in a dashboard, a panel has no margin" beats
+                      the panel's own margin
        mx.utilities   small single-purpose helpers
 
    CSS an app writes OUTSIDE a layer always beats everything here,
    whatever its specificity -- so an app never needs !important or a
    longer selector to adjust Matrix.
+
+   Container ranges (2.0)
+   ----------------------
+   Every app-level layout decision uses these, measured on the nearest
+   .mx-app (named container "mx-app"), never on the window:
+
+       micro    < 360px
+       narrow   360-519px
+       medium   520-799px
+       large    800-1199px
+       wide     >= 1200px
+
+   Components that measure their own box (.mx-toolbar, .mx-adaptive-grid
+   inside a panel) use the same numbers. Custom properties can't appear
+   in a query, so the numbers are written out; tools/lint.py rejects any
+   other container width in app CSS. MX.ranges has them for scripts.
 
    Rules of the road
    -----------------
@@ -38,12 +70,12 @@
       something is wrong (--mx-danger) or waiting (--mx-warn).
    2. Panels are opaque; the rain lives in the gaps. Text never sits
       on top of the animation.
-   3. Touch targets never go under --mx-tap. Inputs never go under
-      16px, or iOS zooms the page on focus.
+   3. Touch targets never go under --mx-tap on a coarse pointer, at any
+      density. Inputs never go under 16px, or iOS zooms the page.
    4. Motion pauses when hidden and disappears entirely under
       prefers-reduced-motion. Nothing here should cost a phone its
       battery.
-   5. Apps never write colours, pixel breakpoints or mx- classes of
+   5. Apps never write colours, viewport breakpoints or mx- classes of
       their own. tools/lint.py checks for all three.
    ===================================================================== */
 
@@ -186,8 +218,31 @@
     --mx-dur-slow: 0.28s;
     --mx-rain-opacity: 0.42;
 
+    /* --- density (2.0) -----------------------------------------------
+       Set by <html data-mx-density="comfortable|compact|dense">, or the
+       same attribute on any element (a pane, an app) to change just
+       that subtree. Comfortable is the 1.x look, value for value. */
+    --mx-row-h:      var(--mx-h-md);    /* list row, table row */
+    --mx-row-py:     var(--mx-space-2);
+    --mx-row-px:     var(--mx-space-3);
+    --mx-row-gap:    var(--mx-space-2); /* between rows in a list */
+    --mx-control-h:  var(--mx-h-md);    /* buttons and inputs in toolbars, app nav items */
+    --mx-toolbar-h:  56px;
+    --mx-gap:        var(--mx-space-4); /* between panels, stack children */
+    --mx-pad:        var(--mx-space-4); /* inside panels, app page padding */
+    --mx-row-text:   var(--mx-text-md);
+
+    /* --- app container (2.0) -------------------------------------------- */
+    --mx-app-sidebar-w: 200px;          /* .mx-app-nav, large and wide */
+    --mx-app-rail-w:    72px;           /* .mx-app-nav, medium */
+    --mx-md-list-w:     clamp(240px, 34%, 380px);  /* master-detail list column */
+    --mx-split:         50%;            /* .mx-split first pane, set by MX.split */
+    --mx-handle:        9px;            /* split handle hit area */
+    --mx-pane-header-h: 40px;
+
     /* --- 1.0 names, kept working through /ds/1/ ---------------------
-       Removed in 2.0. New code uses the names above. */
+       Kept through every 2.x release; removed in 3.0. New code uses
+       the names above, and tools/lint.py flags these. */
     --mx-green:      var(--mx-accent);
     --mx-green-low:  var(--mx-accent-low);
     --mx-amber:      var(--mx-warn);
@@ -220,7 +275,45 @@
   @media (max-width: 360px)  { :root { --mx-gutter: 12px; } }
 
   /* Coarse pointers never get a control under the tap size. */
-  @media (pointer: coarse) { :root { --mx-h-sm: var(--mx-tap); } }
+  @media (pointer: coarse) {
+    :root { --mx-h-sm: var(--mx-tap); --mx-handle: 21px; --mx-pane-header-h: var(--mx-tap); }
+  }
+
+  /* --- density ----------------------------------------------------------
+     compact: more rows per screen for desks and split panes.
+     dense:   the most information; meta moves onto the title line.
+     The attribute works on <html> or on any element (a pane, an app). */
+  :root[data-mx-density="compact"], [data-mx-density="compact"] {
+    --mx-row-h:     40px;
+    --mx-row-py:    6px;
+    --mx-row-px:    10px;
+    --mx-row-gap:   var(--mx-space-1);
+    --mx-control-h: var(--mx-h-sm);
+    --mx-toolbar-h: 48px;
+    --mx-gap:       var(--mx-space-3);
+    --mx-pad:       var(--mx-space-3);
+  }
+  :root[data-mx-density="dense"], [data-mx-density="dense"] {
+    --mx-row-h:     32px;
+    --mx-row-py:    3px;
+    --mx-row-px:    var(--mx-space-2);
+    --mx-row-gap:   2px;
+    --mx-control-h: 30px;
+    --mx-toolbar-h: 40px;
+    --mx-gap:       var(--mx-space-2);
+    --mx-pad:       var(--mx-space-2);
+    --mx-row-text:  var(--mx-text-sm);
+  }
+  /* A finger is the same size at every density: rows and controls stay at
+     the tap size, only spacing and type tighten. Same selectors as above,
+     later, so they win. */
+  @media (pointer: coarse) {
+    :root[data-mx-density], [data-mx-density] {
+      --mx-row-h:     var(--mx-tap);
+      --mx-control-h: var(--mx-tap);
+      --mx-toolbar-h: calc(var(--mx-tap) + 2 * var(--mx-space-1));
+    }
+  }
 
   /* TV: read from across the room, driven by arrow keys. */
   :root[data-mx-device="tv"] {
@@ -239,6 +332,16 @@
     --mx-shell-max: 1680px;
     --mx-card-min: 220px;
     --mx-focus: 4px solid var(--mx-accent);
+    --mx-toolbar-h: 84px;
+    --mx-app-sidebar-w: 300px;
+    --mx-app-rail-w: 112px;
+    --mx-pane-header-h: 56px;
+  }
+  /* A TV is read from across the room: no density shrinks its targets. */
+  :root[data-mx-device="tv"][data-mx-density], :root[data-mx-device="tv"] [data-mx-density] {
+    --mx-row-h: var(--mx-tap);
+    --mx-control-h: var(--mx-tap);
+    --mx-toolbar-h: 84px;
   }
 
   /* --- themes ---------------------------------------------------------
@@ -262,6 +365,34 @@
     --mx-c-ink:       #aeeefa;
     --mx-c-ink-dim:   #4a8fa0;
     --mx-c-ink-faint: #27525d;
+  }
+  /* 2.1: more accents to pick from. Still one per page; the user picks it. */
+  :root[data-mx-theme="magenta"] {
+    --mx-c-raised:    #120610;
+    --mx-c-accent:    #ff4fd8;
+    --mx-c-on-accent: #22001b;
+    --mx-c-ink-hot:   #fff0fc;
+    --mx-c-ink:       #ffc4f1;
+    --mx-c-ink-dim:   #a35a92;
+    --mx-c-ink-faint: #5f3155;
+  }
+  :root[data-mx-theme="violet"] {
+    --mx-c-raised:    #0b0814;
+    --mx-c-accent:    #a078ff;
+    --mx-c-on-accent: #0f0624;
+    --mx-c-ink-hot:   #f3eeff;
+    --mx-c-ink:       #d6c8ff;
+    --mx-c-ink-dim:   #7d6aa8;
+    --mx-c-ink-faint: #463b63;
+  }
+  :root[data-mx-theme="white"] {
+    --mx-c-raised:    #0b0d11;
+    --mx-c-accent:    #dfe9ff;
+    --mx-c-on-accent: #0a0f1a;
+    --mx-c-ink-hot:   #ffffff;
+    --mx-c-ink:       #cdd6e8;
+    --mx-c-ink-dim:   #7d879a;
+    --mx-c-ink-faint: #444b57;
   }
 }
 
@@ -469,6 +600,11 @@
     gap: var(--mx-space-3);
     background: var(--mx-bg);
     border-bottom: 1px solid var(--mx-border-soft);
+    /* The bar sits inside mx-shell, but its black and its rule run to the
+       screen edges: otherwise the rain shows in the shell's gutters and
+       the bar reads as a box cut out of the page. The outset is paint
+       only, so it never makes the page scroll sideways. */
+    border-image: linear-gradient(to top, var(--mx-border-soft) 1px, var(--mx-bg) 1px) fill 0 / 0 / 0 100vmax;
     margin-bottom: var(--mx-space-4);
   }
   .mx-brand { min-width: 0; flex: 1 1 auto; }
@@ -643,12 +779,18 @@
     grid-auto-flow: column;
     grid-auto-columns: 1fr;
     gap: 6px;
-    /* Full-bleed past the shell gutter, so the strip's cut edges don't
-       show against the moving background. */
+    /* Full-bleed to the screen edges, past the shell gutter and past
+       mx-shell's max width, so the strip's cut edges don't show against
+       the moving background. */
     margin: 0 calc(-1 * var(--mx-gutter));
     padding: var(--mx-space-2) var(--mx-gutter) var(--mx-space-3);
     background: linear-gradient(180deg, var(--mx-bg) 60%, transparent);
+    border-image: linear-gradient(180deg, var(--mx-bg) 60%, transparent) fill 0 / 0 / 0 100vmax;
   }
+  /* Tabs straight under the top bar join it, instead of leaving a strip
+     of rain between the two. */
+  .mx-topbar + .mx-tabs,
+  .mx-topbar + * > .mx-tabs:first-child { margin-top: calc(-1 * var(--mx-space-4)); }
   .mx-tab {
     appearance: none;
     position: relative;
@@ -764,6 +906,523 @@
     .mx-topbar-actions .mx-cmdbar-inner { padding: 0; margin: 0; max-width: none; }
     .mx-topbar-actions .mx-cmd-status { max-width: 360px; text-align: right; }
   }
+
+
+  /* =====================================================================
+     2.0: THE APP CONTAINER MODEL
+     Everything from here to the end of the layer sizes itself by the
+     pane, through container queries on .mx-app (container "mx-app"),
+     never by the window. The ranges are in the header of this file:
+     micro < 360 · narrow 360-519 · medium 520-799 · large 800-1199 ·
+     wide >= 1200.
+     ===================================================================== */
+
+  /* --- app: fills its pane, and is the query container -------------------
+     Children: an optional .mx-app-nav, then one .mx-app-page. Overlays
+     (sheets, toasts, menus) placed inside an app are scoped to it, so a
+     sheet opened in a 400px pane covers that pane, not the monitor. */
+  .mx-app {
+    container: mx-app / inline-size;
+    position: relative;
+    z-index: 2;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    overflow: clip;
+    color: var(--mx-ink);
+  }
+  /* The app is the whole page: fill the window, below any hub chrome.
+     The page itself then never scrolls; scroll regions inside do. */
+  body.mx > .mx-app {
+    height: 100vh;
+    height: 100dvh;
+    padding-top: var(--mx-top-inset);
+  }
+  .mx-app > .mx-app-page { grid-column: 1 / -1; grid-row: 1 / -1; }
+  .mx-app > .mx-app-nav { grid-column: 1 / -1; grid-row: 1; }
+  .mx-app > .mx-app-nav ~ .mx-app-page { grid-row: 2; }
+  @container mx-app (width >= 520px) {
+    .mx-app > .mx-app-nav { grid-column: 1; grid-row: 1 / -1; }
+    .mx-app > .mx-app-nav ~ .mx-app-page { grid-column: 2; grid-row: 1 / -1; }
+  }
+
+  /* --- page: header, toolbar, then whatever fills the rest --------------- */
+  .mx-app-page {
+    container: mx-page / inline-size;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+  }
+  .mx-app-page > *,
+  .mx-md-list > *, .mx-md-detail > * { flex: 0 0 auto; min-width: 0; }
+  .mx-app-page > :is(.mx-scroll-region, .mx-master-detail, .mx-split, .mx-fill),
+  .mx-md-list > :is(.mx-scroll-region, .mx-fill),
+  .mx-md-detail > :is(.mx-scroll-region, .mx-fill),
+  .mx-stack > :is(.mx-scroll-region, .mx-fill) { flex: 1 1 auto; min-height: 0; }
+  .mx-app-page > .mx-scroll-region { padding: var(--mx-pad); }
+
+  /* --- app header ------------------------------------------------------------ */
+  .mx-app-header {
+    display: flex;
+    align-items: center;
+    gap: var(--mx-space-3);
+    min-height: var(--mx-toolbar-h);
+    padding: var(--mx-space-2) var(--mx-pad);
+    background: var(--mx-surface);
+    border-bottom: 1px solid var(--mx-border-soft);
+  }
+  .mx-app-heading { flex: 1 1 auto; min-width: 0; }
+  .mx-app-title {
+    display: block;
+    margin: 0;
+    font-size: var(--mx-text-lg);
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--mx-ink-hot);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .mx-app-subtitle {
+    display: block;
+    margin: 2px 0 0;
+    font-size: var(--mx-text-2xs);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--mx-ink-dim);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .mx-app-header .mx-mark { font-size: var(--mx-text-xl); }
+  .mx-app-header .mx-back { margin: 0; flex: 0 0 auto; }
+  .mx-app-header-actions { flex: 0 0 auto; display: flex; align-items: center; gap: var(--mx-space-2); }
+  .mx-app-header :is(.mx-btn, .mx-status-chip) { --mx-z-h: var(--mx-control-h); min-height: var(--mx-control-h); }
+  .mx-app-header > .mx-toolbar { flex: 1 1 auto; min-height: 0; padding: 0; border: 0; background: none; }
+  @container mx-app (width < 360px) {
+    .mx-app-title { font-size: var(--mx-text-base); }
+    .mx-app-subtitle { display: none; }
+  }
+
+  /* --- stack: a column of things, density-spaced ------------------------------
+     Inside an app, .mx-stack is this. Outside one it is still 1.0's name
+     for .mx-layout-split (see above), so 1.x pages are unaffected. */
+  .mx-app .mx-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--mx-gap);
+    min-width: 0;
+    min-height: 0;
+    padding-top: 0;
+  }
+  .mx-app .mx-stack > * { min-width: 0; margin-block: 0; }
+
+  /* --- scroll region ---------------------------------------------------------
+     Anything that scrolls on its own inside a pane. It never hands its
+     scroll to the page (overscroll-behavior), and min-height: 0 lets it
+     shrink inside a flex or grid column instead of pushing the pane
+     taller. Give it tabindex="0" and an aria-label when it holds no
+     focusable content, so keyboards can scroll it. */
+  .mx-scroll-region {
+    min-width: 0;
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  .mx-scroll-region:focus-visible { outline-offset: -2px; }
+
+  /* --- adaptive grid ----------------------------------------------------------
+     1 / 2 / 3 / 4 columns at narrow / medium / large / wide of the box it
+     sits in (the page, a panel, a pane). mx-max-2 and mx-max-3 cap it.
+     Each cell is itself a container, so a card inside can adapt too. */
+  .mx-adaptive-grid {
+    --mx-cols: 1;
+    display: grid;
+    grid-template-columns: repeat(var(--mx-cols), minmax(0, 1fr));
+    gap: var(--mx-gap);
+    min-width: 0;
+  }
+  .mx-adaptive-grid > * { min-width: 0; margin: 0; container-type: inline-size; }
+  .mx-adaptive-grid > :is(.mx-empty, .mx-placeholder, .mx-span-all) { grid-column: 1 / -1; }
+  @container (width >= 520px)  { .mx-adaptive-grid { --mx-cols: 2; } }
+  @container (width >= 800px)  { .mx-adaptive-grid { --mx-cols: 3; } .mx-adaptive-grid.mx-max-2 { --mx-cols: 2; } }
+  @container (width >= 1200px) { .mx-adaptive-grid { --mx-cols: 4; } .mx-adaptive-grid.mx-max-3 { --mx-cols: 3; } .mx-adaptive-grid.mx-max-2 { --mx-cols: 2; } }
+  @container (width < 520px)   { .mx-adaptive-grid > .mx-span-2 { grid-column: auto; } }
+  .mx-adaptive-grid > .mx-card .mx-card-actions > .mx-btn { flex: 1 1 auto; }
+  @container (width >= 360px)  { .mx-adaptive-grid > .mx-card .mx-card-actions > .mx-btn { flex: 0 0 auto; } }
+
+  /* --- master-detail ----------------------------------------------------------
+     list | detail side by side from large; below that, drill-in: the list,
+     and the detail replaces it (data-mx-detail="open", MX.detail.open()).
+     Never two squeezed columns. The columns are containers, so what is
+     inside them adapts to the column, not the app. */
+  .mx-master-detail {
+    position: relative;
+    display: flex;
+    min-width: 0;
+    min-height: 0;
+  }
+  .mx-md-list, .mx-md-detail {
+    container-type: inline-size;
+    flex-direction: column;
+    flex: 1 1 100%;
+    min-width: 0;
+    min-height: 0;
+  }
+  .mx-md-list { display: flex; background: var(--mx-surface); }
+  .mx-md-detail { display: none; }
+  .mx-master-detail[data-mx-detail="open"] > .mx-md-list { display: none; }
+  .mx-master-detail[data-mx-detail="open"] > .mx-md-detail { display: flex; }
+  .mx-md-list > .mx-scroll-region { padding: var(--mx-space-2); }
+  .mx-md-detail > .mx-scroll-region { padding: var(--mx-pad); }
+  .mx-md-head {
+    display: flex;
+    align-items: center;
+    gap: var(--mx-space-2);
+    min-height: var(--mx-toolbar-h);
+    padding: var(--mx-space-1) var(--mx-pad);
+    background: var(--mx-surface);
+    border-bottom: 1px solid var(--mx-border-soft);
+  }
+  .mx-md-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
+    font-size: var(--mx-text-md);
+    font-weight: 700;
+    color: var(--mx-ink-hot);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .mx-md-back { display: inline-flex; margin: 0; }
+  @container mx-app (width >= 800px) {
+    .mx-master-detail > .mx-md-list,
+    .mx-master-detail[data-mx-detail] > .mx-md-list {
+      display: flex;
+      flex: 0 0 var(--mx-md-list-w);
+      border-right: 1px solid var(--mx-border-soft);
+    }
+    .mx-master-detail > .mx-md-detail { display: flex; flex: 1 1 0; }
+    .mx-md-back { display: none; }
+  }
+
+  /* --- application navigation ---------------------------------------------------
+     The app's own sections -- separate from App Hub's workspace nav.
+       wide, large   a compact sidebar with labels
+       medium        an icon rail
+       narrow        a tab strip across the top
+       micro         a selector: the current section, tap for the rest
+                     (matrix.js adds the toggle; without it, the strip)
+     <nav class="mx-app-nav"><div class="mx-app-nav-list"> items </div></nav> */
+  .mx-app-nav {
+    position: relative;
+    z-index: 3;
+    display: flex;
+    align-items: stretch;
+    gap: var(--mx-space-1);
+    min-width: 0;
+    min-height: 0;
+    padding: var(--mx-space-1) var(--mx-space-2);
+    background: var(--mx-surface);
+    border: 0 solid var(--mx-border-soft);
+    border-bottom-width: 1px;
+  }
+  .mx-app-nav-brand, .mx-app-nav-section, .mx-app-nav-toggle { display: none; }
+  .mx-app-nav-list {
+    flex: 1 1 auto;
+    display: flex;
+    gap: var(--mx-space-1);
+    min-width: 0;
+    min-height: 0;
+    overflow-x: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+  }
+  .mx-app-nav-foot { display: flex; gap: var(--mx-space-1); flex: 0 0 auto; }
+  .mx-app-nav-item {
+    position: relative;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--mx-space-2);
+    min-height: var(--mx-control-h);
+    padding: 0 var(--mx-space-3);
+    color: var(--mx-ink-dim);
+    background: none;
+    border: 0;
+    border-radius: var(--mx-r-sm);
+    font: inherit;
+    font-size: var(--mx-text-xs);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: color var(--mx-dur-fast), background-color var(--mx-dur-fast);
+  }
+  .mx-app-nav-item > svg, .mx-app-nav-icon { display: none; width: 18px; height: 18px; flex: 0 0 auto; }
+  .mx-app-nav-label { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+  .mx-app-nav-item .mx-badge { padding: 0 6px; }
+  .mx-app-nav-item:is([aria-current="page"], [aria-selected="true"], .mx-selected) { color: var(--mx-accent); }
+  .mx-app-nav-item:is([aria-current="page"], [aria-selected="true"], .mx-selected)::before {
+    content: "";
+    position: absolute;
+    left: 18%; right: 18%;
+    bottom: calc(-1 * var(--mx-space-1));
+    height: 2px;
+    background: var(--mx-accent);
+    box-shadow: 0 0 8px var(--mx-accent-glow);
+  }
+  @media (hover: hover) { .mx-app-nav-item:hover { color: var(--mx-ink-hot); background: var(--mx-accent-low); } }
+  .mx-app-nav-item:active { background: var(--mx-accent-low); }
+
+  /* micro: the selector */
+  @container mx-app (width < 360px) {
+    .mx-app-nav-toggle {
+      display: flex;
+      align-items: center;
+      gap: var(--mx-space-2);
+      flex: 1 1 auto;
+      min-width: 0;
+      min-height: var(--mx-control-h);
+      padding: 0 var(--mx-space-3);
+      background: var(--mx-surface-raised);
+      border: 1px solid var(--mx-border);
+      border-radius: var(--mx-r-sm);
+      color: var(--mx-accent);
+      font: inherit;
+      font-size: var(--mx-text-xs);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+    .mx-app-nav-toggle > span { flex: 1 1 auto; min-width: 0; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .mx-app-nav-toggle > svg { width: 16px; height: 16px; flex: 0 0 auto; transition: transform var(--mx-dur-fast); }
+    .mx-app-nav.mx-open .mx-app-nav-toggle > svg { transform: rotate(180deg); }
+    .mx-app-nav-toggle ~ .mx-app-nav-list {
+      position: absolute;
+      top: 100%; left: 0; right: 0;
+      z-index: 30;
+      display: none;
+      flex-direction: column;
+      gap: 2px;
+      max-height: min(60vh, 420px);
+      overflow-y: auto;
+      padding: var(--mx-space-2);
+      background: var(--mx-surface);
+      border-bottom: 1px solid var(--mx-border);
+      box-shadow: var(--mx-shadow);
+    }
+    .mx-app-nav.mx-open .mx-app-nav-toggle ~ .mx-app-nav-list { display: flex; }
+    .mx-app-nav-toggle ~ .mx-app-nav-list > .mx-app-nav-item { justify-content: flex-start; padding: 0 var(--mx-space-3); }
+    .mx-app-nav-toggle ~ .mx-app-nav-list > .mx-app-nav-item > svg { display: block; }
+    .mx-app-nav-toggle ~ .mx-app-nav-list > .mx-app-nav-item:is([aria-current="page"], [aria-selected="true"], .mx-selected) { background: var(--mx-accent-low); }
+    .mx-app-nav-toggle ~ .mx-app-nav-list > .mx-app-nav-item::before { display: none; }
+  }
+  /* medium: the rail */
+  @container mx-app (width >= 520px) {
+    .mx-app-nav {
+      flex-direction: column;
+      width: var(--mx-app-rail-w);
+      padding: var(--mx-space-3) var(--mx-space-2);
+      border-bottom-width: 0;
+      border-right-width: 1px;
+    }
+    .mx-app-nav-list { flex-direction: column; overflow-x: hidden; overflow-y: auto; }
+    .mx-app-nav-foot { flex-direction: column; }
+    .mx-app-nav-item {
+      flex-direction: column;
+      gap: 3px;
+      min-height: calc(var(--mx-control-h) + var(--mx-space-2));
+      padding: var(--mx-space-1) 2px;
+      font-size: var(--mx-text-2xs);
+      letter-spacing: 0.06em;
+    }
+    .mx-app-nav-item > svg, .mx-app-nav-icon { display: block; }
+    .mx-app-nav-item:is([aria-current="page"], [aria-selected="true"], .mx-selected) { background: var(--mx-accent-low); }
+    .mx-app-nav-item:is([aria-current="page"], [aria-selected="true"], .mx-selected)::before {
+      left: calc(-1 * var(--mx-space-2)); right: auto;
+      top: 22%; bottom: 22%;
+      width: 2px; height: auto;
+    }
+  }
+  /* large and wide: the compact sidebar */
+  @container mx-app (width >= 800px) {
+    .mx-app-nav { width: var(--mx-app-sidebar-w); padding: var(--mx-space-3); gap: var(--mx-space-2); }
+    .mx-app-nav-list { gap: 2px; }
+    .mx-app-nav-brand {
+      display: block;
+      padding: 0 var(--mx-space-2) var(--mx-space-2);
+      font-family: var(--mx-gothic);
+      font-size: var(--mx-text-xl);
+      line-height: 1.15;
+      color: var(--mx-ink-hot);
+      text-decoration: none;
+      text-shadow: 0 0 12px var(--mx-accent-glow);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .mx-app-nav-section {
+      display: block;
+      padding: var(--mx-space-3) var(--mx-space-3) var(--mx-space-1);
+      font-size: var(--mx-text-2xs);
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--mx-ink-faint);
+    }
+    .mx-app-nav-item {
+      flex-direction: row;
+      justify-content: flex-start;
+      gap: var(--mx-space-3);
+      min-height: var(--mx-control-h);
+      padding: 0 var(--mx-space-3);
+      font-size: var(--mx-text-xs);
+      letter-spacing: 0.1em;
+    }
+    .mx-app-nav-item .mx-badge { margin-left: auto; }
+    .mx-app-nav-item:is([aria-current="page"], [aria-selected="true"], .mx-selected)::before { left: calc(-1 * var(--mx-space-3)); }
+  }
+
+  /* --- adaptive toolbar ---------------------------------------------------------
+     One row, never two. Actions carry data-mx-priority:
+       1     always in the bar
+       2     moves to the overflow menu below medium (< 520px)
+       3     moves to the overflow menu below large (< 800px)
+       menu  only ever in the overflow menu
+     The toolbar measures ITSELF (container mx-toolbar). The overflow menu
+     (.mx-toolbar-more, an .mx-menu) holds a copy of every priority 2/3
+     action -- the Jinja macro writes them, or matrix.js builds them --
+     and shows each copy only while its original is hidden. matrix.js
+     also moves anything that still doesn't fit (long labels). */
+  .mx-toolbar {
+    container: mx-toolbar / inline-size;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: var(--mx-space-2);
+    min-width: 0;
+    min-height: var(--mx-toolbar-h);
+    padding: var(--mx-space-1) var(--mx-pad);
+    background: var(--mx-surface);
+    border-bottom: 1px solid var(--mx-border-soft);
+  }
+  .mx-toolbar > * { flex: 0 0 auto; }
+  .mx-toolbar > :is(.mx-toolbar-lead, .mx-grow, .mx-input-icon) { flex: 1 1 auto; min-width: 0; }
+  .mx-toolbar-title {
+    min-width: 0;
+    font-size: var(--mx-text-xs);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--mx-ink-dim);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .mx-toolbar-sep { align-self: stretch; width: 1px; margin: var(--mx-space-2) 0; background: var(--mx-border-soft); }
+  .mx-toolbar .mx-btn { --mx-z-h: var(--mx-control-h); }
+  .mx-toolbar :is(.mx-input, .mx-select) { min-height: var(--mx-control-h); padding-block: 0; }
+  .mx-toolbar .mx-input-icon, .mx-toolbar .mx-field { margin: 0; }
+  .mx-toolbar-more .mx-menu-item:is([data-mx-priority="1"], [data-mx-priority="2"], [data-mx-priority="3"]) { display: none; }
+  .mx-toolbar-more .mx-menu-item.mx-overflowed { display: flex; }
+  .mx-toolbar .mx-overflowed:not(.mx-menu-item) { display: none; }
+  @container mx-toolbar (width < 800px) {
+    .mx-toolbar [data-mx-priority="3"]:not(.mx-menu-item) { display: none; }
+    .mx-toolbar-more .mx-menu-item[data-mx-priority="3"] { display: flex; }
+  }
+  @container mx-toolbar (width < 520px) {
+    .mx-toolbar [data-mx-priority="2"]:not(.mx-menu-item) { display: none; }
+    .mx-toolbar-more .mx-menu-item[data-mx-priority="2"] { display: flex; }
+  }
+  /* micro: icon buttons drop their visible label (it stays for screen readers) */
+  @container mx-toolbar (width < 360px) {
+    .mx-toolbar .mx-btn > .mx-toolbar-label {
+      position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+    }
+    .mx-toolbar .mx-btn:has(> svg + .mx-toolbar-label) { width: var(--mx-control-h); padding: 0; }
+    .mx-toolbar { padding-inline: var(--mx-space-2); gap: var(--mx-space-1); }
+  }
+
+  /* --- split: two panes and a handle between them ---------------------------
+     <div class="mx-split"> pane, <div class="mx-split-handle" role="separator"
+     aria-orientation="vertical" tabindex="0">, pane </div>. MX.split drags
+     it and moves it with the arrow keys; --mx-split is the first pane's size.
+     .mx-split-y stacks the panes instead. */
+  .mx-split {
+    display: grid;
+    grid-template-columns: minmax(0, var(--mx-split)) var(--mx-handle) minmax(0, 1fr);
+    min-width: 0;
+    min-height: 0;
+  }
+  .mx-split.mx-split-y {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, var(--mx-split)) var(--mx-handle) minmax(0, 1fr);
+  }
+  .mx-split > * { min-width: 0; min-height: 0; }
+
+  /* --- 1.x components inside an app ---------------------------------------------
+     They were sized by the window; inside an app they follow the pane. */
+  .mx-app .mx-panel, [data-mx-density] .mx-panel { padding: var(--mx-pad); }
+  .mx-app .mx-panel { margin-bottom: var(--mx-gap); }
+  .mx-app .mx-topbar { border-image: none; margin-bottom: 0; padding-inline: var(--mx-pad); }
+  .mx-app .mx-tabs {
+    position: static;
+    display: grid;
+    margin: 0;
+    padding: var(--mx-space-2) var(--mx-pad);
+    background: var(--mx-surface);
+    border-image: none;
+    border-bottom: 1px solid var(--mx-border-soft);
+  }
+  .mx-app .mx-tab { min-height: var(--mx-control-h); }
+  /* More tabs than a narrow app has room for: the strip scrolls sideways
+     (matrix.js keeps the selected tab in view) instead of being cut off.
+     With room to spare they still share the width. */
+  .mx-app .mx-tabs {
+    grid-auto-columns: minmax(max-content, 1fr);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .mx-app .mx-tabs::-webkit-scrollbar { display: none; }
+  .mx-app .mx-tab { padding-inline: var(--mx-space-3); white-space: nowrap; }
+  .mx-app.mx-tabbed [data-mx-panel]:not(.mx-shown) { display: none; }
+  .mx .mx-app .mx-cmdbar {
+    position: static;
+    transform: none;
+    width: auto;
+    padding-bottom: 0;
+    border: 0;
+    border-top: 1px solid var(--mx-border);
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .mx-app .mx-cmdbar-inner { max-width: none; min-height: var(--mx-toolbar-h); padding: var(--mx-space-2) var(--mx-pad); }
+  /* Sheets and toasts cover the app, not the window. A bottom sheet in
+     a narrow app, a dialog from medium -- whatever the window size. */
+  .mx-app .mx-overlay { position: absolute; align-items: flex-end; padding: 0; }
+  .mx-app .mx-sheet {
+    max-height: min(85%, 620px);
+    border-bottom: 0;
+    border-radius: var(--mx-r-lg) var(--mx-r-lg) 0 0;
+    padding-bottom: calc(var(--mx-space-4) + env(safe-area-inset-bottom));
+    transform: translateY(100%);
+  }
+  .mx-app .mx-sheet.mx-full { max-height: none; }
+  .mx-app .mx-overlay.mx-open .mx-sheet { transform: none; }
+  @container mx-app (width >= 520px) {
+    .mx-app .mx-overlay { align-items: center; padding: var(--mx-space-6); }
+    .mx-app .mx-sheet {
+      max-height: min(80%, 640px);
+      border-bottom: 1px solid var(--mx-v-bd, var(--mx-border));
+      border-radius: var(--mx-r-lg);
+      padding-bottom: var(--mx-space-4);
+      transform: translateY(28px) scale(0.98);
+    }
+    .mx-app .mx-overlay.mx-open .mx-sheet { transform: none; }
+  }
+  .mx-app .mx-toasts { position: absolute; bottom: calc(var(--mx-space-4) + var(--mx-kb)); padding: 0 var(--mx-pad); }
 }
 
 
@@ -942,6 +1601,9 @@
   .mx-field.mx-err .mx-hint { color: var(--mx-danger); }
 
   .mx-input, .mx-textarea, .mx-select {
+    /* Safari draws type="search" its own way, padding and all, until told not to. */
+    -webkit-appearance: none;
+    appearance: none;
     display: block;
     width: 100%;
     min-height: var(--mx-z-h, var(--mx-h-md));
@@ -969,6 +1631,7 @@
     cursor: pointer;
   }
   .mx-input::placeholder, .mx-textarea::placeholder { color: var(--mx-ink-faint); }
+  .mx-input::-webkit-search-decoration { -webkit-appearance: none; }
   .mx-input:focus, .mx-textarea:focus, .mx-select:focus {
     outline: none;
     border-color: var(--mx-accent);
@@ -1217,7 +1880,7 @@
   .mx-list, .mx-rows {
     display: flex;
     flex-direction: column;
-    gap: var(--mx-space-2);
+    gap: var(--mx-row-gap);
     margin: 0;
     padding: 0;
     list-style: none;
@@ -1231,9 +1894,9 @@
     gap: var(--mx-space-3);
     width: 100%;
     min-width: 0;
-    min-height: var(--mx-z-h, var(--mx-h-md));
+    min-height: var(--mx-z-h, var(--mx-row-h));
     margin: 0;
-    padding: var(--mx-space-2) var(--mx-space-3);
+    padding: var(--mx-row-py) var(--mx-row-px);
     background: var(--mx-v-bg, var(--mx-surface-raised));
     border: 1px solid var(--mx-v-bd, var(--mx-border-soft));
     border-radius: var(--mx-r-sm);
@@ -1270,7 +1933,7 @@
   .mx-slot-title {
     display: block;
     min-width: 0;
-    font-size: var(--mx-text-md);
+    font-size: var(--mx-row-text);
     color: var(--mx-ink-hot);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
@@ -1360,6 +2023,16 @@
   .mx-tile.mx-square > .mx-slot-lead > svg { width: 32px; height: 32px; }
   .mx-tile.mx-square > .mx-slot-main, .mx-tile.mx-square > .mx-slot-title { padding: 0; align-items: center; max-width: 100%; }
 
+  /* Dense rows put the meta on the title line: one row, one line. */
+  [data-mx-density="dense"] :not(.mx-view-grid) > .mx-item > .mx-slot-main {
+    flex-direction: row;
+    align-items: baseline;
+    gap: var(--mx-space-2);
+  }
+  [data-mx-density="dense"] :not(.mx-view-grid) > .mx-item > .mx-slot-main > .mx-slot-title { flex: 0 1 auto; }
+  [data-mx-density="dense"] :not(.mx-view-grid) > .mx-item > .mx-slot-main > .mx-slot-meta { flex: 1 1 0; }
+  [data-mx-density="dense"] :not(.mx-view-grid) > .mx-item > .mx-slot-lead > img { width: 24px; height: 24px; }
+
   /* --- media well: an image that shimmers until it has loaded ---------------
      matrix.js adds .mx-loaded when the <img> inside finishes. */
   .mx-media {
@@ -1414,8 +2087,8 @@
     align-items: center;
     gap: 10px;
     width: 100%;
-    min-height: var(--mx-tap);
-    padding: 10px 12px;
+    min-height: var(--mx-row-h);
+    padding: calc(var(--mx-row-py) + 2px) var(--mx-row-px);
     background: none;
     border: 0;
     color: inherit;
@@ -1701,10 +2374,10 @@
     letter-spacing: 0.14em;
     text-transform: uppercase;
     color: var(--mx-ink-dim);
-    padding: var(--mx-space-2) var(--mx-space-3);
+    padding: var(--mx-row-py) var(--mx-row-px);
     border-bottom: 1px solid var(--mx-border);
   }
-  .mx-table td { padding: var(--mx-space-2) var(--mx-space-3); border-bottom: 1px solid var(--mx-border-soft); color: var(--mx-ink); }
+  .mx-table td { padding: var(--mx-row-py) var(--mx-row-px); border-bottom: 1px solid var(--mx-border-soft); color: var(--mx-ink); }
   .mx-table .mx-num { text-align: right; }
   .mx-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
@@ -1746,6 +2419,143 @@
   .mx-toast.mx-out { animation: mx-toast-out 0.25s ease forwards; }
   @keyframes mx-toast-in  { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
   @keyframes mx-toast-out { to { opacity: 0; transform: translateY(8px); } }
+  /* A toast with one action (2.1): MX.toast(true, "Deleted", {action: {label: "Undo", run}}).
+     Pointer events come back on so the button can be pressed. */
+  .mx-toast.mx-has-action { display: flex; align-items: center; gap: var(--mx-space-3); padding: 4px 4px 4px 14px; pointer-events: auto; }
+  .mx-toast-msg { flex: 1 1 auto; min-width: 0; }
+  .mx-toast > .mx-btn { flex: 0 0 auto; --mx-v-fg: var(--mx-tone, var(--mx-accent)); font-weight: 700; }
+
+  /* --- dock (2.1): a long job, above the command bar --------------------------
+     <div class="mx-dock" role="button" tabindex="0" style="--mx-progress: 40">
+       <span class="mx-dock-icon"><svg/></span>
+       <span class="mx-dock-main">
+         <span class="mx-dock-title">Downloading Kid A</span>
+         <span class="mx-dock-sub">Radiohead · track 4 of 10</span>
+       </span>
+       <span class="mx-dock-value">40%</span>
+       <button class="mx-btn mx-ghost mx-square" aria-label="Cancel"><svg/></button>
+     </div>
+     In an .mx-app-page, after the scroll region and before the .mx-cmdbar.
+     The line on its top edge is --mx-progress (0-100); .mx-busy marches
+     instead when there's no telling. Tapping it shows the job in full. */
+  .mx-dock {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--mx-space-3);
+    min-width: 0;
+    min-height: var(--mx-row-h);
+    padding: var(--mx-space-1) var(--mx-space-2) var(--mx-space-1) var(--mx-pad);
+    background: var(--mx-surface-raised);
+    border-top: 1px solid var(--mx-border);
+    color: var(--mx-ink);
+    text-decoration: none;
+  }
+  .mx-dock[role="button"], a.mx-dock { cursor: pointer; touch-action: manipulation; }
+  .mx-dock::before {
+    content: "";
+    position: absolute;
+    left: 0; top: -1px;
+    height: 2px;
+    width: calc(var(--mx-progress, 0) * 1%);
+    background: var(--mx-accent);
+    box-shadow: 0 0 10px var(--mx-accent-glow);
+    transition: width 0.3s linear;
+  }
+  .mx-dock.mx-busy::before {
+    width: 100%;
+    background: repeating-linear-gradient(90deg, var(--mx-accent) 0 12px, transparent 12px 24px);
+    animation: mx-dock-march 0.6s linear infinite;
+  }
+  @keyframes mx-dock-march { to { background-position: 24px 0; } }
+  .mx-dock-icon {
+    flex: 0 0 auto;
+    display: grid;
+    place-items: center;
+    width: 28px; height: 28px;
+    border: 1px solid var(--mx-border);
+    border-radius: 50%;
+    color: var(--mx-accent);
+  }
+  .mx-dock-icon > svg { width: 15px; height: 15px; }
+  .mx-dock-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+  .mx-dock-title, .mx-dock-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mx-dock-title { color: var(--mx-ink-hot); font-size: var(--mx-text-sm); font-weight: 700; }
+  .mx-dock-sub { color: var(--mx-ink-dim); font-size: var(--mx-text-xs); font-variant-numeric: tabular-nums; }
+  .mx-dock-value { flex: 0 0 auto; color: var(--mx-ink-hot); font-size: var(--mx-text-sm); font-variant-numeric: tabular-nums; }
+  .mx-dock > .mx-btn { flex: 0 0 auto; }
+
+  /* --- view bar (2.1): how to look at a collection ---------------------------
+     <div class="mx-viewbar">
+       <button class="mx-btn mx-viewbar-pick"><span>Sort: Recently added</span></button>
+       <label class="mx-input-icon mx-viewbar-search"><svg/>
+         <input class="mx-input" type="search" placeholder="Search" aria-label="Search albums"></label>
+       <button class="mx-btn mx-ghost mx-square mx-viewbar-find" data-mx-search-open aria-label="Search"><svg/></button>
+       <button class="mx-btn mx-ghost mx-viewbar-cancel" data-mx-search-close>Cancel</button>
+       <div class="mx-layout-switch" data-mx-layout-switch="albums" data-mx-remember="music-albums">...</div>
+     </div>
+     Under 360px of app the search box folds into the magnifier; pressing it
+     opens the field across the bar (.mx-searching) until Cancel or Escape.
+     Search never just disappears. */
+  .mx-viewbar {
+    display: flex;
+    align-items: center;
+    gap: var(--mx-space-2);
+    min-width: 0;
+    padding: var(--mx-space-2) var(--mx-pad);
+    border-bottom: 1px solid var(--mx-border-soft);
+  }
+  .mx-viewbar > * { flex: 0 0 auto; min-width: 0; }
+  /* The label goes in a span, so a long one ends in "…" instead of spilling both ways. */
+  .mx-viewbar-pick { max-width: 45%; justify-content: flex-start; }
+  .mx-viewbar-pick > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mx-viewbar-search { flex: 1 1 140px; margin: 0; }
+  .mx-viewbar-search > .mx-input { min-height: var(--mx-control-h); padding-top: 0; padding-bottom: 0; }
+  .mx-viewbar-find, .mx-viewbar-cancel { display: none; }
+  @container mx-app (width < 360px) {
+    .mx-viewbar:not(.mx-searching) > .mx-viewbar-search { display: none; }
+    .mx-viewbar:not(.mx-searching) > .mx-viewbar-find { display: inline-flex; margin-left: auto; }
+    .mx-viewbar.mx-searching > :not(.mx-viewbar-search, .mx-viewbar-cancel) { display: none; }
+    .mx-viewbar.mx-searching > .mx-viewbar-cancel { display: inline-flex; }
+  }
+
+  /* --- layout switch (2.1): a collection as rows or tiles ----------------------
+     <div class="mx-layout-switch" data-mx-layout-switch="albums" data-mx-remember="music-albums">
+       <button class="mx-btn mx-ghost mx-square" data-mx-layout="list" aria-label="List"><svg/></button>
+       <button class="mx-btn mx-ghost mx-square" data-mx-layout="grid" aria-label="Grid"><svg/></button>
+     </div>
+     matrix.js turns .mx-view-grid on the .mx-list with that id on and off,
+     and remembers the choice under data-mx-remember (name it after the app). */
+  .mx-layout-switch {
+    display: inline-flex;
+    gap: 2px;
+    padding: 2px;
+    border: 1px solid var(--mx-border-soft);
+    border-radius: var(--mx-r-sm);
+  }
+  .mx-layout-switch > .mx-btn { --mx-z-h: calc(var(--mx-control-h) - 6px); }
+  .mx-layout-switch > [aria-pressed="true"] {
+    --mx-v-fg: var(--mx-accent);
+    --mx-v-bd: var(--mx-accent);
+    --mx-v-bg: var(--mx-accent-low);
+  }
+
+  /* --- hold (2.1): press and hold an item for its menu ------------------------
+     data-mx-hold on an .mx-item or .mx-tile (or anything positioned). The ring
+     fills while the press is held; matrix.js does the rest. */
+  [data-mx-hold] { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: manipulation; }
+  .mx-holding { transform: scale(0.97); }
+  .mx-holding::after {
+    content: "";
+    position: absolute;
+    top: -1px; right: -1px; bottom: -1px; left: -1px;
+    border: 2px solid var(--mx-accent);
+    border-radius: inherit;
+    box-shadow: 0 0 18px var(--mx-accent-glow);
+    animation: mx-hold 0.48s linear both;
+    pointer-events: none;
+  }
+  @keyframes mx-hold { from { opacity: 0; clip-path: inset(0 100% 0 0); } to { opacity: 1; clip-path: inset(0); } }
 
   /* --- paper ----------------------------------------------------------------------------
      A physical sheet inside the interface: a printed receipt, a scan.
@@ -1818,6 +2628,671 @@
     filter: invert(1) sepia(1) saturate(7) hue-rotate(72deg) brightness(1.08);
   }
   .mx-phosphor .mx-paper .mx-empty { color: var(--mx-ink-faint); }
+
+
+  /* =====================================================================
+     2.0: WORKSPACE VOCABULARY
+     What App Hub's desktop workspace is made of. The Electron shell
+     builds its own DOM; these give it Matrix's look, so a pane, a tab or
+     a split handle reads the same everywhere.
+     ===================================================================== */
+
+  /* --- app icon: one square for an app, in every list that names apps ---- */
+  .mx-app-icon {
+    --mx-app-icon-size: 36px;
+    flex: 0 0 auto;
+    display: grid;
+    place-items: center;
+    width: var(--mx-app-icon-size);
+    height: var(--mx-app-icon-size);
+    overflow: hidden;
+    background: var(--mx-surface-raised);
+    border: 1px solid var(--mx-border);
+    border-radius: var(--mx-r-sm);
+    color: var(--mx-accent);
+    font-size: calc(var(--mx-app-icon-size) * 0.42);
+    font-weight: 700;
+    line-height: 1;
+    text-transform: uppercase;
+  }
+  .mx-app-icon > svg { width: 56%; height: 56%; }
+  .mx-app-icon > img { width: 100%; height: 100%; object-fit: cover; }
+
+  /* --- keycap ------------------------------------------------------------------ */
+  .mx-kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.9em;
+    height: 1.9em;
+    padding: 0 0.45em;
+    background: var(--mx-surface-raised);
+    border: 1px solid var(--mx-border);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    color: var(--mx-ink-dim);
+    font: inherit;
+    font-size: var(--mx-text-2xs);
+    letter-spacing: 0.06em;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  /* --- pane ---------------------------------------------------------------------
+     One app (or a few, as tabs) in the workspace. The focused pane -- the
+     one keystrokes go to -- carries .mx-focused: an accent edge and a lit
+     header. Every other pane stays quiet. */
+  .mx-workspace { display: flex; gap: var(--mx-space-2); min-width: 0; min-height: 0; }
+  .mx-workspace > * { flex: 1 1 0; }
+  .mx-pane {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    background: var(--mx-surface);
+    border: 1px solid var(--mx-border-soft);
+    border-radius: var(--mx-r-md);
+    overflow: clip;
+    transition: border-color var(--mx-dur-fast), box-shadow var(--mx-dur-fast);
+  }
+  .mx-pane.mx-focused {
+    border-color: var(--mx-border-strong);
+    box-shadow: 0 0 0 1px var(--mx-accent-mid), 0 0 26px var(--mx-accent-low);
+  }
+  .mx-pane-header {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: stretch;
+    gap: var(--mx-space-1);
+    min-width: 0;
+    min-height: var(--mx-pane-header-h);
+    padding: 0 var(--mx-space-1) 0 var(--mx-space-2);
+    background: var(--mx-surface-raised);
+    border-bottom: 1px solid var(--mx-border-soft);
+    color: var(--mx-ink-faint);
+    font-size: var(--mx-text-xs);
+  }
+  .mx-pane.mx-focused > .mx-pane-header { color: var(--mx-ink); border-bottom-color: var(--mx-border); box-shadow: inset 0 2px 0 var(--mx-accent); }
+  .mx-pane-title {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    gap: var(--mx-space-2);
+    min-width: 0;
+    margin: 0;
+    font-size: var(--mx-text-xs);
+    font-weight: 400;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: inherit;
+  }
+  .mx-pane-title > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mx-pane-title > .mx-app-icon { --mx-app-icon-size: 20px; border-radius: 4px; }
+  .mx-pane:not(.mx-focused) .mx-pane-title > .mx-app-icon { color: var(--mx-ink-dim); border-color: var(--mx-border-soft); }
+  .mx-pane-actions { flex: 0 0 auto; display: flex; align-items: center; gap: 2px; margin-left: auto; }
+  .mx-pane-action {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    background: none;
+    border: 0;
+    border-radius: var(--mx-r-sm);
+    color: var(--mx-ink-faint);
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .mx-pane-action > svg { width: 16px; height: 16px; }
+  .mx-pane.mx-focused .mx-pane-action { color: var(--mx-ink-dim); }
+  @media (hover: hover) {
+    .mx-pane-action:hover { color: var(--mx-ink-hot); background: var(--mx-accent-low); }
+    .mx-pane-action.mx-danger:hover { color: var(--mx-danger); background: var(--mx-danger-low); }
+  }
+  .mx-pane-action:active { background: var(--mx-accent-mid); }
+  .mx-pane-body {
+    container: mx-pane / inline-size;
+    position: relative;
+    flex: 1 1 auto;
+    display: grid;
+    grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+    min-width: 0;
+    min-height: 0;
+  }
+  .mx-pane-body > * { min-width: 0; min-height: 0; }
+  .mx-pane-body > iframe { width: 100%; height: 100%; border: 0; display: block; }
+
+  /* --- pane tabs ------------------------------------------------------------------
+     <div class="mx-pane-tabs" role="tablist">
+       <div class="mx-pane-tab"><button class="mx-pane-tab-btn" role="tab" aria-selected="true">..</button>
+         <button class="mx-pane-tab-close" aria-label="Close ..">..</button></div> */
+  .mx-pane-tabs {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .mx-pane-tab {
+    position: relative;
+    flex: 0 1 auto;
+    display: flex;
+    align-items: center;
+    min-width: 64px;
+    max-width: 200px;
+    height: calc(var(--mx-pane-header-h) - 6px);
+    background: none;
+    border: 1px solid transparent;
+    border-bottom: 0;
+    border-radius: var(--mx-r-sm) var(--mx-r-sm) 0 0;
+    color: var(--mx-ink-faint);
+  }
+  .mx-pane-tab-btn {
+    appearance: none;
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    gap: var(--mx-space-2);
+    min-width: 0;
+    height: 100%;
+    padding: 0 var(--mx-space-2) 0 var(--mx-space-3);
+    background: none;
+    border: 0;
+    color: inherit;
+    font: inherit;
+    font-size: var(--mx-text-xs);
+    letter-spacing: 0.06em;
+    text-align: left;
+    cursor: pointer;
+  }
+  .mx-pane-tab-btn > svg { width: 14px; height: 14px; flex: 0 0 auto; }
+  .mx-pane-tab-btn > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mx-pane-tab-btn:focus-visible { outline-offset: -2px; }
+  .mx-pane-tab-close {
+    appearance: none;
+    flex: 0 0 auto;
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    margin-right: 5px;
+    padding: 0;
+    background: none;
+    border: 0;
+    border-radius: 4px;
+    color: inherit;
+    opacity: 0.6;
+    cursor: pointer;
+  }
+  .mx-pane-tab-close > svg { width: 12px; height: 12px; }
+  @media (hover: hover) {
+    .mx-pane-tab:hover { color: var(--mx-ink); }
+    .mx-pane-tab-close:hover { opacity: 1; background: var(--mx-accent-low); color: var(--mx-ink-hot); }
+  }
+  .mx-pane-tab:is(.mx-selected, :has(> [aria-selected="true"])) {
+    z-index: 1;
+    height: calc(var(--mx-pane-header-h) - 5px);
+    margin-bottom: -1px;
+    background: var(--mx-surface);
+    border-color: var(--mx-border);
+    color: var(--mx-ink);
+  }
+  .mx-pane-tab:is(.mx-selected, :has(> [aria-selected="true"]))::before {
+    content: "";
+    position: absolute;
+    top: -1px; left: -1px; right: -1px;
+    height: 2px;
+    border-radius: var(--mx-r-sm) var(--mx-r-sm) 0 0;
+    background: var(--mx-border-strong);
+  }
+  .mx-pane.mx-focused .mx-pane-tab:is(.mx-selected, :has(> [aria-selected="true"])) { color: var(--mx-ink-hot); }
+  .mx-pane.mx-focused .mx-pane-tab:is(.mx-selected, :has(> [aria-selected="true"]))::before { background: var(--mx-accent); box-shadow: 0 0 10px var(--mx-accent-glow); }
+  .mx-pane.mx-focused > .mx-pane-header:has(.mx-pane-tabs) { box-shadow: none; }
+  .mx-pane-tab .mx-dot { width: 6px; height: 6px; margin-right: var(--mx-space-2); border-radius: 50%; background: var(--mx-accent); flex: 0 0 auto; }
+
+  /* --- split handle -------------------------------------------------------------- */
+  .mx-split-handle {
+    position: relative;
+    display: block;
+    width: var(--mx-handle);
+    min-height: 0;
+    align-self: stretch;
+    padding: 0;
+    background: none;
+    border: 0;
+    cursor: col-resize;
+    touch-action: none;
+  }
+  .mx-split-handle::before {
+    content: "";
+    position: absolute;
+    top: 0; bottom: 0; left: 50%;
+    width: 1px;
+    transform: translateX(-50%);
+    background: var(--mx-border-soft);
+    transition: background-color var(--mx-dur-fast), width var(--mx-dur-fast), box-shadow var(--mx-dur-fast);
+  }
+  .mx-split-handle::after {
+    content: "";
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 3px; height: 28px;
+    transform: translate(-50%, -50%);
+    border-radius: 2px;
+    background: var(--mx-border);
+  }
+  .mx-split-handle[aria-orientation="horizontal"], .mx-split-y > .mx-split-handle {
+    width: auto;
+    height: var(--mx-handle);
+    cursor: row-resize;
+  }
+  .mx-split-handle[aria-orientation="horizontal"]::before, .mx-split-y > .mx-split-handle::before {
+    top: 50%; bottom: auto; left: 0; right: 0;
+    width: auto; height: 1px;
+    transform: translateY(-50%);
+  }
+  .mx-split-handle[aria-orientation="horizontal"]::after, .mx-split-y > .mx-split-handle::after { width: 28px; height: 3px; }
+  .mx-split-handle:focus-visible { outline: none; }
+  .mx-split-handle:is(:hover, :focus-visible, .mx-active)::before {
+    width: 2px;
+    background: var(--mx-accent);
+    box-shadow: 0 0 10px var(--mx-accent-glow);
+  }
+  :is(.mx-split-handle[aria-orientation="horizontal"], .mx-split-y > .mx-split-handle):is(:hover, :focus-visible, .mx-active)::before { width: auto; height: 2px; }
+  .mx-split-handle:is(:hover, :focus-visible, .mx-active)::after { background: var(--mx-accent); }
+
+  /* --- drop targets -----------------------------------------------------------------
+     Where a dragged tab or app will land. An .mx-drop-targets overlay in
+     a pane body holds one zone per edge (data-mx-edge = left / right /
+     top / bottom / center); the zone under the pointer gets .mx-active.
+     A lone .mx-drop-target works anywhere (an empty pane, a drawer). */
+  .mx-drop-targets { position: absolute; inset: 0; z-index: 20; display: none; pointer-events: none; }
+  .mx-drop-targets.mx-open { display: block; }
+  .mx-drop-target {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 64px;
+    padding: var(--mx-space-2);
+    background: var(--mx-accent-low);
+    border: 1px dashed var(--mx-border-strong);
+    border-radius: var(--mx-r-md);
+    color: var(--mx-ink-dim);
+    font-size: var(--mx-text-2xs);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    text-align: center;
+    transition: background-color var(--mx-dur-fast), border-color var(--mx-dur-fast), box-shadow var(--mx-dur-fast);
+  }
+  .mx-drop-target.mx-active {
+    background: var(--mx-accent-mid);
+    border: 2px solid var(--mx-accent);
+    color: var(--mx-accent);
+    box-shadow: inset 0 0 32px var(--mx-accent-low), 0 0 22px var(--mx-accent-low);
+  }
+  .mx-drop-targets > .mx-drop-target { position: absolute; min-height: 0; margin: 0; }
+  .mx-drop-target[data-mx-edge="left"]   { top: 6px; bottom: 6px; left: 6px; width: calc(28% - 9px); }
+  .mx-drop-target[data-mx-edge="right"]  { top: 6px; bottom: 6px; right: 6px; width: calc(28% - 9px); }
+  .mx-drop-target[data-mx-edge="top"]    { top: 6px; left: 28%; right: 28%; height: calc(30% - 9px); }
+  .mx-drop-target[data-mx-edge="bottom"] { bottom: 6px; left: 28%; right: 28%; height: calc(30% - 9px); }
+  .mx-drop-target[data-mx-edge="center"] { top: 30%; bottom: 30%; left: 28%; right: 28%; }
+
+  /* --- empty pane ----------------------------------------------------------------------- */
+  .mx-pane-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--mx-space-3);
+    min-height: 100%;
+    padding: var(--mx-space-6) var(--mx-pad);
+    text-align: center;
+    color: var(--mx-ink-dim);
+    background-color: var(--mx-surface);
+    background-image:
+      linear-gradient(var(--mx-border-soft) 1px, transparent 1px),
+      linear-gradient(90deg, var(--mx-border-soft) 1px, transparent 1px);
+    background-size: 28px 28px;
+    background-position: center;
+  }
+  .mx-pane-empty-mark {
+    font-family: var(--mx-gothic);
+    font-size: var(--mx-text-2xl);
+    line-height: 1;
+    color: var(--mx-ink-faint);
+    text-shadow: 0 0 14px var(--mx-accent-low);
+  }
+  .mx-pane-empty-title {
+    margin: 0;
+    font-size: var(--mx-text-xs);
+    font-weight: 400;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--mx-ink);
+    background: var(--mx-surface);
+    padding: 0 var(--mx-space-2);
+  }
+  .mx-pane-empty-hint { margin: 0; max-width: 34ch; font-size: var(--mx-text-xs); line-height: 1.6; color: var(--mx-ink-dim); background: var(--mx-surface); padding: 0 var(--mx-space-2); }
+  .mx-pane-empty-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--mx-space-2); }
+
+  /* --- application drawer ------------------------------------------------------------------
+     The list of installed apps to open or drag into a pane. Rows use the
+     shared slots; .mx-pin marks a pinned app. */
+  .mx-app-drawer { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
+  .mx-app-drawer-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--mx-space-3);
+    width: 100%;
+    min-width: 0;
+    min-height: calc(var(--mx-row-h) + var(--mx-space-1));
+    padding: var(--mx-row-py) var(--mx-row-px);
+    background: none;
+    border: 1px solid transparent;
+    border-radius: var(--mx-r-sm);
+    color: var(--mx-ink);
+    font: inherit;
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: background-color var(--mx-dur-fast), border-color var(--mx-dur-fast);
+  }
+  .mx-app-drawer-row[draggable="true"] { cursor: grab; }
+  @media (hover: hover) { .mx-app-drawer-row:hover { background: var(--mx-surface-raised); border-color: var(--mx-border-soft); } }
+  .mx-app-drawer-row:active { background: var(--mx-accent-low); }
+  .mx-app-drawer-row:is(.mx-selected, [aria-selected="true"], [aria-current="true"], [aria-current="page"]) {
+    background: var(--mx-accent-low);
+    border-color: var(--mx-border-strong);
+  }
+  .mx-app-drawer-row .mx-slot-meta { white-space: nowrap; }
+  .mx-app-drawer-row.mx-busy .mx-app-icon, .mx-switcher-row.mx-busy .mx-app-icon { border-color: var(--mx-warn-line); }
+
+  /* --- command palette ----------------------------------------------------------------------
+     A listbox under one input. MX.palette wires filtering and the keys:
+     arrows move, Enter picks, Escape closes. Wrap <mark> round the
+     characters that matched. */
+  .mx-palette {
+    container-type: inline-size;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 640px;
+    max-height: min(72vh, 540px);
+    margin-inline: auto;
+    background: var(--mx-surface);
+    border: 1px solid var(--mx-border-strong);
+    border-radius: var(--mx-r-lg);
+    box-shadow: var(--mx-shadow), 0 0 44px var(--mx-accent-low);
+    overflow: hidden;
+  }
+  .mx-palette-head {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: var(--mx-space-2);
+    padding: 0 var(--mx-space-4);
+    border-bottom: 1px solid var(--mx-border);
+  }
+  .mx-palette-prompt { color: var(--mx-accent); font-weight: 700; }
+  .mx-palette-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 54px;
+    padding: 0;
+    background: none;
+    border: 0;
+    outline: none;
+    color: var(--mx-ink-hot);
+    font: inherit;
+    font-size: max(16px, var(--mx-text-base));
+    caret-color: var(--mx-accent);
+  }
+  .mx-palette-input::placeholder { color: var(--mx-ink-faint); }
+  .mx-palette-results {
+    flex: 1 1 auto;
+    min-height: 0;
+    margin: 0;
+    padding: var(--mx-space-2);
+    list-style: none;
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+  .mx-palette-group {
+    padding: var(--mx-space-2) var(--mx-space-3) var(--mx-space-1);
+    font-size: var(--mx-text-2xs);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--mx-ink-faint);
+  }
+  .mx-palette-result {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--mx-space-3);
+    min-height: var(--mx-row-h);
+    padding: var(--mx-row-py) var(--mx-row-px);
+    border-radius: var(--mx-r-sm);
+    color: var(--mx-ink);
+    cursor: pointer;
+  }
+  .mx-palette-result > svg { width: 16px; height: 16px; flex: 0 0 auto; color: var(--mx-ink-dim); }
+  .mx-palette-result .mx-app-icon { --mx-app-icon-size: 26px; }
+  .mx-palette-result mark { background: none; color: var(--mx-accent); font-weight: 700; }
+  .mx-palette-result[aria-selected="true"] {
+    background: var(--mx-accent-low);
+    color: var(--mx-ink-hot);
+    box-shadow: inset 2px 0 0 var(--mx-accent);
+  }
+  .mx-palette-result[aria-selected="true"] > svg { color: var(--mx-accent); }
+  @media (hover: hover) { .mx-palette-result:hover { background: var(--mx-accent-low); } }
+  .mx-palette-empty { padding: var(--mx-space-6) var(--mx-space-4); text-align: center; font-size: var(--mx-text-sm); color: var(--mx-ink-faint); }
+  .mx-palette-foot {
+    flex: 0 0 auto;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--mx-space-2) var(--mx-space-4);
+    padding: var(--mx-space-2) var(--mx-space-4);
+    border-top: 1px solid var(--mx-border-soft);
+    font-size: var(--mx-text-2xs);
+    letter-spacing: 0.08em;
+    color: var(--mx-ink-faint);
+  }
+  @container (width < 360px) {
+    .mx-palette-result .mx-kbd, .mx-palette-foot { display: none; }
+  }
+
+
+  /* =====================================================================
+     2.0: MOBILE APP HUB VOCABULARY
+     The phone shell: a full-height switcher sheet of pinned, open and
+     recent apps, and a bottom quick-switch bar.
+     ===================================================================== */
+
+  /* --- pinned indicator: a lit diamond. Put the word inside for screen
+     readers: <span class="mx-pin"><span class="mx-sr-only">pinned</span></span> */
+  .mx-pin {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    flex: 0 0 auto;
+    color: var(--mx-accent);
+  }
+  .mx-pin::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    background: currentColor;
+    transform: rotate(45deg);
+    box-shadow: 0 0 8px var(--mx-accent-glow);
+  }
+
+  /* --- full-height sheet, and the grip that says "drag me" ------------------ */
+  .mx-sheet.mx-full {
+    height: calc(100% - var(--mx-top-inset) - env(safe-area-inset-top) - var(--mx-space-5));
+    max-height: none;
+    max-width: none;
+  }
+  .mx-sheet-grip {
+    flex: 0 0 auto;
+    align-self: center;
+    width: 40px;
+    height: 4px;
+    margin: calc(-1 * var(--mx-space-1)) 0 0;
+    border-radius: 2px;
+    background: var(--mx-border-strong);
+  }
+
+  /* --- app switcher ----------------------------------------------------------------- */
+  .mx-switcher { display: flex; flex-direction: column; gap: var(--mx-space-2); margin: 0; padding: 0; list-style: none; }
+  .mx-switcher-label {
+    display: flex;
+    align-items: center;
+    gap: var(--mx-space-2);
+    margin: var(--mx-space-3) 0 0;
+    padding: 0 var(--mx-space-1);
+    font-size: var(--mx-text-2xs);
+    font-weight: 400;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--mx-ink-faint);
+  }
+  .mx-switcher-label::after { content: ""; flex: 1 1 auto; height: 1px; background: linear-gradient(90deg, var(--mx-border-soft), transparent); }
+  .mx-switcher-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--mx-space-1);
+    min-height: 68px;
+    padding: var(--mx-space-1);
+    background: var(--mx-surface-raised);
+    border: 1px solid var(--mx-border-soft);
+    border-radius: var(--mx-r-md);
+    transition: opacity var(--mx-dur), transform var(--mx-dur) var(--mx-ease), border-color var(--mx-dur-fast);
+  }
+  .mx-switcher-row:is(.mx-selected, [aria-current="true"], [aria-current="page"]) {
+    border-color: var(--mx-accent);
+    box-shadow: 0 0 0 1px var(--mx-accent), 0 0 18px var(--mx-accent-low);
+  }
+  .mx-switcher-open {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    gap: var(--mx-space-3);
+    min-width: 0;
+    min-height: var(--mx-tap);
+    padding: var(--mx-space-1) var(--mx-space-2);
+    background: none;
+    border: 0;
+    border-radius: var(--mx-r-sm);
+    color: var(--mx-ink);
+    font: inherit;
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .mx-switcher-open:active { background: var(--mx-accent-low); }
+  .mx-switcher-row .mx-app-icon { --mx-app-icon-size: 44px; }
+  .mx-switcher-close {
+    appearance: none;
+    flex: 0 0 auto;
+    display: grid;
+    place-items: center;
+    width: var(--mx-tap);
+    height: var(--mx-tap);
+    padding: 0;
+    background: none;
+    border: 0;
+    border-radius: var(--mx-r-sm);
+    color: var(--mx-ink-faint);
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .mx-switcher-close > svg { width: 18px; height: 18px; }
+  .mx-switcher-close:active { color: var(--mx-danger); background: var(--mx-danger-low); }
+  @media (hover: hover) { .mx-switcher-close:hover { color: var(--mx-ink-hot); background: var(--mx-accent-low); } }
+  .mx-switcher-row.mx-out { opacity: 0; transform: translateX(40%); }
+
+  /* --- recent app row: lighter than an open app, no close ------------------------- */
+  .mx-recent-row {
+    display: flex;
+    align-items: center;
+    gap: var(--mx-space-3);
+    width: 100%;
+    min-height: var(--mx-tap);
+    padding: var(--mx-space-1) var(--mx-space-2);
+    background: none;
+    border: 0;
+    border-bottom: 1px solid var(--mx-border-soft);
+    color: var(--mx-ink-dim);
+    font: inherit;
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .mx-recent-row .mx-app-icon { --mx-app-icon-size: 28px; border-color: var(--mx-border-soft); color: var(--mx-ink-dim); }
+  .mx-recent-row .mx-slot-title { color: var(--mx-ink); }
+  .mx-recent-row:active { background: var(--mx-accent-low); }
+  @media (hover: hover) { .mx-recent-row:hover { background: var(--mx-accent-low); } }
+
+  /* --- quick switch: the bottom bar of recent/pinned apps --------------------------- */
+  .mx-quickswitch {
+    display: flex;
+    align-items: stretch;
+    gap: var(--mx-space-1);
+    padding: var(--mx-space-1) var(--mx-space-2) calc(var(--mx-space-1) + env(safe-area-inset-bottom));
+    background: var(--mx-surface);
+    border-top: 1px solid var(--mx-border);
+  }
+  .mx-quickswitch-item {
+    position: relative;
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-height: 58px;
+    padding: var(--mx-space-1) 2px;
+    background: none;
+    border: 0;
+    border-radius: var(--mx-r-sm);
+    color: var(--mx-ink-dim);
+    font: inherit;
+    font-size: var(--mx-text-2xs);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-decoration: none;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .mx-quickswitch-item .mx-app-icon { --mx-app-icon-size: 28px; }
+  .mx-quickswitch-item > span:not([class]), .mx-quickswitch-label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mx-quickswitch-item:is(.mx-selected, [aria-current="true"], [aria-current="page"]) { color: var(--mx-accent); }
+  .mx-quickswitch-item:is(.mx-selected, [aria-current="true"], [aria-current="page"])::before {
+    content: "";
+    position: absolute;
+    top: calc(-1 * var(--mx-space-1) - 1px);
+    left: 26%; right: 26%;
+    height: 2px;
+    background: var(--mx-accent);
+    box-shadow: 0 0 8px var(--mx-accent-glow);
+  }
+  .mx-quickswitch-item:is(.mx-selected, [aria-current="true"], [aria-current="page"]) .mx-app-icon { border-color: var(--mx-accent); box-shadow: 0 0 12px var(--mx-accent-low); }
+  .mx-quickswitch-item > .mx-pin { position: absolute; top: 2px; right: calc(50% - 26px); }
+  .mx-quickswitch-item > .mx-dot { position: absolute; top: 6px; left: calc(50% + 10px); width: 7px; height: 7px; border-radius: 50%; background: var(--mx-accent); box-shadow: 0 0 6px var(--mx-accent); }
+  .mx-quickswitch-item:active { background: var(--mx-accent-low); }
 }
 
 
@@ -1843,14 +3318,39 @@
   @media (min-width: 600px)  { .mx-only-compact { display: none !important; } }
   @media (max-width: 1023px) { .mx-only-expanded { display: none !important; } }
   @media (min-width: 1024px) { .mx-hide-expanded { display: none !important; } }
-  /* Hide when the nearest panel/column is narrow. */
+  /* Hide when the nearest panel/column is narrow. (1.x; it means "320px
+     or less" of the nearest container. 2.0 code uses the range helpers
+     below, which follow the app's ranges.) */
   @container (max-width: 320px) { .mx-hide-narrow { display: none !important; } }
+
+  /* Show or hide by APP range (2.0), measured on the nearest .mx-app.
+     mx-min-<range>: only from that range up. mx-max-<range>: only up to it. */
+  @container mx-app (width < 360px)   { .mx-min-narrow, .mx-min-medium, .mx-min-large, .mx-min-wide { display: none !important; } }
+  @container mx-app (width < 520px)   { .mx-min-medium, .mx-min-large, .mx-min-wide { display: none !important; } }
+  @container mx-app (width < 800px)   { .mx-min-large, .mx-min-wide { display: none !important; } }
+  @container mx-app (width < 1200px)  { .mx-min-wide { display: none !important; } }
+  @container mx-app (width >= 360px)  { .mx-max-micro { display: none !important; } }
+  @container mx-app (width >= 520px)  { .mx-max-narrow { display: none !important; } }
+  @container mx-app (width >= 800px)  { .mx-max-medium { display: none !important; } }
+  @container mx-app (width >= 1200px) { .mx-max-large { display: none !important; } }
+  .mx-fill { flex: 1 1 auto; min-width: 0; min-height: 0; }
+
+  /* Coarse pointers: the small workspace controls grow to the tap size. */
+  @media (pointer: coarse) {
+    .mx-pane-action { width: var(--mx-tap); height: var(--mx-tap); }
+    .mx-pane-tab-close { width: 36px; height: 36px; }
+  }
 
   /* Everything animated here is decoration, so all of it goes. */
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: 0.001s !important; transition-duration: 0.001s !important; }
     #mx-rain { display: none; }
-    .mx-caret, .mx-media::before, .mx-skeleton::before, .mx-progress-fill.mx-busy::after { animation: none !important; }
+    .mx-caret, .mx-media::before, .mx-skeleton::before, .mx-progress-fill.mx-busy::after, .mx-dock.mx-busy::before { animation: none !important; }
+    .mx-switcher-row.mx-out { transform: none; }
+    /* These switch visibility with a transition; even a 1ms one leaves
+       them hidden -- unfocusable -- at the instant a script focuses them. */
+    .mx-menu-pop, .mx-menu-popover, .mx-overlay,
+    .mx-menu-pop *, .mx-menu-popover *, .mx-overlay * { transition: none !important; }
     .mx-media > img { opacity: 1; }
   }
 }

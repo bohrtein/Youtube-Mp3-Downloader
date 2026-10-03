@@ -12,20 +12,21 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='suggest.css') }}">
     <script src="{{ url_for('static', filename='app.js') }}" defer></script>
 </head>
-<body class="mx mx-has-nav mx-has-cmdbar">
+<body class="mx">
+<div class="mx-app">
 
 {% include "_app_nav.html" %}
-<div class="mx-shell">
+<main class="mx-app-page">
 
-    <div class="mx-topbar">
-        <div class="mx-brand">
+    <header class="mx-app-header">
+        <div class="mx-app-heading">
             <span class="mx-mark">music manager</span>
             <p class="mx-tagline" data-decode>library control<span class="mx-caret" aria-hidden="true"></span></p>
         </div>
-        <div class="mx-topbar-actions" data-mx-slot="actions"></div>
-    </div>
+    </header>
 
-    <div class="mx-layout-split">
+    <div class="mx-scroll-region" aria-label="Dashboard controls">
+    <div class="mx-adaptive-grid">
         <div class="mx-col">
             <section class="mx-panel">
                 <h2 class="mx-panel-title" data-decode>library folder</h2>
@@ -84,19 +85,17 @@
             </section>
         </div>
     </div>
+    </div>
 
-    <section class="mx-panel" id="progressContainer" hidden>
-        <h2 class="mx-panel-title" data-decode>progress</h2>
-        <div class="mx-readout" id="statusText">Waiting for task...</div>
-        <div class="mx-progress">
-            <div class="mx-progress-fill" id="progressBar"></div>
-        </div>
-        <div style="text-align:right; margin-top:6px;">
-            <span class="mx-count" id="statusPercent">0%</span>
-        </div>
-    </section>
+    <div class="mx-dock" id="progressContainer" role="status" aria-live="polite" hidden>
+        <span class="mx-dock-icon">{{ mx.icon("music") }}</span>
+        <span class="mx-dock-main">
+            <span class="mx-dock-title" id="statusText">Waiting for task...</span>
+            <span class="mx-dock-sub" id="statusDetail">Your task is ready</span>
+        </span>
+        <span class="mx-dock-value" id="statusPercent">0%</span>
+    </div>
 
-</div>
 
 <div class="mx-overlay" id="folderModalOverlay" onclick="if (event.target === this) closeFolderBrowser()">
     <div class="mx-sheet">
@@ -234,7 +233,6 @@
     function setBusy(message) {
         const container = document.getElementById('progressContainer');
         const status = document.getElementById('statusText');
-        const bar = document.getElementById('progressBar');
         const cmdStatus = document.getElementById('cmdStatus');
 
         if (container.hidden) {
@@ -243,7 +241,8 @@
         }
         status.className = 'mx-readout mx-busy';
         status.textContent = message;
-        bar.className = 'mx-progress-fill mx-busy';
+        container.style.setProperty('--mx-progress', '0');
+        container.classList.add('mx-busy');
         cmdStatus.className = 'mx-cmd-status mx-busy';
         cmdStatus.innerHTML = '<span class="mx-prompt">&gt;</span>' + message;
     }
@@ -367,19 +366,20 @@
     socket.on('progress', function(data) {
         console.log("Progress received:", data);
         const container = document.getElementById('progressContainer');
-        const bar = document.getElementById('progressBar');
         const status = document.getElementById('statusText');
         const percent = document.getElementById('statusPercent');
+        const detail = document.getElementById('statusDetail');
         const cmdStatus = document.getElementById('cmdStatus');
 
         container.hidden = false;
-        bar.style.width = data.percent + '%';
+        container.style.setProperty('--mx-progress', Math.max(0, Math.min(100, Number(data.percent) || 0)));
         percent.innerText = Math.round(data.percent) + '%';
+        detail.textContent = data.status === 'complete' ? 'Task finished' : 'Working in the background';
 
         if (data.status === 'complete') {
+            container.classList.remove('mx-busy');
             status.className = 'mx-readout mx-ok';
             status.textContent = 'Task finished!';
-            bar.className = 'mx-progress-fill';
             cmdStatus.className = 'mx-cmd-status mx-ok';
             cmdStatus.innerHTML = '<span class="mx-prompt">&gt;</span>ready';
             MX.toast(true, 'Task finished!', document.getElementById('toastHost'));
@@ -388,11 +388,13 @@
             const isError = /error/i.test(data.status);
             status.className = isError ? 'mx-readout mx-err' : 'mx-readout mx-busy';
             status.textContent = data.status;
-            bar.className = isError ? 'mx-progress-fill mx-err' : 'mx-progress-fill mx-busy';
+            container.classList.toggle('mx-busy', !isError);
             cmdStatus.className = isError ? 'mx-cmd-status mx-err' : 'mx-cmd-status mx-busy';
             cmdStatus.innerHTML = '<span class="mx-prompt">&gt;</span>' + data.status;
         }
     });
 </script>
+</main>
+</div>
 </body>
 </html>

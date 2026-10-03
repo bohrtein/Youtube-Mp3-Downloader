@@ -27,7 +27,7 @@ def delete_already_exsisting_files():
     """
     cleanupManager.cleanup_duplicate_files_by_folder(databaseConnector.get_library_folder())
 
-def start_downloading(url, audio_format="flac"):
+def start_downloading(url, audio_format="flac", cancel_event=None):
     """
     Direct interface for downloading a single URL or playlist.
     Typically called by the Flask/SocketIO background thread.
@@ -38,7 +38,7 @@ def start_downloading(url, audio_format="flac"):
             for players where FLAC decoding drains the battery faster).
     """
     download_fn = playlistDownloader.download_file_mp3 if audio_format == "mp3" else playlistDownloader.download_file_flac
-    file_paths = download_fn(url, databaseConnector.get_library_folder())
+    file_paths = download_fn(url, databaseConnector.get_library_folder(), cancel_event=cancel_event)
     if not file_paths:
         # download_file_flac already printed the real reason (missing
         # yt-dlp, network failure, blocked video, etc.) via Print_Tag; raise

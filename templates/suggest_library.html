@@ -1,30 +1,42 @@
 {% extends "_suggest_base.html" %}
 {% block title %}Library{% endblock %}
 {% block content %}
-    <div class="mx-topbar">
-        <div class="mx-brand">
+    <div class="mx-app-header">
+        <div class="mx-app-heading">
             <span class="mx-mark">music manager</span>
             <p class="mx-tagline" data-decode>library</p>
         </div>
         <a class="mx-btn" href="{{ url_for('friends_public.home') }}">Suggest</a>
     </div>
 
-    <section class="mx-panel">
-    <h2 class="mx-panel-title" data-decode>albums</h2>
-    <div class="mx-input-icon yt-search">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        <input class="mx-input" type="search" id="libraryFilter" placeholder="Search albums, artists or songs...">
+    <div class="mx-viewbar" aria-label="Shared library controls">
+        <label class="mx-btn mx-viewbar-pick"><span>Sort albums</span>
+            <select class="mx-select" id="librarySort" aria-label="Sort albums">
+                <option value="release">Release date</option><option value="name">Album name</option>
+            </select>
+        </label>
+        <label class="mx-input-icon mx-viewbar-search">{{ mx.icon("search") }}
+            <input class="mx-input" type="search" id="libraryFilter" placeholder="Search albums, artists or songs..." aria-label="Search albums, artists or songs">
+        </label>
+        <button class="mx-btn mx-ghost mx-square mx-viewbar-find" type="button" data-mx-search-open aria-label="Open search">{{ mx.icon("search") }}</button>
+        <button class="mx-btn mx-ghost mx-viewbar-cancel" type="button" data-mx-search-close>Cancel</button>
+        <div class="mx-layout-switch" data-mx-layout-switch="albumList" data-mx-remember="youtube-mp3-downloader-friend-library" aria-label="Album layout">
+            <button class="mx-btn mx-square" type="button" data-mx-layout="grid" aria-label="Grid view">{{ mx.icon("grid") }}</button>
+            <button class="mx-btn mx-square" type="button" data-mx-layout="list" aria-label="List view">{{ mx.icon("list") }}</button>
+        </div>
     </div>
 
+    <section class="mx-panel">
+    <h2 class="mx-panel-title" data-decode>albums</h2>
     <p class="mx-hint" id="libraryCount" style="margin:0 0 10px;">{{ albums|length }} albums</p>
 
     {% if not albums %}
     <p class="sg-empty">The library is empty.</p>
     {% endif %}
 
-    <div class="mx-rows" id="albumList">
+    <div class="mx-list" id="albumList">
         {% for album in albums %}
-        <div class="mx-row">
+        <div class="mx-item mx-row" data-release="{{ album.release_date or 0 }}" data-name="{{ album.album_name|lower }}">
             <button class="mx-row-head sg-album-head" type="button" aria-expanded="false">
                 {% if album.has_cover %}
                 <img class="sg-album-cover" src="{{ url_for('static', filename='covers/' ~ album.album_id ~ '.jpg') }}" alt="" loading="lazy" decoding="async">

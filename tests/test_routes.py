@@ -21,6 +21,7 @@ def serve(friend, *songs):
 @pytest.mark.parametrize("method, path", [
     ("get", "/"), ("get", "/library"), ("get", "/album/1"), ("get", "/browse_folders"),
     ("post", "/set_library_folder"), ("delete", "/delete_album/1"), ("delete", "/delete_song/1"),
+    ("post", "/restore_delete/undo-token"), ("post", "/api/downloads/job-id/cancel"),
     ("get", "/friends"), ("post", "/friends"), ("get", "/review"), ("get", "/review/1"),
     ("post", "/review/1/approve"), ("post", "/settings/suggestions"),
 ])
@@ -32,6 +33,21 @@ def test_admin_routes_404_without_hub_secret(client, method, path):
 def test_admin_pages_work_with_hub_secret(client):
     for path in ("/", "/library", "/friends", "/review"):
         assert client.get(path, headers=ADMIN_HEADERS).status_code == 200, path
+
+
+def test_album_page_renders_matrix_item_actions(client):
+    from tests.helpers import add_library_song
+    import database.databaseConnector as databaseConnector
+
+    add_library_song("Judith", "A Perfect Circle", "Mer de Noms")
+    conn = databaseConnector.connect_to_db()
+    album_id = conn.execute("SELECT album_id FROM albums LIMIT 1").fetchone()[0]
+    conn.close()
+    response = client.get(f"/album/{album_id}", headers=ADMIN_HEADERS)
+
+    assert response.status_code == 200
+    assert b'class="mx-app"' in response.data
+    assert b'data-mx-hold="trackActions"' in response.data
 
 
 def test_public_routes_need_no_secret(client, friend):

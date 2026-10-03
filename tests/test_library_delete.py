@@ -45,9 +45,13 @@ def test_delete_song_removes_its_file_only(client, library):
 
     assert response.get_json()["success"]
     assert not schism.exists()
+    assert list((root / ".app-trash").rglob("*.flac"))
     assert parabola.exists()
     assert same_name_other_album.exists()
     assert ids("Schism") is None
+    restored = client.post(f"/restore_delete/{response.get_json()['undo']}", headers=ADMIN_HEADERS)
+    assert restored.get_json()["success"]
+    assert schism.exists() and ids("Schism") is not None
 
 
 def test_delete_album_removes_files_and_empty_folders(client, library):
@@ -63,6 +67,10 @@ def test_delete_album_removes_files_and_empty_folders(client, library):
     assert not (root / "Tool").exists()
     assert root.exists()
     assert ids("Schism") is None and ids("Parabola") is None
+    restored = client.post(f"/restore_delete/{response.get_json()['undo']}", headers=ADMIN_HEADERS)
+    assert restored.get_json()["success"]
+    assert (root / "Tool" / "Lateralus" / "01 - Schism.flac").exists()
+    assert ids("Schism") is not None and ids("Parabola") is not None
 
 
 def test_rows_stay_when_a_file_cannot_be_deleted(client, library, monkeypatch):
@@ -70,9 +78,9 @@ def test_rows_stay_when_a_file_cannot_be_deleted(client, library, monkeypatch):
     add_library_song("Schism", "Tool", "Lateralus")
     add_file("Tool", "Lateralus", "01 - Schism.flac")
 
-    def locked(self, *args, **kwargs):
+    def locked(*args, **kwargs):
         raise PermissionError("file is in use")
-    monkeypatch.setattr("pathlib.Path.unlink", locked)
+    monkeypatch.setattr("shutil.move", locked)
 
     response = client.delete(f"/delete_song/{ids('Schism')[0]}", headers=ADMIN_HEADERS)
 

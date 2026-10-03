@@ -14,14 +14,18 @@
     <script src="{{ url_for('static', filename='app.js') }}" defer></script>
     {% block head %}{% endblock %}
 </head>
-<body class="mx{% if request.blueprint == 'suggest_admin' %} mx-has-nav{% endif %}" {% block body_attrs %}{% endblock %}>
+<body class="mx" {% block body_attrs %}{% endblock %}>
+<div class="mx-app">
 
 {% if request.blueprint == 'suggest_admin' %}{% include "_app_nav.html" %}{% endif %}
-<div class="mx-shell">
+<main class="mx-app-page">
+<div class="mx-scroll-region" aria-label="Music suggestions">
 {% block content %}{% endblock %}
 </div>
 
 <div class="mx-toasts" id="toastHost"></div>
 {% block scripts %}{% endblock %}
+</main>
+</div>
 </body>
 </html>

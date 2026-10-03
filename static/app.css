@@ -44,7 +44,8 @@
   animation-delay: calc(var(--yt-i, 0) * 30ms);
 }
 .yt-track-link { text-decoration: none; }
-.yt-track-link:hover, .yt-track-link:focus-visible { color: var(--mx-accent); }
+.yt-track-link:focus-visible { color: var(--mx-accent); }
+@media (hover: hover) { .yt-track-link:hover { color: var(--mx-accent); } }
 
 /* --- dashboard: folder picker and reset sheet ------------------------------- */
 .yt-folder-list {

@@ -2,6 +2,27 @@ import core.interfaceComponents as interfaceComponents
 import core.checkDependencies as checkDependencies
 import subprocess
 
+
+def _run_download(cmd, cancel_event=None):
+    """Run yt-dlp while allowing an App Hub cancellation to stop the process."""
+    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    while True:
+        try:
+            stdout, stderr = process.communicate(timeout=0.25)
+            break
+        except subprocess.TimeoutExpired:
+            if cancel_event is not None and cancel_event.is_set():
+                process.terminate()
+                try:
+                    stdout, stderr = process.communicate(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    stdout, stderr = process.communicate()
+                raise RuntimeError("Download cancelled")
+    if process.returncode:
+        raise subprocess.CalledProcessError(process.returncode, cmd, stdout, stderr)
+    return stdout
+
 def initiate_playlist_loop():
     """
     Provides a Command Line Interface (CLI) for batching multiple URLs.
@@ -41,7 +62,7 @@ def initiate_playlist_loop():
 
 PLAYLIST_FILE_TEMPLATE = "%(playlist_title)s/%(playlist_index)02d - %(title)s.%(ext)s"
 
-def download_file_flac(url, output_dir, file_template=PLAYLIST_FILE_TEMPLATE, write_info_json=False):
+def download_file_flac(url, output_dir, file_template=PLAYLIST_FILE_TEMPLATE, write_info_json=False, cancel_event=None):
     """
     Executes the yt-dlp binary to download and convert a specific URL.
 
@@ -80,15 +101,15 @@ def download_file_flac(url, output_dir, file_template=PLAYLIST_FILE_TEMPLATE, wr
 
     try:
         # check=True will raise a CalledProcessError if the command fails
-        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        stdout = _run_download(cmd, cancel_event)
         interfaceComponents.Print_Tag("Download Complete", tag="Success")
-        return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+        return [line.strip() for line in stdout.splitlines() if line.strip()]
     except Exception as e:
         # Captures network issues, missing binaries, or invalid URLs
         interfaceComponents.Print_Tag(f"Error: {e}", tag="Error")
         return []
 
-def download_file_mp3(url, output_dir, file_template=PLAYLIST_FILE_TEMPLATE, write_info_json=False):
+def download_file_mp3(url, output_dir, file_template=PLAYLIST_FILE_TEMPLATE, write_info_json=False, cancel_event=None):
     """
     Same as download_file_flac, but extracts straight to MP3 (320kbps,
     48000Hz) instead of FLAC, so the result is already player-friendly
@@ -122,9 +143,9 @@ def download_file_mp3(url, output_dir, file_template=PLAYLIST_FILE_TEMPLATE, wri
     interfaceComponents.Print_Tag(f"Downloading (MP3): {url}", tag="Process")
 
     try:
-        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        stdout = _run_download(cmd, cancel_event)
         interfaceComponents.Print_Tag("Download Complete", tag="Success")
-        return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+        return [line.strip() for line in stdout.splitlines() if line.strip()]
     except Exception as e:
         interfaceComponents.Print_Tag(f"Error: {e}", tag="Error")
         return []
