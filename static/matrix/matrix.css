@@ -1,5 +1,5 @@
 /* =====================================================================
-   MATRIX 2.1.1 — a small design system
+   MATRIX 2.2.0 — a small design system
    Phosphor-on-black terminal. Pitch-black surfaces, digital rain in the
    gaps. 2.0 sizes applications by the PANE they live in, not by the
    window: a 400px split pane on a 3440px monitor gets the narrow layout.
@@ -124,15 +124,15 @@
     /* --- layer 1: raw values ----------------------------------------
        The theme. Only theme blocks (below) change these. */
     --mx-c-black:     #000000;
-    --mx-c-raised:    #07110b;
-    --mx-c-accent:    #00ff5a;
-    --mx-c-on-accent: #001a08;
+    --mx-c-raised:    #140505;
+    --mx-c-accent:    #ff1a1a;
+    --mx-c-on-accent: #1a0000;
     --mx-c-warn:      #ffc94a;
     --mx-c-danger:    #ff5b52;
-    --mx-c-ink-hot:   #e8fff0;
-    --mx-c-ink:       #b9ffcf;
-    --mx-c-ink-dim:   #4e9c6b;
-    --mx-c-ink-faint: #2c6042;
+    --mx-c-ink-hot:   #fff0ee;
+    --mx-c-ink:       #ffc9c4;
+    --mx-c-ink-dim:   #c9665e;
+    --mx-c-ink-faint: #8a423c;
 
     /* --- layer 2: named by job --------------------------------------
        What components read. An app may override these on <html>. */
@@ -144,6 +144,7 @@
     --mx-on-accent:      var(--mx-c-on-accent); /* text on an accent fill */
     --mx-warn:           var(--mx-c-warn);
     --mx-danger:         var(--mx-c-danger);
+    --mx-on-danger:      var(--mx-c-black);     /* text on a danger fill */
     --mx-ink-hot:        var(--mx-c-ink-hot);   /* headings, input text */
     --mx-ink:            var(--mx-c-ink);       /* body text */
     --mx-ink-dim:        var(--mx-c-ink-dim);   /* labels, meta */
@@ -1799,7 +1800,11 @@
   [data-mx-state="ok"]  { color: var(--mx-accent); border-color: var(--mx-border-strong); }
   [data-mx-state="ok"]  .mx-led { background: var(--mx-accent); box-shadow: 0 0 10px var(--mx-accent); animation: mx-pulse 2.4s ease-in-out infinite; }
   [data-mx-state="err"] { color: var(--mx-danger); border-color: var(--mx-danger-line); }
-  [data-mx-state="err"] .mx-led { background: var(--mx-danger); box-shadow: 0 0 10px var(--mx-danger); }
+  /* err must not depend on hue: the accent can be red too. ok is a round,
+     glowing, pulsing dot; err is a square, steady and unlit. */
+  [data-mx-state="err"] .mx-led { background: var(--mx-danger); border-radius: 1px; box-shadow: none; }
+  .mx-status-chip[data-mx-state="err"] { background: var(--mx-danger); border-color: var(--mx-danger); color: var(--mx-on-danger); font-weight: 700; }
+  .mx-status-chip[data-mx-state="err"] .mx-led { background: var(--mx-on-danger); }
   /* warn: amber and steady -- "needs attention" rather than "busy". */
   [data-mx-state="warn"] { color: var(--mx-warn); border-color: var(--mx-warn-line); }
   [data-mx-state="warn"] .mx-led { background: var(--mx-warn); box-shadow: 0 0 10px var(--mx-warn); }
@@ -1822,6 +1827,8 @@
     border-radius: var(--mx-r-sm);
     word-break: break-word;
   }
+  /* An error is the one solid block of danger on a page, never a tint. */
+  .mx-badge.mx-err, .mx-pill.mx-err, .mx-readout.mx-err { background: var(--mx-danger); border-color: var(--mx-danger); color: var(--mx-on-danger); }
 
   /* --- progress ---------------------------------------------------------------
      <div class="mx-progress"><div class="mx-progress-fill" style="width:40%"></div></div>
@@ -2416,6 +2423,7 @@
     word-break: break-word;
     animation: mx-toast-in 0.2s ease;
   }
+  .mx-toast.mx-err { background: var(--mx-danger); border-color: var(--mx-danger); color: var(--mx-on-danger); }
   .mx-toast.mx-out { animation: mx-toast-out 0.25s ease forwards; }
   @keyframes mx-toast-in  { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
   @keyframes mx-toast-out { to { opacity: 0; transform: translateY(8px); } }
@@ -2424,6 +2432,7 @@
   .mx-toast.mx-has-action { display: flex; align-items: center; gap: var(--mx-space-3); padding: 4px 4px 4px 14px; pointer-events: auto; }
   .mx-toast-msg { flex: 1 1 auto; min-width: 0; }
   .mx-toast > .mx-btn { flex: 0 0 auto; --mx-v-fg: var(--mx-tone, var(--mx-accent)); font-weight: 700; }
+  .mx-toast.mx-err > .mx-btn { --mx-v-fg: var(--mx-on-danger); }
 
   /* --- dock (2.1): a long job, above the command bar --------------------------
      <div class="mx-dock" role="button" tabindex="0" style="--mx-progress: 40">

@@ -1,14 +1,14 @@
 {
-  "commit": "2967f0a",
+  "commit": "583dd38",
   "files": {
-    "fonts/OFL.txt": "7645b02b1580a76cab82ac20b2e0cbf2ede471e01f51cd5634fc063981469d0c",
+    "fonts/OFL.txt": "2ecab8f5cdf755112c3562ee0cd27a5f5c2c640a228bb194e8aa0ea83a1f2f76",
     "fonts/SpaceMono-Bold.ttf": "405e73d41afb7e5906efce206a326af5c956f38e255f35421c260e861e599c59",
     "fonts/SpaceMono-Regular.ttf": "95837e182baeeada83368f7748db28357f0a1b75c6b84ff7065b5edf933c8e18",
     "fonts/UnifrakturMaguntia-Book.ttf": "d64afc0547059dd2e4a78da48bda0aba0a9901be58c7f8c201a8b2b6b4492cc8",
-    "matrix.css": "9dedb6f79050f6822ed07ee174c33ed3db90f7b72e540a852c1f1cb4afa86d7c",
-    "matrix.js": "ab96e61860db3e315b5504b1c4a449fa8f4c6f130a566dd9ab540f1979f8c618",
-    "templates/base.html": "e46c6c7661a96116eb03dc8d5efc03f5856d1456c37f2de9cf49703278b204f6",
-    "templates/macros.html": "b78352a83ecc43f3ac406a6de18600415dcc2afd4775e61b7abac14dc286d06a"
+    "matrix.css": "899c3022439b81acc233417c84ab8af3c1f732365796dc01ae3afece977fa310",
+    "matrix.js": "248ef3c410fdcd3d7fcb7c044eb4c04d0f82a27a5a6d618649116a48adfb0ed4",
+    "templates/base.html": "570fdb900d515a9ea22a63162d5fc365a06182ec36a243242928f3b048a5dacb",
+    "templates/macros.html": "95769e95e0f5d0bfbb71d7532a908283f926343f7c0d88d5fac5353d7d57eaff"
   },
-  "version": "2.1.1"
+  "version": "2.2.0"
 }

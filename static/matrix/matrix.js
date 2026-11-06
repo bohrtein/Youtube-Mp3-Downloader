@@ -1,5 +1,5 @@
 /* =====================================================================
-   MATRIX 2.1.1 — the moving parts of the design system.
+   MATRIX 2.2.0 — the moving parts of the design system.
 
        <script src="matrix.js" defer></script>
 
@@ -40,7 +40,7 @@
 window.MX = window.MX || (function () {
   "use strict";
 
-  var VERSION = "2.1.1";
+  var VERSION = "2.2.0";
   var root = document.documentElement;
   var reduceMotion = window.matchMedia &&
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -143,7 +143,7 @@ window.MX = window.MX || (function () {
     if (m) return [parseInt(m[1] + m[1], 16), parseInt(m[2] + m[2], 16), parseInt(m[3] + m[3], 16)];
     m = /rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/i.exec(v);
     if (m) return [+m[1], +m[2], +m[3]];
-    return [0, 255, 90];
+    return [255, 26, 26];
   }
 
   /* ------------------------------------------------------------------
