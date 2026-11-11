@@ -15,6 +15,7 @@ import core.approvedDownloads as approvedDownloads
 import core.checkDependencies as checkDependencies
 import core.interfaceComponents as interfaceComponents
 import core.libraryRestore as libraryRestore
+import core.restoreNetwork as restoreNetwork
 import routes.friendsPublic as friendsPublic
 import routes.suggestAdmin as suggestAdmin
 import main
@@ -201,6 +202,8 @@ def restore_library_downloads():
         return jsonify(restore_status or {}), 200, {"Cache-Control": "no-store"}
     if not request.is_json:
         abort(415)
+    data = request.get_json()
+    audio_format = "m4a" if isinstance(data, dict) and data.get("format") == "m4a" else None
 
     def publish(update):
         global restore_status
@@ -210,7 +213,7 @@ def restore_library_downloads():
         if restore_status and restore_status['state'] == 'running':
             return jsonify(restore_status), 409
         job = hubJobs.Job("Restoring library", publish, cancellable=True)
-        socketio.start_background_task(job.run, libraryRestore.restore_library)
+        socketio.start_background_task(job.run, lambda job: libraryRestore.restore_library(job, audio_format))
         return jsonify(restore_status), 202
 
 
@@ -476,7 +479,11 @@ def handle_download_batch(data):
     urls = data.get('urls', [])
     if not isinstance(urls, list) or not urls or any(not isinstance(u, str) or not u.strip() for u in urls):
         return {"error": "Paste at least one URL."}
-    audio_format = 'mp3' if data.get('format') == 'mp3' else 'flac'
+    audio_format = data.get('format')
+    if audio_format not in ('mp3', 'm4a'):
+        audio_format = 'flac'
+    if audio_format == 'm4a' and not restoreNetwork.vpn_proxy():
+        return {"error": "Configure the server VPN proxy to download M4A."}
     job = hubJobs.Job(f"Downloading {len(urls)} items", lambda update: socketio.emit('progress', update),
                       cancellable=True)
 

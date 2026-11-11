@@ -1,5 +1,6 @@
 import core.interfaceComponents as interfaceComponents
 import core.checkDependencies as checkDependencies
+from core import restoreNetwork
 import subprocess
 
 
@@ -79,7 +80,8 @@ def _download_audio(cmd, url, cancel_event, strict, proxy):
     except Exception as exc:
         if strict:
             raise
-        interfaceComponents.Print_Tag(f"Error: {exc}", tag="Error")
+        detail = f"yt-dlp exited with code {exc.returncode}" if isinstance(exc, subprocess.CalledProcessError) and proxy else str(exc)
+        interfaceComponents.Print_Tag(f"Error: {detail}", tag="Error")
         return []
     interfaceComponents.Print_Tag("Download Complete", tag="Success")
     return [line.strip() for line in stdout.splitlines() if line.strip()]
@@ -156,3 +158,29 @@ def download_file_mp3(url, output_dir, file_template=PLAYLIST_FILE_TEMPLATE, wri
         cmd[1:1] = ["--write-info-json"]
 
     return _download_audio(cmd, url, cancel_event, strict, proxy)
+
+
+def download_file_m4a(url, output_dir, file_template=PLAYLIST_FILE_TEMPLATE, write_info_json=False,
+                      cancel_event=None, *, strict=False, proxy=None):
+    """Save YouTube's best native M4A/AAC stream through the server VPN."""
+    proxy = proxy or restoreNetwork.vpn_proxy()
+    if not proxy:
+        raise restoreNetwork.VPNRotationError("Configure the server VPN proxy to download M4A.")
+    cmd = [
+        *checkDependencies.ytdlp_command(), "-ciw",
+        "-f", "bestaudio[ext=m4a][acodec^=mp4a]",
+        "--embed-metadata", "--convert-thumbnails", "jpg", "--embed-thumbnail",
+        "--print", "after_move:filepath",
+        "-o", f"{output_dir}/{file_template}", "--", url,
+    ]
+    if write_info_json:
+        cmd[1:1] = ["--write-info-json"]
+    return _download_audio(cmd, url, cancel_event, strict, proxy)
+
+
+def downloader_for(audio_format):
+    if audio_format == "m4a":
+        return download_file_m4a
+    if audio_format == "mp3":
+        return download_file_mp3
+    return download_file_flac

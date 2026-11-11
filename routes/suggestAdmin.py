@@ -8,6 +8,7 @@ import core.approvedDownloads as approvedDownloads
 import core.hubJobs as hubJobs
 import core.linkResolver as linkResolver
 import core.musicSearch as musicSearch
+import core.restoreNetwork as restoreNetwork
 import core.suggestFlags as suggestFlags
 import database.databaseConnector as databaseConnector
 import database.suggestionsRepo as suggestionsRepo
@@ -177,7 +178,11 @@ def approve(submission_id):
     if submission is None:
         abort(404)
     data = _json_body()
-    audio_format = "mp3" if data.get("format") == "mp3" else "flac"
+    audio_format = data.get("format")
+    if audio_format not in ("mp3", "m4a"):
+        audio_format = "flac"
+    if audio_format == "m4a" and not restoreNetwork.vpn_proxy():
+        return jsonify({"error": "Configure the server VPN proxy to download M4A."}), 400
     wanted = {int(i) for i in data.get("item_ids", []) if str(i).isdigit()}
     items = {i["item_id"]: i for i in submission["items"]}
     selected = [i for i in wanted if i in items and items[i]["decision"] in ("pending", "skipped", "failed", "downloaded")]

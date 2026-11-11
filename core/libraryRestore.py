@@ -47,12 +47,13 @@ def _video_id(song):
     raise ValueError("No unique YouTube source matched the catalog track")
 
 
-def _restore_track(song, root, staging, cancel_event):
+def _restore_track(song, root, staging, cancel_event, audio_format):
     artist, album, number, title = _key(song)
     album_folder = approvedDownloads.safe_name(f"{artist} - {album}", "Album")
     folder = root / f"{album_folder} [{song['album_id']}]"
-    is_mp3 = (song["file_type"] or "").lower() == "mp3"
-    extension = ".mp3" if is_mp3 else ".flac"
+    saved_format = (song["file_type"] or "").lower()
+    track_format = audio_format or (saved_format if saved_format in ("mp3", "m4a") else "flac")
+    extension = f".{track_format}"
     filename = f"{number:02d} - {title}{extension}"
     destination = folder / filename
     if destination.parent != folder or not folder.resolve().is_relative_to(root):
@@ -60,7 +61,7 @@ def _restore_track(song, root, staging, cancel_event):
     if destination.exists():
         raise FileExistsError(f"A file already occupies {destination.name}")
 
-    download = playlistDownloader.download_file_mp3 if is_mp3 else playlistDownloader.download_file_flac
+    download = playlistDownloader.downloader_for(track_format)
     with tempfile.TemporaryDirectory(prefix="track-", dir=staging) as temp:
         paths = download(linkResolver.music_url(_video_id(song)), temp, file_template="audio.%(ext)s",
                          strict=True, cancel_event=cancel_event, proxy=restoreNetwork.vpn_proxy())
@@ -68,9 +69,10 @@ def _restore_track(song, root, staging, cancel_event):
         if not paths or not audio.is_file():
             raise RuntimeError("yt-dlp produced no audio file")
         year = song["release_date"] or song["album_year"]
-        approvedDownloads.write_tags(audio, {"artist": artist, "album_artist": artist, "album": album,
-                                             "title": title, "track_number": number, "disc_number": None,
-                                             "year": str(year) if year else None, "genre": None})
+        metadata = {"artist": artist, "album_artist": artist, "album": album, "title": title,
+                    "track_number": number, "disc_number": None, "year": str(year) if year else None,
+                    "genre": None}
+        approvedDownloads.write_tags(audio, metadata, preserve_optional=track_format == "m4a")
         with catalog_file_lock:
             if cancel_event.is_set():
                 return None
@@ -84,7 +86,7 @@ def _restore_track(song, root, staging, cancel_event):
     return folder
 
 
-def restore_library(job):
+def restore_library(job, audio_format=None):
     job.update(None, "Waiting for other downloads")
     if not hubJobs.acquire_download_lock(approvedDownloads.download_lock, job.cancel_event):
         return "cancelled"
@@ -99,6 +101,9 @@ def restore_library(job):
         missing = [song for song in songs if _key(song) not in existing]
         if not missing:
             return "done", "All catalog tracks are already on disk."
+        needs_proxy = audio_format == "m4a" or any((song["file_type"] or "").lower() == "m4a" for song in missing)
+        if needs_proxy and not restoreNetwork.vpn_proxy():
+            return "failed", "Configure the server VPN proxy before restoring M4A tracks."
         if job.cancel_event.is_set():
             return "cancelled"
         checkDependencies.dependencies_check()
@@ -106,7 +111,7 @@ def restore_library(job):
         if staging.resolve() != staging:
             raise ValueError("Restore staging folder must be inside the library")
         staging.mkdir(parents=True, exist_ok=True)
-        return _restore_missing(job, missing, root, staging, touched)
+        return _restore_missing(job, missing, root, staging, touched, audio_format)
     finally:
         try:
             for folder in touched:
@@ -118,7 +123,7 @@ def restore_library(job):
             approvedDownloads.download_lock.release()
 
 
-def _restore_missing(job, missing, root, staging, touched):
+def _restore_missing(job, missing, root, staging, touched, audio_format):
     failures = restored = rotations = 0
     total = len(missing)
     for index, song in enumerate(missing):
@@ -127,7 +132,7 @@ def _restore_missing(job, missing, root, staging, touched):
         while not job.cancel_event.is_set():
             job.update(percent, label)
             try:
-                folder = _restore_track(song, root, staging, job.cancel_event)
+                folder = _restore_track(song, root, staging, job.cancel_event, audio_format)
                 if folder is not None:
                     touched.add(folder)
                     restored += 1

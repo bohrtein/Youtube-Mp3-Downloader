@@ -2,6 +2,8 @@ from pathlib import Path
 import subprocess
 import threading
 
+import pytest
+
 import app
 from core import libraryRestore, restoreNetwork
 from database import databaseConnector
@@ -9,7 +11,8 @@ from conftest import ADMIN_HEADERS
 from helpers import add_library_song
 
 
-def test_restore_retries_limited_track_and_skips_completed_files(tmp_path, monkeypatch):
+@pytest.mark.parametrize("audio_format,extensions", [(None, (".flac", ".mp3")), ("m4a", (".m4a", ".m4a"))])
+def test_restore_retries_limited_track_and_skips_completed_files(tmp_path, monkeypatch, audio_format, extensions):
     add_library_song("First", "Artist", "Album", "Cp31A_iqoDw")
     add_library_song("Second", "Artist", "Album", "GLvohMXgcBo")
     with databaseConnector.connect_to_db() as conn:
@@ -31,7 +34,7 @@ def test_restore_retries_limited_track_and_skips_completed_files(tmp_path, monke
     def rotate(_):
         calls.append("rotate")
 
-    def write_tags(_, metadata):
+    def write_tags(_, metadata, **kwargs):
         tags[metadata["title"]] = {"artist": [metadata["artist"]], "album": [metadata["album"]]}
 
     monkeypatch.setenv("LIBRARY_RESTORE_VPN_PROXY", "http://127.0.0.1:8888")
@@ -39,6 +42,7 @@ def test_restore_retries_limited_track_and_skips_completed_files(tmp_path, monke
     monkeypatch.setattr(libraryRestore.checkDependencies, "dependencies_check", lambda: None)
     monkeypatch.setattr(libraryRestore.playlistDownloader, "download_file_flac", lambda *a, **kw: download(".flac", *a, **kw))
     monkeypatch.setattr(libraryRestore.playlistDownloader, "download_file_mp3", lambda *a, **kw: download(".mp3", *a, **kw))
+    monkeypatch.setattr(libraryRestore.playlistDownloader, "download_file_m4a", lambda *a, **kw: download(".m4a", *a, **kw))
     monkeypatch.setattr(libraryRestore.approvedDownloads, "write_tags", write_tags)
     monkeypatch.setattr(libraryRestore.libraryFiles.audioTags, "open_tags", lambda file: tags[file.stem[5:]])
     monkeypatch.setattr(libraryRestore.syncLibrary, "Sync_Folder_To_Db", lambda _: None)
@@ -50,14 +54,15 @@ def test_restore_retries_limited_track_and_skips_completed_files(tmp_path, monke
         def update(self, *args, **kwargs):
             pass
 
-    assert libraryRestore.restore_library(Job()) == ("done", "Restored 2 missing tracks.")
+    first, second = extensions
+    assert libraryRestore.restore_library(Job(), audio_format) == ("done", "Restored 2 missing tracks.")
     assert calls == [
-        (".flac", "https://music.youtube.com/watch?v=Cp31A_iqoDw"),
-        (".mp3", "https://music.youtube.com/watch?v=GLvohMXgcBo"),
+        (first, "https://music.youtube.com/watch?v=Cp31A_iqoDw"),
+        (second, "https://music.youtube.com/watch?v=GLvohMXgcBo"),
         "rotate",
-        (".mp3", "https://music.youtube.com/watch?v=GLvohMXgcBo"),
+        (second, "https://music.youtube.com/watch?v=GLvohMXgcBo"),
     ]
-    assert sorted(path.name for path in tmp_path.glob("Artist - Album*/*")) == ["01 - First.flac", "01 - Second.mp3"]
+    assert sorted(path.name for path in tmp_path.glob("Artist - Album*/*")) == [f"01 - First{first}", f"01 - Second{second}"]
     assert libraryRestore.restore_library(Job()) == ("done", "All catalog tracks are already on disk.")
     assert len(calls) == 4
 

@@ -7,13 +7,13 @@ import core.audioTags as audioTags
 
 def cleanup_duplicate_files_by_folder(target_dir):
     """
-    Scans a directory for duplicate FLAC/MP3 files and enforces a specific folder hierarchy.
+    Scans supported audio files for duplicates within each format group.
 
     The function uses audio metadata (tags) to identify duplicates. If a duplicate is
     found, it prioritizes keeping the version located in a folder starting with 'Album -'.
 
     Args:
-        target_dir (str): The root path to scan for FLAC/MP3 files.
+        target_dir (str): The root path to scan for audio files.
     """
     path = Path(target_dir)
     audio_files = audioTags.find_audio_files(path)
@@ -37,7 +37,8 @@ def cleanup_duplicate_files_by_folder(target_dir):
             title = audio.get("title", [file_path.stem])[0].strip().lower()
 
             # Create a unique identifier based on song properties
-            fingerprint = f"{artist}|{album}|{title}|{track_num}"
+            format_group = "m4a" if file_path.suffix.lower() == ".m4a" else "flac/mp3"
+            fingerprint = (artist, album, title, track_num, format_group)
             parent_folder = file_path.parent.name
 
             if fingerprint in seen_songs:

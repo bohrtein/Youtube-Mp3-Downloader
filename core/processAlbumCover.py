@@ -8,7 +8,7 @@ COVER_SIZE = 250
 
 def process_album_covers_loop(target_dir):
     """
-    Iterates through the download directory to standardize FLAC/MP3 files.
+    Iterates through the download directory to standardize supported audio files.
 
     This function performs two main tasks:
     1. Metadata Cleaning: Strips secondary artists from the artist tag.
@@ -22,7 +22,7 @@ def process_album_covers_loop(target_dir):
 
     files = audioTags.find_audio_files(path)
     if not files:
-        interfaceComponents.Print_Tag("No FLAC/MP3 files found to process.", tag="Warning")
+        interfaceComponents.Print_Tag("No audio files found to process.", tag="Warning")
         return
 
     for audio_file in files:

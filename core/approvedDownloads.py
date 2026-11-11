@@ -133,7 +133,7 @@ def lookup_track_number(meta, youtube_id):
     return track_number_in_album(tracks, meta, youtube_id)
 
 
-def write_tags(file_path, meta):
+def write_tags(file_path, meta, *, preserve_optional=False):
     """Writes the full tag set; yt-dlp's other tags (source URL, etc.) stay."""
     audio = audioTags.open_tags(file_path)
     if audio.tags is None:
@@ -151,7 +151,7 @@ def write_tags(file_path, meta):
     for key, value in optional.items():
         if value:
             audio[key] = value
-        elif key in audio:
+        elif not preserve_optional and key in audio:
             # e.g. yt-dlp's upload date or playlist position, when it isn't this release's
             del audio[key]
     audio.save()
@@ -190,7 +190,7 @@ def _download_one(item, audio_format, library_folder, work_dir, overwrite=False,
         overwrite (bool): replace an existing file at the target path (a
             re-download); otherwise an existing file is left alone and it fails.
     """
-    download_fn = playlistDownloader.download_file_mp3 if audio_format == "mp3" else playlistDownloader.download_file_flac
+    download_fn = playlistDownloader.downloader_for(audio_format)
     files = download_fn(linkResolver.music_url(item["youtube_id"]), work_dir,
                         file_template="%(id)s.%(ext)s", write_info_json=True, cancel_event=cancel_event)
     if not files or not Path(files[0]).exists():

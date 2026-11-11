@@ -44,11 +44,14 @@
                     <textarea class="mx-textarea" id="urlInput" rows="4" placeholder="https://youtube.com/...&#10;https://youtube.com/..."></textarea>
                     <p class="mx-hint">One URL per line. Use the Download button below to start the batch.</p>
                 </div>
-                <label class="mx-toggle">
-                    <input type="checkbox" id="mp3FormatToggle">
-                    <span class="mx-sw"></span>
-                    MP3 320kbps / 48kHz instead of FLAC
-                </label>
+                <div class="mx-field">
+                    <label class="mx-label" for="downloadFormat">Audio format</label>
+                    <select class="mx-select" id="downloadFormat">
+                        <option value="m4a">M4A · original AAC via VPN</option>
+                        <option value="mp3">MP3 · 320 kbps / 48 kHz</option>
+                        <option value="flac">FLAC</option>
+                    </select>
+                </div>
             </section>
         </div>
 
@@ -209,7 +212,7 @@
                 return;
             }
 
-            const format = document.getElementById('mp3FormatToggle').checked ? 'mp3' : 'flac';
+            const format = document.getElementById('downloadFormat').value;
             setBusy(`Downloading ${urls.length} item${urls.length === 1 ? '' : 's'}...`);
             socket.emit('start_download_batch', { urls: urls, format: format }, reply => {
                 if (reply && reply.error) APP.jobDock({state: 'failed', status: reply.error});

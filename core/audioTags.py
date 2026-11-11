@@ -2,11 +2,12 @@ from pathlib import Path
 import mutagen
 from mutagen.flac import FLAC, Picture
 from mutagen.id3 import ID3, APIC, ID3NoHeaderError
+from mutagen.mp4 import MP4, MP4Cover
 
-AUDIO_EXTENSIONS = (".flac", ".mp3")
+AUDIO_EXTENSIONS = (".flac", ".mp3", ".m4a")
 
 def find_audio_files(target_dir):
-    """Every library FLAC and MP3, excluding the temporary undo archive."""
+    """Every supported library audio file, excluding the temporary undo archive."""
     path = Path(target_dir)
     return [f for ext in AUDIO_EXTENSIONS for f in path.rglob(f"*{ext}")
             if ".app-trash" not in f.parts]
@@ -14,7 +15,7 @@ def find_audio_files(target_dir):
 def open_tags(file_path):
     """
     Opens a file with a dict-like tag interface using the same keys
-    ("artist", "album", "title", "tracknumber", "date") for FLAC and MP3.
+    ("artist", "album", "title", "tracknumber", "date") across supported formats.
     """
     return mutagen.File(file_path, easy=True)
 
@@ -30,6 +31,14 @@ def iter_tag_text(file_path):
     if isinstance(audio, FLAC):
         for _, value in audio.tags:
             yield value
+    elif isinstance(audio, MP4):
+        for atom, values in audio.tags.items():
+            if atom != "covr":
+                for value in values:
+                    if isinstance(value, bytes):
+                        yield value.decode("utf-8", errors="replace")
+                    elif isinstance(value, str):
+                        yield value
     else:
         for frame in audio.tags.values():
             if not isinstance(frame, APIC):
@@ -37,9 +46,13 @@ def iter_tag_text(file_path):
 
 def get_cover_bytes(file_path):
     """Raw bytes of the first embedded cover image, or None."""
-    if Path(file_path).suffix.lower() == ".flac":
+    suffix = Path(file_path).suffix.lower()
+    if suffix == ".flac":
         pictures = FLAC(file_path).pictures
         return pictures[0].data if pictures else None
+    if suffix == ".m4a":
+        covers = (MP4(file_path).tags or {}).get("covr", [])
+        return bytes(covers[0]) if covers else None
     try:
         frames = ID3(file_path).getall("APIC")
     except ID3NoHeaderError:
@@ -48,7 +61,15 @@ def get_cover_bytes(file_path):
 
 def set_cover_jpeg(file_path, jpeg_bytes, size):
     """Replaces all embedded art with a single front-cover JPEG."""
-    if Path(file_path).suffix.lower() == ".flac":
+    suffix = Path(file_path).suffix.lower()
+    if suffix == ".m4a":
+        audio = MP4(file_path)
+        if audio.tags is None:
+            audio.add_tags()
+        audio["covr"] = [MP4Cover(jpeg_bytes, imageformat=MP4Cover.FORMAT_JPEG)]
+        audio.save()
+        return
+    if suffix == ".flac":
         audio = FLAC(file_path)
         audio.clear_pictures()
         picture = Picture()

@@ -42,7 +42,9 @@ On the Dashboard, click **Change** next to "Library Folder" and browse to wherev
 
 ### Restore missing library tracks
 
-Click **Restore missing tracks** in **Library**. The server checks the configured library folder against `library.db`, skips files it finds, and restores missing tracks in their cataloged MP3 or FLAC format. It uses saved YouTube links first and tries to find a unique match by title, artist, and duration for older tracks without a link. The job runs in the background and can be cancelled from the Library. Click the same button after an interruption to pick up the remaining files. Keep the catalog database when recovering from lost audio.
+Click **Restore missing tracks** in **Library**. The server checks the configured library folder against `library.db`, skips files it finds, and restores missing tracks as M4A. It uses saved YouTube links first and tries to find a unique match by title, artist, and duration for older tracks without a link. The job runs in the background and can be cancelled from the Library. Click the same button after an interruption to pick up the remaining files. Keep the catalog database when recovering from lost audio.
+
+**M4A** is also the default for new downloads. It saves YouTube's best available native AAC stream without re-encoding, embeds the metadata and any available cover image as JPEG, and uses the configured server VPN proxy. Restoration fills the title, artist, album, and track number from the catalog. The Dashboard and suggestion review also offer MP3 and FLAC.
 
 The restore spaces downloads five seconds apart. When yt-dlp reports a YouTube rate limit, it can switch the server's VPN exit and retry the same track, up to three switches per run. If the VPN switch fails or the limit persists, the job stops and keeps the audio already restored.
 
@@ -83,13 +85,13 @@ Located mostly in core/, these scripts do the heavy lifting.
 The "Boss" script. It coordinates between the web server and the individual processing tasks, always reading the current library folder from the database so a change takes effect immediately.
 
 #### playlistDownloader.py
-Controls yt-dlp.exe. It manages the download queue and ensures files are saved with the correct naming convention. Downloads FLAC by default, or MP3 (320kbps / 48kHz) when the Dashboard's MP3 toggle is on.
+Uses yt-dlp to download audio with the library naming convention. The Dashboard defaults to native M4A/AAC through the VPN and also offers FLAC and MP3 (320 kbps / 48 kHz).
 
 #### convertToMp3.py
 Transcodes the FLAC files already in your library to MP3 (320kbps / 48kHz) with ffmpeg — no re-downloading — keeping tags and cover art, deleting each FLAC once its MP3 is written, then re-syncing the database. MP3 is much cheaper for a portable player to decode than FLAC, so it goes easier on the battery.
 
 #### audioTags.py
-Reads and writes tags and cover art the same way for FLAC and MP3, so sync, covers, and dedupe work on both formats.
+Reads and writes tags and cover art for M4A, FLAC, and MP3 so library sync and cover processing can handle all three formats.
 
 #### checkDependencies.py
 A safety script that runs at startup. If it doesn't see ffmpeg or yt-dlp in your folder, it uses curl to download them for you automatically.

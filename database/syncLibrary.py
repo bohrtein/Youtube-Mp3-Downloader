@@ -29,7 +29,7 @@ def Sync_Folder_To_Db(target_dir):
     """
     Scans the local storage and synchronizes song metadata into the SQL database.
 
-    This function performs a deep scan of FLAC/MP3 files to extract technical data,
+    This function scans supported audio files to extract technical data,
     metadata tags, and binary cover art, then maps them into a relational 
     structure (Artists -> Albums -> Songs).
     

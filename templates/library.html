@@ -127,7 +127,7 @@
             button.disabled = true;
             try {
                 const response = await fetch(restoreUrl, {
-                    method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}',
+                    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({format: 'm4a'}),
                 });
                 if (!response.ok && response.status !== 409) throw new Error();
                 showRestore(await response.json());

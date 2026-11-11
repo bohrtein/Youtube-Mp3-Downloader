@@ -75,11 +75,14 @@
 
     <section class="mx-panel">
         <h2 class="mx-panel-title" data-decode>decide</h2>
-        <label class="mx-toggle">
-            <input type="checkbox" id="mp3Toggle">
-            <span class="mx-sw"></span>
-            MP3 320kbps / 48kHz instead of FLAC
-        </label>
+        <div class="mx-field">
+            <label class="mx-label" for="approvalFormat">Audio format</label>
+            <select class="mx-select" id="approvalFormat">
+                <option value="m4a">M4A · original AAC via VPN</option>
+                <option value="mp3">MP3 · 320 kbps / 48 kHz</option>
+                <option value="flac">FLAC</option>
+            </select>
+        </div>
         <p class="mx-hint">Downloading is the decision for this submission: anything left unticked is marked skipped. Songs go to Artist/Album/NN - Title in your library folder. Ticking a song that's already downloaded re-downloads it and replaces its file.</p>
     </section>
 {% endblock %}
@@ -164,7 +167,7 @@
     document.getElementById('approveBtn').addEventListener('click', () => {
         const ids = [...document.querySelectorAll('.sg-check:checked:not(:disabled)')].map(c => Number(c.value));
         if (!ids.length) return MX.toast(false, 'Tick at least one song.', toastHost);
-        const format = document.getElementById('mp3Toggle').checked ? 'mp3' : 'flac';
+        const format = document.getElementById('approvalFormat').value;
         const redownloads = ids.filter(id => document.querySelector(`#item-${id} .sg-good`)).length;
         const note = redownloads ? `
 

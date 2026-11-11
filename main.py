@@ -34,13 +34,13 @@ def start_downloading(url, audio_format="flac", cancel_event=None):
 
     Args:
         url (str): The YouTube/Media URL provided by the user.
-        audio_format (str): "flac" (default, lossless) or "mp3" (320kbps/48kHz,
-            for players where FLAC decoding drains the battery faster).
+        audio_format (str): "m4a" (native AAC through the VPN), "flac" (default
+            for callers that omit the format), or "mp3" (320 kbps / 48 kHz).
     """
-    download_fn = playlistDownloader.download_file_mp3 if audio_format == "mp3" else playlistDownloader.download_file_flac
+    download_fn = playlistDownloader.downloader_for(audio_format)
     file_paths = download_fn(url, databaseConnector.get_library_folder(), cancel_event=cancel_event)
     if not file_paths:
-        # download_file_flac already printed the real reason (missing
+        # The downloader already printed the real reason (missing
         # yt-dlp, network failure, blocked video, etc.) via Print_Tag; raise
         # here so the caller's error handling actually surfaces a failure
         # instead of silently reporting "complete" with nothing downloaded.
