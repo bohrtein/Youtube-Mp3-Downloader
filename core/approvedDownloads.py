@@ -1,5 +1,5 @@
 """Downloads the songs I approved from friend submissions into the library
-the same way the dashboard downloader lays out albums - "Album - Name/NN -
+the same way the dashboard downloader lays out albums - "Album Name/NN -
 Title" - with every tag written and the cover squared, then syncs just those
 album folders."""
 import json
@@ -27,9 +27,6 @@ import database.syncLibrary as syncLibrary
 download_lock = threading.Lock()
 
 SINGLES_ALBUM = "Singles"
-# YouTube Music names album playlists "Album - Name", so that's the folder a
-# dashboard download of the album lands in; cleanupManager keeps these copies.
-ALBUM_FOLDER_PREFIX = "Album - "
 _UNSAFE_FILENAME_RE = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 MAX_NAME_LENGTH = 120
 
@@ -39,6 +36,14 @@ def safe_name(text, fallback):
     name = _UNSAFE_FILENAME_RE.sub("_", (text or "").strip())
     name = name.strip(" .")[:MAX_NAME_LENGTH].strip(" .")
     return name or fallback
+
+
+def album_folder_name(album):
+    """Album title as a portable folder name, including any leading punctuation."""
+    name = _UNSAFE_FILENAME_RE.sub("_", (album or "").strip())[:MAX_NAME_LENGTH].rstrip(" .")
+    if re.fullmatch(r"(?:CON|PRN|AUX|NUL|COM[1-9¹²³]|LPT[1-9¹²³])(?:\..*)?", name, re.IGNORECASE):
+        return f"_{name}"
+    return name or "Unknown Album"
 
 
 def _first(value):
@@ -159,13 +164,10 @@ def write_tags(file_path, meta, *, preserve_optional=False):
 
 def target_path(library_folder, meta, extension):
     """
-    <library>/Album - <album>/NN - <title>.ext, the layout of a dashboard
+    <library>/<album>/NN - <title>.ext, the layout of a dashboard
     album download. Songs with no album go to <library>/Singles.
     """
-    if meta["album"] == SINGLES_ALBUM:
-        album_dir = SINGLES_ALBUM
-    else:
-        album_dir = safe_name(ALBUM_FOLDER_PREFIX + meta["album"], SINGLES_ALBUM)
+    album_dir = album_folder_name(meta["album"])
     # Always numbered, even "00": syncLibrary reads leading digits as the
     # track number, so an unnumbered "3 Libras" would sync as track 3 "Libras".
     filename = f"{meta['track_number']:02d} - {safe_name(meta['title'], 'Untitled')}{extension}"

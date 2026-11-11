@@ -86,8 +86,7 @@ def _download_track(song, download, staging, extension, cancel_event):
 
 def _restore_track(song, root, staging, cancel_event, audio_format):
     artist, album, number, title = _key(song)
-    album_folder = approvedDownloads.safe_name(f"{artist} - {album}", "Album")
-    folder = root / f"{album_folder} [{song['album_id']}]"
+    folder = root / approvedDownloads.album_folder_name(album)
     saved_format = (song["file_type"] or "").lower()
     track_format = audio_format or (saved_format if saved_format in ("mp3", "m4a") else "flac")
     extension = f".{track_format}"

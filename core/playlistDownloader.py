@@ -88,7 +88,13 @@ def initiate_playlist_loop():
             interfaceComponents.Print_Tag("Please enter a valid URL.", tag="Warning")
 
 PLAYLIST_FILE_TEMPLATE = "%(playlist_title)s/%(playlist_index)02d - %(title)s.%(ext)s"
+LIBRARY_FILE_TEMPLATE = "%(album,playlist_title|Singles)s/%(track_number,playlist_index|00)02d - %(track,title)s.%(ext)s"
 RESTORE_TRACK_TIMEOUT = 300
+
+
+def _output_args(output_dir, file_template, url):
+    normalize = ["--replace-in-metadata", "playlist_title", "^Album - ", ""] if file_template == LIBRARY_FILE_TEMPLATE else []
+    return [*normalize, "-o", f"{output_dir}/{file_template}", "--", url]
 
 
 def _download_audio(cmd, url, cancel_event, strict, proxy):
@@ -131,8 +137,6 @@ def download_file_flac(url, output_dir, file_template=PLAYLIST_FILE_TEMPLATE, wr
     Returns:
         list[str]: Absolute paths of the files yt-dlp produced (empty on failure).
     """
-    output_template = f"{output_dir}/{file_template}"
-
     # Command Arguments:
     # -c: continue | -i: ignore errors | -w: no overwrites | -x: extract audio
     # --print after_move:filepath reports the final on-disk path for each item,
@@ -143,7 +147,7 @@ def download_file_flac(url, output_dir, file_template=PLAYLIST_FILE_TEMPLATE, wr
         "--audio-quality", "0",
         "--embed-metadata", "--embed-thumbnail",
         "--print", "after_move:filepath",
-        "-o", output_template, "--", url
+        *_output_args(output_dir, file_template, url),
     ]
     if write_info_json:
         cmd[1:1] = ["--write-info-json"]
@@ -166,8 +170,6 @@ def download_file_mp3(url, output_dir, file_template=PLAYLIST_FILE_TEMPLATE, wri
     Returns:
         list[str]: Absolute paths of the files yt-dlp produced (empty on failure).
     """
-    output_template = f"{output_dir}/{file_template}"
-
     cmd = [
         *checkDependencies.ytdlp_command(), "-ciw", "-x",
         "--audio-format", "mp3",
@@ -177,7 +179,7 @@ def download_file_mp3(url, output_dir, file_template=PLAYLIST_FILE_TEMPLATE, wri
         "--postprocessor-args", "ExtractAudio+ffmpeg_o:-ar 48000",
         "--embed-metadata", "--embed-thumbnail",
         "--print", "after_move:filepath",
-        "-o", output_template, "--", url
+        *_output_args(output_dir, file_template, url),
     ]
     if write_info_json:
         cmd[1:1] = ["--write-info-json"]
@@ -196,7 +198,7 @@ def download_file_m4a(url, output_dir, file_template=PLAYLIST_FILE_TEMPLATE, wri
         "-f", "bestaudio[ext=m4a][acodec^=mp4a]",
         "--embed-metadata", "--convert-thumbnails", "jpg", "--embed-thumbnail",
         "--print", "after_move:filepath",
-        "-o", f"{output_dir}/{file_template}", "--", url,
+        *_output_args(output_dir, file_template, url),
     ]
     if write_info_json:
         cmd[1:1] = ["--write-info-json"]

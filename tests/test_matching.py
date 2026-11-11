@@ -157,7 +157,7 @@ def test_uploader_tag_is_not_trusted_as_artist():
 def test_target_path_is_sanitized():
     meta = {"artist": 'AC/DC', "album": 'What?: "Live"', "title": "Back In Black.", "track_number": 3}
     path = approvedDownloads.target_path("/lib", meta, ".flac")
-    assert path == Path("/lib") / "Album - What__ _Live_" / "03 - Back In Black.flac"
+    assert path == Path("/lib") / "What__ _Live_" / "03 - Back In Black.flac"
     singles = dict(meta, album="Singles", track_number=0)
     assert approvedDownloads.target_path("/lib", singles, ".mp3") == Path("/lib") / "Singles" / "00 - Back In Black.mp3"
     assert approvedDownloads.safe_name("...", "fallback") == "fallback"

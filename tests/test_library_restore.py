@@ -62,7 +62,7 @@ def test_restore_retries_limited_track_and_skips_completed_files(tmp_path, monke
         "rotate",
         (second, "https://music.youtube.com/watch?v=GLvohMXgcBo"),
     ]
-    assert sorted(path.name for path in tmp_path.glob("Artist - Album*/*")) == [f"01 - First{first}", f"01 - Second{second}"]
+    assert sorted(path.name for path in (tmp_path / "Album").iterdir()) == [f"01 - First{first}", f"01 - Second{second}"]
     assert libraryRestore.restore_library(Job()) == ("done", "All catalog tracks are already on disk.")
     assert len(calls) == 4
 

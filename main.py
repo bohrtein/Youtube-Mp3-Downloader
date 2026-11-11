@@ -38,7 +38,8 @@ def start_downloading(url, audio_format="flac", cancel_event=None):
             for callers that omit the format), or "mp3" (320 kbps / 48 kHz).
     """
     download_fn = playlistDownloader.downloader_for(audio_format)
-    file_paths = download_fn(url, databaseConnector.get_library_folder(), cancel_event=cancel_event)
+    file_paths = download_fn(url, databaseConnector.get_library_folder(),
+                             file_template=playlistDownloader.LIBRARY_FILE_TEMPLATE, cancel_event=cancel_event)
     if not file_paths:
         # The downloader already printed the real reason (missing
         # yt-dlp, network failure, blocked video, etc.) via Print_Tag; raise
