@@ -133,7 +133,7 @@ def lookup_track_number(meta, youtube_id):
     return track_number_in_album(tracks, meta, youtube_id)
 
 
-def _write_tags(file_path, meta):
+def write_tags(file_path, meta):
     """Writes the full tag set; yt-dlp's other tags (source URL, etc.) stay."""
     audio = audioTags.open_tags(file_path)
     if audio.tags is None:
@@ -200,7 +200,7 @@ def _download_one(item, audio_format, library_folder, work_dir, overwrite=False,
     meta = item_metadata(item, _read_info_json(downloaded))
     if not meta["track_number"]:
         meta["track_number"] = lookup_track_number(meta, item["youtube_id"])
-    _write_tags(downloaded, meta)
+    write_tags(downloaded, meta)
     # Same square 250px JPEG the dashboard's "process covers" step makes.
     processAlbumCover.process_album_cover(downloaded)
     destination = target_path(library_folder, meta, downloaded.suffix.lower())

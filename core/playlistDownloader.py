@@ -7,7 +7,8 @@ def _run_download(cmd, cancel_event=None):
     """Run yt-dlp while allowing an App Hub cancellation to stop the process."""
     if cancel_event is not None and cancel_event.is_set():
         raise RuntimeError("Download cancelled")
-    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                               encoding="utf-8", errors="replace")
     while True:
         try:
             stdout, stderr = process.communicate(timeout=0.25)
@@ -64,7 +65,28 @@ def initiate_playlist_loop():
 
 PLAYLIST_FILE_TEMPLATE = "%(playlist_title)s/%(playlist_index)02d - %(title)s.%(ext)s"
 
-def download_file_flac(url, output_dir, file_template=PLAYLIST_FILE_TEMPLATE, write_info_json=False, cancel_event=None):
+
+def _download_audio(cmd, url, cancel_event, strict, proxy):
+    if strict:
+        # Restore downloads one track at a time and needs yt-dlp's actual error.
+        cmd[-2:-2] = ["--no-ignore-errors", "--no-playlist", "--retries", "2",
+                      "--extractor-retries", "1", "--socket-timeout", "30"]
+    if proxy:
+        cmd[-2:-2] = ["--proxy", proxy]
+    interfaceComponents.Print_Tag(f"Downloading: {url}", tag="Process")
+    try:
+        stdout = _run_download(cmd, cancel_event)
+    except Exception as exc:
+        if strict:
+            raise
+        interfaceComponents.Print_Tag(f"Error: {exc}", tag="Error")
+        return []
+    interfaceComponents.Print_Tag("Download Complete", tag="Success")
+    return [line.strip() for line in stdout.splitlines() if line.strip()]
+
+
+def download_file_flac(url, output_dir, file_template=PLAYLIST_FILE_TEMPLATE, write_info_json=False,
+                       cancel_event=None, *, strict=False, proxy=None):
     """
     Executes the yt-dlp binary to download and convert a specific URL.
 
@@ -99,19 +121,10 @@ def download_file_flac(url, output_dir, file_template=PLAYLIST_FILE_TEMPLATE, wr
     if write_info_json:
         cmd[1:1] = ["--write-info-json"]
 
-    interfaceComponents.Print_Tag(f"Downloading: {url}", tag="Process")
+    return _download_audio(cmd, url, cancel_event, strict, proxy)
 
-    try:
-        # check=True will raise a CalledProcessError if the command fails
-        stdout = _run_download(cmd, cancel_event)
-        interfaceComponents.Print_Tag("Download Complete", tag="Success")
-        return [line.strip() for line in stdout.splitlines() if line.strip()]
-    except Exception as e:
-        # Captures network issues, missing binaries, or invalid URLs
-        interfaceComponents.Print_Tag(f"Error: {e}", tag="Error")
-        return []
-
-def download_file_mp3(url, output_dir, file_template=PLAYLIST_FILE_TEMPLATE, write_info_json=False, cancel_event=None):
+def download_file_mp3(url, output_dir, file_template=PLAYLIST_FILE_TEMPLATE, write_info_json=False,
+                      cancel_event=None, *, strict=False, proxy=None):
     """
     Same as download_file_flac, but extracts straight to MP3 (320kbps,
     48000Hz) instead of FLAC, so the result is already player-friendly
@@ -142,12 +155,4 @@ def download_file_mp3(url, output_dir, file_template=PLAYLIST_FILE_TEMPLATE, wri
     if write_info_json:
         cmd[1:1] = ["--write-info-json"]
 
-    interfaceComponents.Print_Tag(f"Downloading (MP3): {url}", tag="Process")
-
-    try:
-        stdout = _run_download(cmd, cancel_event)
-        interfaceComponents.Print_Tag("Download Complete", tag="Success")
-        return [line.strip() for line in stdout.splitlines() if line.strip()]
-    except Exception as e:
-        interfaceComponents.Print_Tag(f"Error: {e}", tag="Error")
-        return []
+    return _download_audio(cmd, url, cancel_event, strict, proxy)

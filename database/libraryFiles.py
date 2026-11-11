@@ -24,9 +24,13 @@ def find_song_files(library_folder, keys):
     Every audio file under library_folder that sync maps to one of `keys`.
     File names are checked first so only likely matches get their tags read.
     """
+    return [path for _, path in iter_song_files(library_folder, keys)]
+
+
+def iter_song_files(library_folder, keys):
+    """Yield (catalog key, audio path) for files matching the given keys."""
     keys = set(keys)
     names = {(track, title) for _, _, track, title in keys}
-    matches = []
     for file_path in audioTags.find_audio_files(library_folder):
         track_num, title = syncLibrary.parse_filename(file_path)
         if (track_num, title) not in names:
@@ -36,9 +40,10 @@ def find_song_files(library_folder, keys):
         except Exception as e:
             interfaceComponents.Print_Tag(f"Could not read tags of {file_path}: {e}", tag="Warning")
             continue
-        if audio is not None and (*syncLibrary.read_artist_album(audio), track_num, title) in keys:
-            matches.append(file_path)
-    return matches
+        if audio is not None:
+            key = (*syncLibrary.read_artist_album(audio), track_num, title)
+            if key in keys:
+                yield key, file_path
 
 def delete_song_files(library_folder, keys):
     """

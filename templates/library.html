@@ -19,7 +19,12 @@
     <header class="mx-app-header"><div class="mx-app-heading">
         <span class="mx-mark">music manager</span>
         <h1 class="mx-app-title">library</h1>
-    </div></header>
+    </div>
+        <div class="mx-app-header-actions">
+            <button class="mx-btn" type="button" id="restoreLibrary" {% if not albums %}disabled{% endif %}>Restore missing tracks</button>
+        </div>
+    </header>
+    {% include "_job_dock.html" %}
 
     <div class="mx-viewbar" aria-label="Album collection controls">
         <label class="mx-btn mx-viewbar-pick yt-sort-picker"><span id="librarySortLabel">Release date</span>
@@ -89,6 +94,51 @@
     // See main.html for why this exists: makes fetch() calls below work
     // both standalone and proxied under the app hub's path prefix.
     const APP_ROOT = "{{ request.script_root }}";
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const restoreUrl = {{ url_for('restore_library_downloads')|tojson }};
+        const button = document.getElementById('restoreLibrary');
+        const emptyLibrary = button.disabled;
+        let pollTimer;
+        let requestVersion = 0;
+
+        function showRestore(update) {
+            clearTimeout(pollTimer);
+            button.disabled = emptyLibrary || update.state === 'running';
+            if (update.job_id) APP.jobDock(update);
+            if (update.state === 'running') pollTimer = setTimeout(checkRestore, 1500);
+        }
+
+        async function checkRestore() {
+            const version = requestVersion;
+            try {
+                const response = await fetch(restoreUrl);
+                if (!response.ok) throw new Error();
+                const update = await response.json();
+                if (version === requestVersion) showRestore(update);
+            } catch (error) {
+                if (version === requestVersion) pollTimer = setTimeout(checkRestore, 3000);
+            }
+        }
+
+        button.addEventListener('click', async () => {
+            requestVersion++;
+            clearTimeout(pollTimer);
+            button.disabled = true;
+            try {
+                const response = await fetch(restoreUrl, {
+                    method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}',
+                });
+                if (!response.ok && response.status !== 409) throw new Error();
+                showRestore(await response.json());
+            } catch (error) {
+                button.disabled = emptyLibrary;
+                APP.jobDock({title: 'Restore could not start', status: 'Check the connection and try again.', state: 'failed'});
+                pollTimer = setTimeout(checkRestore, 3000);
+            }
+        });
+        checkRestore();
+    });
 
     // Longest entrance delay, in cards. Mirrors the cap in the Jinja loop above.
     const STAGGER_CAP = 18;

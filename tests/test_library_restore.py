@@ -1,0 +1,90 @@
+from pathlib import Path
+import subprocess
+import threading
+
+import app
+from core import libraryRestore, restoreNetwork
+from database import databaseConnector
+from conftest import ADMIN_HEADERS
+from helpers import add_library_song
+
+
+def test_restore_retries_limited_track_and_skips_completed_files(tmp_path, monkeypatch):
+    add_library_song("First", "Artist", "Album", "Cp31A_iqoDw")
+    add_library_song("Second", "Artist", "Album", "GLvohMXgcBo")
+    with databaseConnector.connect_to_db() as conn:
+        conn.execute("UPDATE songs SET file_type = 'MP3' WHERE song_title = 'Second'")
+    databaseConnector.set_library_folder(str(tmp_path))
+    calls = []
+    tags = {}
+
+    def download(extension, url, directory, **kwargs):
+        assert kwargs["strict"]
+        assert kwargs["proxy"] == "http://127.0.0.1:8888"
+        calls.append((extension, url))
+        if len(calls) == 2:
+            raise subprocess.CalledProcessError(1, "yt-dlp", stderr="HTTP Error 429: Too Many Requests")
+        file = Path(directory) / f"audio{extension}"
+        file.write_bytes(b"audio")
+        return [str(file)]
+
+    def rotate(_):
+        calls.append("rotate")
+
+    def write_tags(_, metadata):
+        tags[metadata["title"]] = {"artist": [metadata["artist"]], "album": [metadata["album"]]}
+
+    monkeypatch.setenv("LIBRARY_RESTORE_VPN_PROXY", "http://127.0.0.1:8888")
+    monkeypatch.setattr(libraryRestore, "TRACK_DELAY_SECONDS", 0)
+    monkeypatch.setattr(libraryRestore.checkDependencies, "dependencies_check", lambda: None)
+    monkeypatch.setattr(libraryRestore.playlistDownloader, "download_file_flac", lambda *a, **kw: download(".flac", *a, **kw))
+    monkeypatch.setattr(libraryRestore.playlistDownloader, "download_file_mp3", lambda *a, **kw: download(".mp3", *a, **kw))
+    monkeypatch.setattr(libraryRestore.approvedDownloads, "write_tags", write_tags)
+    monkeypatch.setattr(libraryRestore.libraryFiles.audioTags, "open_tags", lambda file: tags[file.stem[5:]])
+    monkeypatch.setattr(libraryRestore.syncLibrary, "Sync_Folder_To_Db", lambda _: None)
+    monkeypatch.setattr(restoreNetwork, "rotate_vpn", rotate)
+
+    class Job:
+        cancel_event = threading.Event()
+
+        def update(self, *args, **kwargs):
+            pass
+
+    assert libraryRestore.restore_library(Job()) == ("done", "Restored 2 missing tracks.")
+    assert calls == [
+        (".flac", "https://music.youtube.com/watch?v=Cp31A_iqoDw"),
+        (".mp3", "https://music.youtube.com/watch?v=GLvohMXgcBo"),
+        "rotate",
+        (".mp3", "https://music.youtube.com/watch?v=GLvohMXgcBo"),
+    ]
+    assert sorted(path.name for path in tmp_path.glob("Artist - Album*/*")) == ["01 - First.flac", "01 - Second.mp3"]
+    assert libraryRestore.restore_library(Job()) == ("done", "All catalog tracks are already on disk.")
+    assert len(calls) == 4
+
+
+def test_restore_route_is_private_and_prevents_duplicate_jobs(client, monkeypatch):
+    workers = []
+    monkeypatch.setattr(app, "restore_status", None)
+    monkeypatch.setattr(app.socketio, "start_background_task", lambda fn, *args: workers.append((fn, args)))
+    path = "/api/library/restore"
+    assert client.post(path, json={}).status_code == 404
+    assert client.post(path, headers=ADMIN_HEADERS).status_code == 415
+    start = client.post(path, json={}, headers=ADMIN_HEADERS)
+    assert start.status_code == 202
+    duplicate = client.post(path, json={}, headers=ADMIN_HEADERS)
+    assert duplicate.status_code == 409
+    assert duplicate.get_json()["job_id"] == start.get_json()["job_id"]
+    worker, args = workers.pop()
+    worker(*args)
+    state = client.get(path, headers=ADMIN_HEADERS).get_json()
+    assert state["state"] == "failed"
+    assert state["status"] == "The library catalog has no tracks to restore."
+
+
+def test_library_button_uses_app_prefix(client):
+    add_library_song("First", "Artist", "Album")
+    response = client.get("/library", headers=ADMIN_HEADERS,
+                          environ_overrides={"SCRIPT_NAME": "/app/youtube-mp3-downloader"})
+    assert response.status_code == 200
+    assert b"Restore missing tracks</button>" in response.data
+    assert b'"/app/youtube-mp3-downloader/api/library/restore"' in response.data

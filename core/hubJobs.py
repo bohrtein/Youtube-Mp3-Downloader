@@ -90,8 +90,11 @@ class Job:
                         self._publish(force=True)
 
         threading.Thread(target=heartbeat, daemon=True).start()
+        detail = None
         try:
             result = work(self)
+            if isinstance(result, tuple):
+                result, detail = result
             state = result if result in ("done", "failed", "cancelled") else "done"
         except Exception as exc:
             interfaceComponents.Print_Tag(f"{self.title}: {exc}", tag="Error")
@@ -101,8 +104,9 @@ class Job:
         with self._lock:
             self._state = "cancelled" if self.cancel_event.is_set() else state
             self._percent = 100 if self._state == "done" else self._percent
-            self._detail = {"done": "Complete", "failed": "Task failed — check the server log",
-                            "cancelled": "Download cancelled"}[self._state]
+            default_detail = {"done": "Complete", "failed": "Task failed — check the server log",
+                              "cancelled": "Download cancelled"}[self._state]
+            self._detail = default_detail if self._state == "cancelled" else detail or default_detail
             self._publish(force=True)
         with _jobs_lock:
             _jobs.pop(self.id, None)

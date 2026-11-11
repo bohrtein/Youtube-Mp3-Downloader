@@ -40,6 +40,28 @@ Once running, open your browser to: http://127.0.0.1:5000
 ### 3. Set Your Library Folder
 On the Dashboard, click **Change** next to "Library Folder" and browse to wherever your music should live. This is saved automatically and used right away — no restart needed, and no more hardcoded `downloads/` folder.
 
+### Restore missing library tracks
+
+Click **Restore missing tracks** in **Library**. The server checks the configured library folder against `library.db`, skips files it finds, and restores missing tracks in their cataloged MP3 or FLAC format. It uses saved YouTube links first and tries to find a unique match by title, artist, and duration for older tracks without a link. The job runs in the background and can be cancelled from the Library. Click the same button after an interruption to pick up the remaining files. Keep the catalog database when recovering from lost audio.
+
+The restore spaces downloads five seconds apart. When yt-dlp reports a YouTube rate limit, it can switch the server's VPN exit and retry the same track, up to three switches per run. If the VPN switch fails or the limit persists, the job stops and keeps the audio already restored.
+
+#### Gluetun on the Linux server
+
+Use a dedicated Gluetun instance with the server's VPN provider settings and a choice of exit servers. Set `HTTPPROXY=on` and publish the proxy and control API on loopback, for example `127.0.0.1:8888:8888` and `127.0.0.1:8011:8000`. Give the downloader an API key scoped to `GET /v1/publicip/ip` and `PUT /v1/vpn/status`. [Gluetun control server setup](https://github.com/qdm12/gluetun-wiki/blob/main/setup/advanced/control-server.md)
+
+Set these variables in the downloader's `app.toml` under `[env]`, then restart the Flask process. Keep the key in the server configuration.
+
+```toml
+LIBRARY_RESTORE_VPN_PROXY = "http://127.0.0.1:8888"
+LIBRARY_RESTORE_GLUETUN_URL = "http://127.0.0.1:8011"
+LIBRARY_RESTORE_GLUETUN_API_KEY = "<the key configured in Gluetun>"
+```
+
+Restore downloads use the proxy from the first track. On a rate limit, the downloader reconnects the tunnel and waits for Gluetun to report a different public IP before retrying.
+
+For a host VPN or another VPN client, set `LIBRARY_RESTORE_VPN_ROTATE` to the absolute path of a server-side executable. This takes precedence over Gluetun control. It runs without arguments, with a 90-second timeout, and should return success once the downloader can reach YouTube through a different exit IP. A VPN that already routes the downloader's outbound traffic can omit the proxy setting.
+
 ----
 ## 🌐 The Interface Layer
 These files handle everything the user sees in their browser.

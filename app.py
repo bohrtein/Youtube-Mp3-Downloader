@@ -4,6 +4,7 @@ import shutil
 import string
 import threading
 import uuid
+from functools import wraps
 from pathlib import Path
 from flask import Flask, render_template, request, jsonify, abort, url_for
 from flask_socketio import SocketIO
@@ -13,6 +14,7 @@ import database.libraryFiles as libraryFiles
 import core.approvedDownloads as approvedDownloads
 import core.checkDependencies as checkDependencies
 import core.interfaceComponents as interfaceComponents
+import core.libraryRestore as libraryRestore
 import routes.friendsPublic as friendsPublic
 import routes.suggestAdmin as suggestAdmin
 import main
@@ -71,6 +73,8 @@ MATRIX_LIVE = os.environ.get("MX_LIVE", "/ds/2/" if HUB_PROXY_SECRET else "")
 DELETE_UNDO_SECONDS = 10
 delete_undo = {}
 delete_undo_lock = threading.Lock()
+restore_status = None
+restore_start_lock = threading.Lock()
 
 
 def _finish_delete(token):
@@ -189,6 +193,25 @@ def cancel_download(job_id):
     if not hubJobs.cancel(job_id):
         return jsonify({"success": False, "message": "Download is no longer running."}), 404
     return jsonify({"success": True})
+
+
+@app.route('/api/library/restore', methods=['GET', 'POST'])
+def restore_library_downloads():
+    if request.method == 'GET':
+        return jsonify(restore_status or {}), 200, {"Cache-Control": "no-store"}
+    if not request.is_json:
+        abort(415)
+
+    def publish(update):
+        global restore_status
+        restore_status = update
+
+    with restore_start_lock:
+        if restore_status and restore_status['state'] == 'running':
+            return jsonify(restore_status), 409
+        job = hubJobs.Job("Restoring library", publish, cancellable=True)
+        socketio.start_background_task(job.run, libraryRestore.restore_library)
+        return jsonify(restore_status), 202
 
 
 def run_reported_job(title, work):
@@ -339,7 +362,16 @@ def album_detail(album_id):
 
 # --- API ENDPOINTS (DELETE OPERATIONS) ---
 
+def serialize_catalog_delete(delete):
+    @wraps(delete)
+    def wrapped(*args, **kwargs):
+        with libraryRestore.catalog_file_lock:
+            return delete(*args, **kwargs)
+    return wrapped
+
+
 @app.route('/delete_album/<int:album_id>', methods=['DELETE'])
+@serialize_catalog_delete
 def delete_album(album_id):
     """
     Performs a cascading delete: removes the album's files from the library
@@ -390,6 +422,7 @@ def delete_album(album_id):
         conn.close()
 
 @app.route('/delete_song/<int:song_id>', methods=['DELETE'])
+@serialize_catalog_delete
 def delete_song(song_id):
     """
     Removes a single song's file from the library folder, then its record.
