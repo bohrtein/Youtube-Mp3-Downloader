@@ -93,3 +93,41 @@ def test_library_button_uses_app_prefix(client):
     assert response.status_code == 200
     assert b"Restore missing tracks</button>" in response.data
     assert b'"/app/youtube-mp3-downloader/api/library/restore"' in response.data
+
+
+def test_restore_replaces_unavailable_saved_source(tmp_path, monkeypatch):
+    stale_id = "UpTmMSXm9rw"
+    replacement_id = "JvAZ7ewSsLg"
+    add_library_song("Electric Red", "Meshuggah", "Obzen", stale_id)
+    databaseConnector.set_library_folder(str(tmp_path))
+    monkeypatch.setenv("LIBRARY_RESTORE_VPN_PROXY", "http://127.0.0.1:8888")
+    monkeypatch.setattr(libraryRestore.approvedDownloads, "write_tags", lambda *args, **kwargs: None)
+    attempts = []
+
+    def find(query, *, limit, proxy):
+        assert query == "Meshuggah Obzen Electric Red"
+        assert proxy == "http://127.0.0.1:8888"
+        return [
+            {"youtube_id": stale_id, "title": "Electric Red", "channel": "Meshuggah", "duration": 200},
+            {"youtube_id": replacement_id, "title": "Electric Red", "channel": "Meshuggah", "duration": 201},
+            {"youtube_id": "Cp31A_iqoDw", "title": "Electric Red (Live)", "channel": "Meshuggah", "duration": 200},
+        ]
+
+    def download(url, directory, **kwargs):
+        attempts.append(url.rsplit("=", 1)[-1])
+        audio = directory / "audio.m4a"
+        if attempts[-1] == stale_id:
+            audio.write_bytes(b"partial")
+            raise subprocess.CalledProcessError(1, "yt-dlp", stderr="ERROR: [youtube] Video unavailable")
+        assert not audio.exists()
+        audio.write_bytes(b"restored")
+        return [str(audio)]
+
+    monkeypatch.setattr(libraryRestore.musicSearch, "search_songs", find)
+    monkeypatch.setattr(libraryRestore.playlistDownloader, "download_file_m4a", download)
+    staging = tmp_path / ".app-trash"
+    staging.mkdir()
+    album = libraryRestore._restore_track(libraryRestore._catalog()[0], tmp_path, staging, threading.Event(), "m4a")
+    assert attempts == [stale_id, replacement_id]
+    assert (album / "01 - Electric Red.m4a").read_bytes() == b"restored"
+    assert libraryRestore._catalog()[0]["youtube_id"] == replacement_id

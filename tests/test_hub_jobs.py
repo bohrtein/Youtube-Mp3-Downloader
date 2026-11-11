@@ -1,5 +1,6 @@
 import json
 import subprocess
+import sys
 import threading
 
 import pytest
@@ -80,6 +81,11 @@ def test_cancel_active_download_terminates_subprocess(monkeypatch):
     with pytest.raises(RuntimeError, match="cancelled"):
         playlistDownloader._run_download(["yt-dlp"], event)
     assert process.terminated
+
+
+def test_restore_download_stops_a_stalled_process():
+    with pytest.raises(RuntimeError, match="did not finish the track"):
+        playlistDownloader._run_download([sys.executable, "-c", "import time; time.sleep(60)"], timeout=0.1)
 
 
 def test_dashboard_job_reports_download_failure(monkeypatch, client):

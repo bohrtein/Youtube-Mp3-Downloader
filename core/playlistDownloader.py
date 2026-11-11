@@ -1,28 +1,51 @@
 import core.interfaceComponents as interfaceComponents
 import core.checkDependencies as checkDependencies
 from core import restoreNetwork
+import os
+import signal
 import subprocess
+import time
 
 
-def _run_download(cmd, cancel_event=None):
+def _stop_download(process, isolated):
+    def stop(sig):
+        try:
+            if isolated:
+                os.killpg(process.pid, sig)
+            elif sig == signal.SIGTERM:
+                process.terminate()
+            else:
+                process.kill()
+        except ProcessLookupError:
+            pass
+
+    stop(signal.SIGTERM)
+    try:
+        process.communicate(timeout=5)
+    except subprocess.TimeoutExpired:
+        stop(signal.SIGKILL if isolated else None)
+        process.wait(timeout=5)
+
+
+def _run_download(cmd, cancel_event=None, *, timeout=None):
     """Run yt-dlp while allowing an App Hub cancellation to stop the process."""
     if cancel_event is not None and cancel_event.is_set():
         raise RuntimeError("Download cancelled")
+    isolated = timeout is not None and os.name == "posix"
     process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                               encoding="utf-8", errors="replace")
+                               encoding="utf-8", errors="replace", start_new_session=isolated)
+    deadline = time.monotonic() + timeout if timeout is not None else None
     while True:
         try:
             stdout, stderr = process.communicate(timeout=0.25)
             break
         except subprocess.TimeoutExpired:
             if cancel_event is not None and cancel_event.is_set():
-                process.terminate()
-                try:
-                    stdout, stderr = process.communicate(timeout=5)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                    stdout, stderr = process.communicate()
+                _stop_download(process, isolated)
                 raise RuntimeError("Download cancelled")
+            if deadline is not None and time.monotonic() >= deadline:
+                _stop_download(process, isolated)
+                raise RuntimeError(f"yt-dlp did not finish the track within {timeout} seconds")
     if process.returncode:
         raise subprocess.CalledProcessError(process.returncode, cmd, stdout, stderr)
     return stdout
@@ -65,6 +88,7 @@ def initiate_playlist_loop():
             interfaceComponents.Print_Tag("Please enter a valid URL.", tag="Warning")
 
 PLAYLIST_FILE_TEMPLATE = "%(playlist_title)s/%(playlist_index)02d - %(title)s.%(ext)s"
+RESTORE_TRACK_TIMEOUT = 300
 
 
 def _download_audio(cmd, url, cancel_event, strict, proxy):
@@ -76,7 +100,8 @@ def _download_audio(cmd, url, cancel_event, strict, proxy):
         cmd[-2:-2] = ["--proxy", proxy]
     interfaceComponents.Print_Tag(f"Downloading: {url}", tag="Process")
     try:
-        stdout = _run_download(cmd, cancel_event)
+        stdout = (_run_download(cmd, cancel_event, timeout=RESTORE_TRACK_TIMEOUT) if strict
+                  else _run_download(cmd, cancel_event))
     except Exception as exc:
         if strict:
             raise

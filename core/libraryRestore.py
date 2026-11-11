@@ -1,9 +1,11 @@
 """Restore missing library files from the server's SQLite catalog."""
 from contextlib import closing
 from pathlib import Path
+import re
 import subprocess
 import tempfile
 import threading
+import unicodedata
 
 from core import approvedDownloads, checkDependencies, hubJobs, interfaceComponents
 from core import linkResolver, musicSearch, playlistDownloader, restoreNetwork
@@ -11,6 +13,11 @@ from database import databaseConnector, libraryFiles, suggestionsRepo, syncLibra
 
 TRACK_DELAY_SECONDS = 5
 catalog_file_lock = threading.Lock()
+UNAVAILABLE_SOURCE = re.compile(
+    r"video (?:is )?unavailable|private video|not available in your country|requested format is not available",
+    re.IGNORECASE,
+)
+SMART_QUOTES = str.maketrans("‘’“”", "''\"\"")
 
 
 def _catalog():
@@ -27,24 +34,54 @@ def _key(song):
     return song["artist_name"], song["album_name"], song["track_number"] or 0, song["song_title"]
 
 
-def _video_id(song):
+def _saved_video_id(song):
     video_id = song["youtube_id"]
     if linkResolver.is_video_id(video_id):
         return video_id
-    video_id = linkResolver.extract_video_id(song["source_url"])
-    if video_id:
-        return video_id
+    return linkResolver.extract_video_id(song["source_url"])
 
+
+def _match_text(value):
+    return unicodedata.normalize("NFKC", value).translate(SMART_QUOTES).casefold().strip()
+
+
+def _find_video_id(song, excluded_id=None):
     artist, album, _, title = _key(song)
     duration = song["duration_seconds"]
-    matches = musicSearch.search_songs(f"{artist} {album} {title}", limit=10)
+    matches = musicSearch.search_songs(f"{artist} {album} {title}", limit=10, proxy=restoreNetwork.vpn_proxy())
     ids = {match["youtube_id"] for match in matches
-           if match["title"].casefold() == title.casefold()
-           and match["channel"].casefold() == artist.casefold()
+           if linkResolver.is_video_id(match["youtube_id"])
+           and match["youtube_id"] != excluded_id
+           and _match_text(match["title"]) == _match_text(title)
+           and _match_text(match["channel"]) == _match_text(artist)
            and duration and match["duration"] and abs(duration - match["duration"]) <= 3}
     if len(ids) == 1:
         return ids.pop()
     raise ValueError("No unique YouTube source matched the catalog track")
+
+
+def _download_track(song, download, staging, extension, cancel_event):
+    def fetch(video_id):
+        directory = staging / video_id
+        directory.mkdir()
+        paths = download(linkResolver.music_url(video_id), directory, file_template="audio.%(ext)s",
+                         strict=True, cancel_event=cancel_event, proxy=restoreNetwork.vpn_proxy())
+        audio = directory / f"audio{extension}"
+        if not paths or not audio.is_file():
+            raise RuntimeError("yt-dlp produced no audio file")
+        return audio
+
+    saved_id = _saved_video_id(song)
+    if saved_id:
+        try:
+            return fetch(saved_id), None
+        except subprocess.CalledProcessError as error:
+            stderr = error.stderr or ""
+            if (cancel_event.is_set() or restoreNetwork.is_rate_limited(stderr)
+                    or not UNAVAILABLE_SOURCE.search(stderr)):
+                raise
+    replacement = _find_video_id(song, excluded_id=saved_id)
+    return fetch(replacement), replacement
 
 
 def _restore_track(song, root, staging, cancel_event, audio_format):
@@ -63,11 +100,7 @@ def _restore_track(song, root, staging, cancel_event, audio_format):
 
     download = playlistDownloader.downloader_for(track_format)
     with tempfile.TemporaryDirectory(prefix="track-", dir=staging) as temp:
-        paths = download(linkResolver.music_url(_video_id(song)), temp, file_template="audio.%(ext)s",
-                         strict=True, cancel_event=cancel_event, proxy=restoreNetwork.vpn_proxy())
-        audio = Path(temp) / f"audio{extension}"
-        if not paths or not audio.is_file():
-            raise RuntimeError("yt-dlp produced no audio file")
+        audio, replacement = _download_track(song, download, Path(temp), extension, cancel_event)
         year = song["release_date"] or song["album_year"]
         metadata = {"artist": artist, "album_artist": artist, "album": album, "title": title,
                     "track_number": number, "disc_number": None, "year": str(year) if year else None,
@@ -79,10 +112,14 @@ def _restore_track(song, root, staging, cancel_event, audio_format):
             with closing(databaseConnector.connect_to_db()) as conn:
                 if not conn.execute("SELECT 1 FROM songs WHERE song_id = ?", (song["song_id"],)).fetchone():
                     return None  # Deleted while yt-dlp was running.
-            if destination.exists():
-                raise FileExistsError(f"A file already occupies {destination.name}")
-            folder.mkdir(parents=True, exist_ok=True)
-            audio.replace(destination)
+                if destination.exists():
+                    raise FileExistsError(f"A file already occupies {destination.name}")
+                if replacement:
+                    conn.execute("UPDATE songs SET source_url = ?, youtube_id = ? WHERE song_id = ?",
+                                 (linkResolver.music_url(replacement), replacement, song["song_id"]))
+                folder.mkdir(parents=True, exist_ok=True)
+                audio.replace(destination)
+                conn.commit()
     return folder
 
 

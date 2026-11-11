@@ -32,12 +32,14 @@ def _ytmusic():
     return _ytmusic_client
 
 
-def _ytmusic_search(query, search_filter, limit):
+def _ytmusic_search(query, search_filter, limit, *, proxy=None):
     """YouTube Music search results of one type ("songs", "artists"), or [] on failure."""
     try:
-        return _ytmusic().search(query, filter=search_filter, limit=limit)[:limit]
+        client = YTMusic(proxies={"https": proxy, "http": proxy}) if proxy else _ytmusic()
+        return client.search(query, filter=search_filter, limit=limit)[:limit]
     except Exception as e:
-        interfaceComponents.Print_Tag(f"YouTube Music search failed for '{query}': {e}", tag="Error")
+        detail = type(e).__name__ if proxy else str(e)
+        interfaceComponents.Print_Tag(f"YouTube Music search failed for '{query}': {detail}", tag="Error")
         return []
 
 
@@ -133,7 +135,7 @@ def _ytmusic_song(result):
     }
 
 
-def search_songs(query, limit=20):
+def search_songs(query, limit=20, *, proxy=None):
     """
     Searches YouTube Music's songs for a free-text query. Only songs, not
     videos, so every result is an official audio track.
@@ -146,7 +148,8 @@ def search_songs(query, limit=20):
         list[dict]: [{youtube_id, title, channel, uploader, duration, url}, ...]
     """
     songs, seen = [], set()
-    for result in _ytmusic_search(query, "songs", limit):
+    results = _ytmusic_search(query, "songs", limit, proxy=proxy) if proxy else _ytmusic_search(query, "songs", limit)
+    for result in results:
         song = _ytmusic_song(result)
         if song and song["youtube_id"] not in seen:
             seen.add(song["youtube_id"])
